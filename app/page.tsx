@@ -2,483 +2,307 @@
 
 import { useState } from 'react';
 
-const navItems = ['홈', '환자', '진료 기록', '검사', '문서함'];
+type StepId = 'patient' | 'emr' | 'audio' | 'data' | 'soap' | 'final';
 
-const transcriptFields = [
-  {
-    speaker: '의사 발화',
-    role: 'doctor',
-    description: '문진 질문, 진찰 소견, 의사가 언급한 평가와 처방·검사 계획',
-  },
-  {
-    speaker: '환자 발화',
-    role: 'patient',
-    description: '주호소, 증상 양상과 기간, 과거력, 복약 여부, 생활습관 관련 답변',
-  },
-  {
-    speaker: '화자 미확정',
-    role: 'unknown',
-    description: '화자 구분 신뢰도가 낮아 의사의 확인이 필요한 발화',
-  },
+const flowSteps: { id: StepId; label: string; description: string }[] = [
+  { id: 'patient', label: '환자 선택', description: '진료 대상 확인' },
+  { id: 'emr', label: 'EMR 캡처', description: '차트 데이터 수집' },
+  { id: 'audio', label: '음성 기록', description: '실시간·파일 입력' },
+  { id: 'data', label: '데이터 확인', description: '문진·검사·Transcript' },
+  { id: 'soap', label: 'SOAP 검토', description: 'AI 초안·의사 수정' },
+  { id: 'final', label: '최종 승인', description: '문서 확정' },
 ];
 
 const soapDefinitions = [
-  {
-    letter: 'S',
-    label: 'Subjective',
-    placeholder: '환자가 말한 주호소, 증상, 발생 시점, 기간, 악화·완화 요인, 과거력, 복약 정보를 입력합니다.',
-  },
-  {
-    letter: 'O',
-    label: 'Objective',
-    placeholder: '실제 진찰 소견, 활력징후, 검사명, 검사 수치와 단위 등 객관적 정보를 입력합니다.',
-  },
-  {
-    letter: 'A',
-    label: 'Assessment',
-    placeholder: '의사가 진료 중 직접 언급하거나 확정한 평가·진단만 입력합니다.',
-  },
-  {
-    letter: 'P',
-    label: 'Plan',
-    placeholder: '의사가 직접 언급한 처방, 검사 계획, 생활 안내, 경과관찰 계획만 입력합니다.',
-  },
+  ['S', 'Subjective', '환자가 말한 주호소, 증상, 발생 시점, 기간, 악화·완화 요인, 과거력과 복약 정보'],
+  ['O', 'Objective', '실제 진찰 소견, 활력징후, 검사명, 검사 수치와 단위 등 객관적 정보'],
+  ['A', 'Assessment', '의사가 진료 중 직접 언급하거나 확정한 평가·진단'],
+  ['P', 'Plan', '의사가 직접 언급한 처방, 검사 계획, 생활 안내와 경과관찰 계획'],
 ];
 
-const pipelineSteps = [
-  ['파일 확인', '확장자 · MIME type · 실제 Codec · 파일 크기 · Hash'],
-  ['Audio 표준화', '16kHz · Mono · PCM WAV 변환'],
-  ['음성 구간 탐지', 'VAD · Chunking · Timestamp 정렬'],
-  ['STT', '의료진과 환자의 발화를 텍스트로 변환'],
-  ['화자 구분', 'DOCTOR · PATIENT · UNKNOWN 분류'],
-  ['의료용어 보정', '병원 용어집 · 검사명 · 약품명 · 질환명 적용'],
-  ['SOAP 생성', '검증된 Transcript 기반 구조화 초안 생성'],
+const transcriptFields = [
+  ['의사 발화', '의', '문진 질문 · 진찰 소견 · 평가 · 처방 및 검사 계획'],
+  ['환자 발화', '환', '주호소 · 증상 양상과 기간 · 과거력 · 복약 · 생활습관'],
+  ['화자 미확정', '?', '화자 신뢰도가 낮아 의사 확인이 필요한 발화'],
 ];
 
 function formatFileSize(bytes: number) {
   if (bytes === 0) return '0 KB';
   const units = ['B', 'KB', 'MB', 'GB'];
-  const unitIndex = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-  return `${(bytes / 1024 ** unitIndex).toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return `${(bytes / 1024 ** index).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
 }
 
-function EmptyTable({ columns, message }: { columns: string[]; message: string }) {
+function HomeScreen({ onStart }: { onStart: () => void }) {
   return (
-    <div className="data-table">
-      <div className="table-head" style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(110px, 1fr))` }}>
-        {columns.map((column) => <span key={column}>{column}</span>)}
+    <section className="agent-home">
+      <div className="agent-hero">
+        <div className="agent-copy">
+          <p className="eyebrow">ONE PATIENT · ONE ENCOUNTER</p>
+          <h1>한 명의 환자,<br />하나의 진료 흐름</h1>
+          <p>환자를 선택하면 EMR 캡처부터 진료 음성, 데이터 확인, SOAP 검토와 최종 승인까지 끊김 없이 이어집니다.</p>
+          <button className="hero-start" onClick={onStart}><i>＋</i><span><strong>진료 시작</strong><small>환자 선택부터 시작합니다</small></span><b>→</b></button>
+        </div>
+        <div className="agent-orbit" aria-hidden="true">
+          <div className="orbit-center"><i>M</i><strong>Clinical<br />Agent</strong></div>
+          {['환자', 'EMR', 'Audio', 'Data', 'SOAP', '승인'].map((label, index) => <span className={`orbit-item orbit-${index}`} key={label}>{label}</span>)}
+        </div>
       </div>
-      <div className="table-empty">
-        <i />
-        <strong>표시할 데이터가 없습니다</strong>
-        <span>{message}</span>
+
+      <div className="journey-board">
+        <header><div><p className="eyebrow">ENCOUNTER JOURNEY</p><h2>진료가 진행되는 순서</h2></div><span>각 단계의 데이터는 다음 단계로 자동 전달</span></header>
+        <div className="journey-steps">
+          {flowSteps.map((step, index) => (
+            <button key={step.id} onClick={onStart}>
+              <i>{index + 1}</i>
+              <span><strong>{step.label}</strong><small>{step.description}</small></span>
+              {index < flowSteps.length - 1 && <b>→</b>}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="home-bottom-grid">
+        <section className="agent-info-card">
+          <i className="agent-info-icon local-icon">✓</i>
+          <div><strong>모든 처리는 병원 내부에서</strong><p>Audio · Transcript · EMR · AI 생성물은 외부 서비스로 전송하지 않습니다.</p></div>
+        </section>
+        <section className="agent-info-card">
+          <i className="agent-info-icon doctor-icon">D</i>
+          <div><strong>AI는 정리하고, 의사가 판단</strong><p>AI 초안은 의사가 직접 수정하고 승인하기 전까지 Final Data가 아닙니다.</p></div>
+        </section>
+        <section className="active-encounter-card">
+          <div><p className="eyebrow">ACTIVE ENCOUNTER</p><strong>진행 중인 진료 없음</strong><span>새 진료를 시작하면 환자와 현재 단계가 여기에 표시됩니다.</span></div>
+          <button onClick={onStart}>진료 시작 →</button>
+        </section>
+      </div>
+    </section>
+  );
+}
+
+function PatientStep() {
+  return (
+    <div className="step-surface patient-step">
+      <header className="step-heading"><div><p className="eyebrow">STEP 1 · PATIENT</p><h2>진료 환자 선택</h2><span>환자이름 또는 환자등록번호로 오늘 진료할 환자를 확인합니다.</span></div><span className="step-status">환자 선택 대기</span></header>
+      <section className="patient-search-card">
+        <label className="encounter-search"><i /><input placeholder="환자이름 또는 환자등록번호 검색" aria-label="환자 검색" /><kbd>Enter</kbd></label>
+        <div className="recent-filter"><button className="active">오늘 진료</button><button>최근 내원</button><button>전체 환자</button></div>
+      </section>
+      <section className="patient-result-card">
+        <div className="patient-result-head"><span>검색 결과</span><b>EMR 연결 후 표시</b></div>
+        <div className="patient-result-empty"><i /><strong>환자를 검색해 주세요</strong><span>환자이름 · 환자등록번호 · 성별 · 나이 · 최근 내원일 · 주호소가 표시됩니다.</span></div>
+      </section>
+      <section className="selected-patient-schema">
+        <header><strong>선택 후 진료 세션에 유지되는 환자 정보</strong><span>모든 다음 단계 상단에 고정 표시</span></header>
+        <div><span>환자이름</span><span>성별 · 나이</span><span>환자등록번호</span><span>생년월일</span><span>주호소</span><span>알레르기</span><span>초진 / 재진</span><span>담당 진료과</span></div>
+      </section>
+    </div>
+  );
+}
+
+function EmrStep({ captured, onCapture }: { captured: boolean; onCapture: () => void }) {
+  const extractedGroups = [
+    ['환자 기본정보', '환자이름 · 환자등록번호 · 성별 · 생년월일'],
+    ['사전 문진', '주호소 · 증상 · 기간 · 과거력 · 복약 · 알레르기'],
+    ['검사·차트', '검사명 · 결과값 · 단위 · 검사일 · Reference Range'],
+    ['의사 기록', '과거 진단 · 처방 · 치료계획 · 경과 기록'],
+  ];
+  return (
+    <div className="step-surface">
+      <header className="step-heading"><div><p className="eyebrow">STEP 2 · EMR CAPTURE</p><h2>현재 EMR 화면 캡처</h2><span>진료에 필요한 환자·문진·검사·차트 정보를 구조화합니다.</span></div><span className={captured ? 'step-status complete' : 'step-status'}>{captured ? '캡처 구조 확인' : '캡처 대기'}</span></header>
+      <div className="emr-layout">
+        <section className="emr-capture-zone">
+          <div className="capture-window">
+            <div className="capture-window-bar"><i /><i /><i /><span>현재 EMR 화면</span></div>
+            <div className="capture-placeholder"><i /><strong>EMR 캡처 영역</strong><span>Capture Agent가 현재 활성화된 EMR 화면을 가져옵니다.</span></div>
+          </div>
+          <div className="capture-actions"><div><i /><span><strong>Capture Agent 연결 상태</strong><small>Windows Host의 EMR 화면 접근 여부</small></span></div><button onClick={onCapture}>{captured ? '다시 캡처' : 'EMR 화면 캡처'}</button></div>
+        </section>
+        <section className="extract-panel">
+          <header><div><p className="eyebrow">STRUCTURED DATA</p><h3>추출 데이터</h3></div><span>{captured ? '구조 확인' : '입력 대기'}</span></header>
+          <div className="extract-groups">
+            {extractedGroups.map(([title, fields], index) => <article key={title}><i>{index + 1}</i><div><strong>{title}</strong><p>{fields}</p></div><b>{captured ? '확인 필요' : '대기'}</b></article>)}
+          </div>
+          <div className="capture-policy"><i>i</i><span><strong>숫자와 단위는 별도 Validation</strong><small>OCR 결과를 그대로 확정하지 않고 Pattern · Unit · 범위를 검증합니다.</small></span></div>
+        </section>
       </div>
     </div>
   );
 }
 
-function HomeView({ onNavigate }: { onNavigate: (view: string) => void }) {
-  const summaryCards = [
-    ['오늘 진료', '진료 예정·진행·완료 환자 수', '환자'],
-    ['검토 대기', '의사 검토가 필요한 SOAP·문진·검사 설명', '진료 기록'],
-    ['Audio 처리', '업로드·STT·화자 구분·의료용어 보정 상태', '진료 기록'],
-    ['승인 문서', '최종 승인된 SOAP·환자 리포트·처방 설명서', '문서함'],
-  ];
-  const quickActions = [
-    ['환자 선택', '환자이름 또는 환자등록번호로 진료 대상 선택', '환자'],
-    ['실시간 진료 기록', 'Microphone 입력으로 Transcript 생성 시작', '진료 기록'],
-    ['녹음파일 가져오기', 'M4A·MP3·WAV·AAC 파일을 SOAP 입력으로 사용', '진료 기록'],
-    ['검사 데이터 불러오기', 'EMR·OCR·장비 데이터 구조화 및 Before/After 비교', '검사'],
-  ];
+function AudioStep() {
+  const [captureMode, setCaptureMode] = useState<'live' | 'upload'>('live');
+  const [recording, setRecording] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileExtension = selectedFile?.name.split('.').pop()?.toUpperCase() || 'AUDIO';
 
   return (
-    <section className="overview-page">
-      <header className="page-heading hero-heading">
-        <div><p className="eyebrow">CLINICAL DOCUMENTATION WORKSPACE</p><h1>진료 문서화 업무</h1><span>진료 데이터 입력부터 AI 초안, 의사 검토와 최종 승인까지 한곳에서 관리합니다.</span></div>
-        <div className="local-architecture"><i>✓</i><p><strong>Local First</strong><span>AI 처리 · 데이터 저장 · RAG 검색을 병원 내부에서 수행</span></p></div>
-      </header>
-
-      <div className="summary-grid">
-        {summaryCards.map(([title, description, target], index) => (
-          <button className="summary-card" key={title} onClick={() => onNavigate(target)}>
-            <span className={`summary-icon tone-${index}`} aria-hidden="true" />
-            <div><strong>{title}</strong><p>{description}</p></div>
-            <b>연동 후 표시</b>
-          </button>
-        ))}
+    <div className="step-surface">
+      <header className="step-heading"><div><p className="eyebrow">STEP 3 · AUDIO</p><h2>진료 음성 기록</h2><span>실시간 Microphone 또는 스마트폰 녹음파일 중 하나를 선택합니다.</span></div><div className="capture-switch"><button className={captureMode === 'live' ? 'active' : ''} onClick={() => setCaptureMode('live')}>실시간 녹음</button><button className={captureMode === 'upload' ? 'active' : ''} onClick={() => setCaptureMode('upload')}>파일 업로드</button></div></header>
+      <div className="audio-flow-layout">
+        <section className="audio-input-panel">
+          {captureMode === 'live' ? (
+            <>
+              <div className="live-recorder">
+                <span className={recording ? 'record-orb active' : 'record-orb'}><i /></span>
+                <div><p className="eyebrow">RECORDING TIME</p><strong>00 : 00 : 00</strong><small>{recording ? '진료 음성을 기록하고 있습니다' : '녹음 시작을 눌러 진료 기록을 시작하세요'}</small></div>
+                <button onClick={() => setRecording(!recording)}>{recording ? '녹음 중지' : '녹음 시작'}</button>
+              </div>
+              <div className="audio-wave" aria-hidden="true">{[18,34,22,48,29,56,31,40,21,51,37,26,45,20,33,49,25,38,17,30,42,27,50,22].map((height, index) => <i style={{ height: recording ? height : 3 }} key={index} />)}</div>
+            </>
+          ) : !selectedFile ? (
+            <div className="flow-dropzone"><i /><strong>진료 녹음파일 선택</strong><span>M4A · MP3 · WAV · AAC</span><label><input type="file" accept=".m4a,.mp3,.wav,.aac,audio/*" onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)} /><b>파일 선택</b></label><small>원본은 병원 내부 저장소에만 저장됩니다.</small></div>
+          ) : (
+            <div className="flow-file-selected"><i>{fileExtension}</i><div><strong>{selectedFile.name}</strong><span>{formatFileSize(selectedFile.size)} · {selectedFile.type || 'MIME type 확인 필요'}</span><small>재생시간 · Codec · Sample Rate · Hash는 분석 단계에서 확인</small></div><button onClick={() => setSelectedFile(null)}>×</button></div>
+          )}
+        </section>
+        <section className="live-transcript-panel">
+          <header><div><p className="eyebrow">LIVE TRANSCRIPT</p><h3>화자별 Transcript</h3></div><span>입력 대기</span></header>
+          <div className="flow-transcript-list">
+            {transcriptFields.map(([speaker, avatar, fields], index) => <article key={speaker}><i className={`speaker-${index}`}>{avatar}</i><div><strong>{speaker}<small>Timestamp · Confidence</small></strong><p>{fields}</p></div></article>)}
+          </div>
+          <footer><span>Medical Term Correction</span><span>Speaker Diarization</span><span>Low Confidence Review</span></footer>
+        </section>
       </div>
+    </div>
+  );
+}
 
-      <div className="home-grid">
-        <section className="workspace-card quick-card">
-          <header><div><p className="eyebrow">QUICK START</p><h2>업무 시작</h2></div></header>
-          <div className="quick-actions">
-            {quickActions.map(([title, description, target], index) => (
-              <button key={title} onClick={() => onNavigate(target)}>
-                <i>{index + 1}</i><span><strong>{title}</strong><small>{description}</small></span><b>→</b>
-              </button>
-            ))}
+function DataStep() {
+  const sources = [
+    ['사전 문진', 'Questionnaire', '주호소 · 증상 · 기간 · 과거력 · 복약 · 알레르기 · 생활습관'],
+    ['EMR · 검사', 'Structured Data', '진찰 소견 · 검사명 · 수치 · 단위 · Reference Range · 과거 차트'],
+    ['진료 음성', 'Transcript', '화자 · Timestamp · 발화 · Confidence · 검토 필요 구간'],
+  ];
+  return (
+    <div className="step-surface">
+      <header className="step-heading"><div><p className="eyebrow">STEP 4 · DATA REVIEW</p><h2>SOAP 생성 전 데이터 확인</h2><span>서로 다른 입력을 한 번 확인한 뒤, 검증된 정보만 AI에 전달합니다.</span></div><span className="step-status">검토 대기</span></header>
+      <div className="source-review-grid">
+        {sources.map(([title, type, fields], index) => <section key={title}><header><i>{index + 1}</i><div><strong>{title}</strong><span>{type}</span></div><b>입력 대기</b></header><p>{fields}</p><button>원본 데이터 확인 →</button></section>)}
+      </div>
+      <section className="preflight-card">
+        <header><div><p className="eyebrow">PRE-GENERATION CHECK</p><h3>SOAP 생성 전 확인 항목</h3></div><span>Validation Layer</span></header>
+        <div className="check-matrix">
+          {['환자 정보 일치', '숫자와 단위 보존', '약품명 확인', '검사명 확인', '의사 진단 발화 확인', '처방·계획 발화 확인', 'Low Confidence 구간 검토', '입력되지 않은 정보 차단'].map((item) => <span key={item}><i />{item}<b>확인 예정</b></span>)}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function SoapStep({ values, onChange }: { values: Record<string, string>; onChange: (letter: string, value: string) => void }) {
+  return (
+    <div className="step-surface">
+      <header className="step-heading"><div><p className="eyebrow">STEP 5 · DOCTOR REVIEW</p><h2>SOAP 초안 검토</h2><span>AI 생성값과 입력 근거를 확인하고 의사가 직접 수정합니다.</span></div><span className="step-status">AI 생성 전</span></header>
+      <div className="soap-flow-layout">
+        <section className="soap-editor-card">
+          <header><div><p className="eyebrow">STRUCTURED SOAP</p><h3>의사 수정본</h3></div><span>직접 편집 가능</span></header>
+          <div className="flow-soap-fields">
+            {soapDefinitions.map(([letter, label, placeholder]) => <label key={letter}><i className={`soap-${letter.toLowerCase()}`}>{letter}</i><span><strong>{label}</strong><textarea value={values[letter]} onChange={(event) => onChange(letter, event.target.value)} placeholder={placeholder} /></span></label>)}
           </div>
         </section>
-
-        <section className="workspace-card workflow-card">
-          <header><div><p className="eyebrow">REVIEW WORKFLOW</p><h2>문서 승인 흐름</h2></div></header>
-          <ol>
-            {[
-              ['AI_GENERATED', 'Transcript·문진·검사 데이터 기반 초안'],
-              ['DOCTOR_REVIEWING', '원본과 AI 출력 비교 및 검증'],
-              ['DOCTOR_MODIFIED', '의사가 직접 수정한 내용 저장'],
-              ['DOCTOR_APPROVED', '담당의 확인 및 승인 기록'],
-              ['FINALIZED', '최종 진료 문서·환자용 문서 확정'],
-            ].map(([status, description], index) => (
-              <li key={status}><i>{index + 1}</i><span><strong>{status}</strong><small>{description}</small></span></li>
-            ))}
-          </ol>
-        </section>
+        <aside className="evidence-panel">
+          <header><div><p className="eyebrow">GROUNDING</p><h3>입력 근거</h3></div><span>원본 연결</span></header>
+          <div className="evidence-empty"><i /><strong>SOAP 문장을 선택하세요</strong><span>선택한 문장의 Transcript, 문진 또는 검사 원본이 여기에 표시됩니다.</span></div>
+          <div className="evidence-rules"><strong>생성 제한 규칙</strong>{['입력에 없는 정보 생성 금지', '새로운 확정 진단 생성 금지', '의사가 말하지 않은 처방 금지', '숫자와 단위 변경 금지'].map((rule) => <span key={rule}><i>✓</i>{rule}</span>)}</div>
+        </aside>
       </div>
-
-      <section className="workspace-card queue-card">
-        <header><div><p className="eyebrow">ENCOUNTER QUEUE</p><h2>진료 업무 목록</h2></div><button onClick={() => onNavigate('환자')}>환자 찾기 →</button></header>
-        <EmptyTable
-          columns={['진료시간', '환자이름', '환자등록번호', '진료구분', '입력 데이터', '문서 상태']}
-          message="EMR 또는 진료 일정 연동 후 환자별 진료 업무가 표시됩니다."
-        />
-      </section>
-    </section>
+    </div>
   );
 }
 
-function PatientsView({ onNavigate }: { onNavigate: (view: string) => void }) {
-  return (
-    <section className="overview-page">
-      <header className="page-heading">
-        <div><p className="eyebrow">PATIENT DIRECTORY</p><h1>환자</h1><span>진료 대상 환자를 검색하고 문진·검사·진료 기록을 확인합니다.</span></div>
-        <button className="page-primary" onClick={() => onNavigate('진료 기록')}>환자 선택 후 진료 시작 →</button>
-      </header>
-      <section className="workspace-card directory-card">
-        <div className="directory-tools">
-          <label><i /><input placeholder="환자이름 또는 환자등록번호 검색" aria-label="환자 검색" /></label>
-          <button>최근 내원순</button><button>담당 진료과</button>
-        </div>
-        <EmptyTable
-          columns={['환자이름', '환자등록번호', '성별 · 나이', '생년월일', '최근 내원일', '주호소', '진료 상태']}
-          message="Patient 및 Encounter 데이터 연동 후 환자 목록이 표시됩니다."
-        />
-      </section>
-      <div className="field-guide">
-        <strong>환자 화면에 표시되는 데이터</strong>
-        <span>기본정보</span><p>환자이름 · 환자등록번호 · 성별 · 생년월일 · 연락처</p>
-        <span>진료정보</span><p>초진일 · 최근 내원일 · 담당의 · 진료과 · 주호소</p>
-        <span>안전정보</span><p>알레르기 · 복용약 · 중요 주의사항 · 개인정보 동의 상태</p>
-      </div>
-    </section>
-  );
-}
-
-function ExamsView() {
-  const examTypes = [
-    ['자율신경검사', 'HRV · LF · HF · LF/HF · Before/After 값'],
-    ['검사 결과', '검사명 · 결과값 · 단위 · Reference Range · 판정'],
-    ['EMR 차트 캡처', '화면 캡처 · OCR 원문 · 구조화 JSON · 검증 상태'],
+function FinalStep({ approved, onApprove, onNew }: { approved: boolean; onApprove: () => void; onNew: () => void }) {
+  const outputs = [
+    ['진료기록', '최종 승인된 SOAP와 의사 수정 이력'],
+    ['환자용 리포트', '확정된 진단·검사·치료계획의 쉬운 설명'],
+    ['처방 설명서', '확정 처방의 목적·복용법·주의사항'],
   ];
   return (
-    <section className="overview-page">
-      <header className="page-heading">
-        <div><p className="eyebrow">EXAMINATION DATA</p><h1>검사</h1><span>검사값은 Analysis Engine이 계산하고 Rule Engine이 병원 기준을 적용합니다.</span></div>
-        <button className="page-primary">검사 데이터 가져오기</button>
-      </header>
-      <div className="exam-type-grid">
-        {examTypes.map(([title, fields], index) => (
-          <section className="workspace-card exam-type" key={title}><i className={`tone-${index}`} /><div><strong>{title}</strong><p>{fields}</p></div><button>입력 구조 보기 →</button></section>
-        ))}
+    <div className="step-surface final-step">
+      <header className="step-heading"><div><p className="eyebrow">STEP 6 · FINAL APPROVAL</p><h2>최종 확인 및 승인</h2><span>의사가 승인한 데이터만 Final Data와 환자용 문서에 사용합니다.</span></div><span className={approved ? 'step-status complete' : 'step-status'}>{approved ? 'FINALIZED' : '승인 대기'}</span></header>
+      <div className="final-layout">
+        <section className="approval-summary">
+          <header><div><p className="eyebrow">APPROVAL SUMMARY</p><h3>승인 전 최종 확인</h3></div><i>{approved ? '✓' : '!'}</i></header>
+          <div className="approval-checks">
+            {['환자 기본정보', 'Transcript 검토 구간', 'SOAP Subjective', 'SOAP Objective', '의사가 확정한 Assessment', '의사가 확정한 Plan', '숫자·단위 Validation', '변경 이력 저장'].map((item) => <span key={item}><i>{approved ? '✓' : '○'}</i>{item}<b>{approved ? '확인' : '검토 필요'}</b></span>)}
+          </div>
+          <button className="final-approve" disabled={approved} onClick={onApprove}>{approved ? '최종 승인 완료' : '내용을 확인하고 최종 승인'} <b>✓</b></button>
+          <small>승인자 · 승인시간 · 모델 버전 · Prompt 버전 · RAG Snapshot · Rule 버전이 Audit Log에 저장됩니다.</small>
+        </section>
+        <aside className="output-documents">
+          <header><p className="eyebrow">FINAL OUTPUT</p><h3>승인 후 생성 문서</h3></header>
+          {outputs.map(([title, description], index) => <article key={title}><i>{index + 1}</i><div><strong>{title}</strong><span>{description}</span></div><b>{approved ? '생성 가능' : '승인 후'}</b></article>)}
+          {approved && <button onClick={onNew}>새 진료 시작 →</button>}
+        </aside>
       </div>
-      <section className="workspace-card comparison-card">
-        <header><div><p className="eyebrow">BEFORE / AFTER ANALYSIS</p><h2>자율신경검사 비교</h2></div><span>계산값은 LLM이 변경하지 않음</span></header>
-        <EmptyTable
-          columns={['검사 지표', 'Before 값', 'After 값', '변화량', '변화율', '방향', 'Rule Flag']}
-          message="환자와 검사 회차를 선택하면 Analysis Engine의 계산 결과가 표시됩니다."
-        />
-      </section>
-      <div className="field-guide">
-        <strong>검사 데이터 처리 원칙</strong>
-        <span>Structured Data</span><p>검사명 · 수치 · 단위 · 검사일시 · 장비 · 원본 참조</p>
-        <span>Analysis Engine</span><p>Before/After 변화량 · 변화율 · 증가/감소 방향 계산</p>
-        <span>Rule Engine</span><p>Reference Range · 병원 기준 · Warning · Manual Check Flag</p>
-      </div>
-    </section>
-  );
-}
-
-function DocumentsView() {
-  return (
-    <section className="overview-page">
-      <header className="page-heading">
-        <div><p className="eyebrow">CLINICAL DOCUMENTS</p><h1>문서함</h1><span>AI 초안, 의사 수정본, 최종 승인 문서와 변경 이력을 관리합니다.</span></div>
-        <button className="page-primary">문서 내보내기</button>
-      </header>
-      <div className="document-statuses">
-        {['AI 생성', '의사 검토 중', '의사 수정', '최종 승인', '확정 문서'].map((status, index) => <button className={index === 0 ? 'active' : ''} key={status}>{status}<b>연동 후 표시</b></button>)}
-      </div>
-      <section className="workspace-card directory-card">
-        <div className="directory-tools">
-          <label><i /><input placeholder="환자이름 · 환자등록번호 · 문서내용 검색" aria-label="문서 검색" /></label>
-          <button>문서 종류</button><button>검토 상태</button><button>작성 기간</button>
-        </div>
-        <EmptyTable
-          columns={['문서 종류', '환자이름', '환자등록번호', '진료일', '검토 상태', '담당의', '최종 수정일']}
-          message="SOAP, 문진 요약, 검사 설명, 환자 리포트, 처방 설명서가 상태별로 표시됩니다."
-        />
-      </section>
-      <div className="field-guide">
-        <strong>문서별 저장 데이터</strong>
-        <span>AI 생성값</span><p>모델명 · 모델 버전 · Prompt 버전 · RAG Snapshot · 생성시간</p>
-        <span>의사 수정값</span><p>수정 내용 · 수정자 · 수정시간 · 변경 전후 비교</p>
-        <span>최종 승인값</span><p>승인 문서 · 승인자 · 승인시간 · 감사 로그 · Finalized 상태</p>
-      </div>
-    </section>
+    </div>
   );
 }
 
 export default function Home() {
-  const [activeView, setActiveView] = useState('홈');
-  const [recording, setRecording] = useState(false);
-  const [captureMode, setCaptureMode] = useState<'live' | 'upload'>('live');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [showPipeline, setShowPipeline] = useState(false);
-  const [reviewOpen, setReviewOpen] = useState(false);
+  const [activeStep, setActiveStep] = useState<StepId | null>(null);
+  const [emrCaptured, setEmrCaptured] = useState(false);
+  const [approved, setApproved] = useState(false);
   const [soapValues, setSoapValues] = useState<Record<string, string>>({ S: '', O: '', A: '', P: '' });
 
-  const fileExtension = selectedFile?.name.split('.').pop()?.toUpperCase() || 'AUDIO';
+  const currentIndex = activeStep ? flowSteps.findIndex((step) => step.id === activeStep) : -1;
+  const goHome = () => setActiveStep(null);
+  const startEncounter = () => { setApproved(false); setEmrCaptured(false); setSoapValues({ S: '', O: '', A: '', P: '' }); setActiveStep('patient'); };
+  const goNext = () => { if (currentIndex < flowSteps.length - 1) setActiveStep(flowSteps[currentIndex + 1].id); };
+  const goPrevious = () => { if (currentIndex > 0) setActiveStep(flowSteps[currentIndex - 1].id); else goHome(); };
 
   return (
-    <main className="app-shell">
-      <aside className="nav-rail">
-        <div className="brand-mark" aria-label="MediFlow 홈">M</div>
-        <nav aria-label="주요 메뉴">
-          {navItems.map((item, index) => (
-            <button
-              className={activeView === item ? 'nav-item active' : 'nav-item'}
-              key={item}
-              onClick={() => setActiveView(item)}
-            >
-              <span className={`nav-icon nav-icon-${index}`} aria-hidden="true" />
-              <span>{item}</span>
+    <main className="flow-app">
+      <aside className="flow-rail">
+        <button className="flow-brand" onClick={goHome} aria-label="홈">M</button>
+        <button className={!activeStep ? 'flow-home-button active' : 'flow-home-button'} onClick={goHome}><i /><span>홈</span></button>
+        <div className="flow-rail-line" />
+        <nav aria-label="진료 진행 단계">
+          {flowSteps.map((step, index) => (
+            <button className={activeStep === step.id ? 'flow-step-nav active' : currentIndex > index ? 'flow-step-nav done' : 'flow-step-nav'} key={step.id} onClick={() => activeStep && setActiveStep(step.id)} disabled={!activeStep}>
+              <i>{currentIndex > index ? '✓' : index + 1}</i><span>{step.label}</span>
             </button>
           ))}
         </nav>
-        <button className="nav-item nav-bottom">
-          <span className="nav-icon nav-icon-settings" aria-hidden="true" />
-          <span>설정</span>
-        </button>
+        {activeStep && <button className="new-encounter" onClick={startEncounter}><i>＋</i><span>새 진료</span></button>}
       </aside>
 
-      <section className="workspace">
-        <header className="topbar">
-          <div>
-            <div className="product-name">MEDIFLOW <span>Clinical AI</span></div>
-            <div className="local-badge"><i /> 병원 내부망 · Local AI</div>
-          </div>
-          <label className="patient-search">
-            <span aria-hidden="true" />
-            <input aria-label="환자 검색" placeholder="환자이름 또는 환자등록번호 검색" />
-            <kbd>⌘ K</kbd>
-          </label>
-          <div className="privacy-note">
-            <i>✓</i><span><strong>Local Processing</strong><small>환자 데이터 외부 전송 없음</small></span>
-          </div>
+      <section className="flow-workspace">
+        <header className="flow-topbar">
+          <div><div className="product-name">MEDIFLOW <span>Clinical AI Agent</span></div><div className="local-badge"><i /> 병원 내부망 · Local AI</div></div>
+          {activeStep ? <div className="active-patient-mini"><i>환자</i><span><strong>환자이름</strong><small>성별 · 나이 · 환자등록번호</small></span><b>진료 진행 중</b></div> : <div className="topbar-idle"><i>✓</i><span>환자 데이터 외부 전송 없음</span></div>}
         </header>
 
-        {activeView === '홈' && <HomeView onNavigate={setActiveView} />}
-        {activeView === '환자' && <PatientsView onNavigate={setActiveView} />}
-        {activeView === '검사' && <ExamsView />}
-        {activeView === '문서함' && <DocumentsView />}
-        {activeView === '진료 기록' && (
+        {!activeStep ? <HomeScreen onStart={startEncounter} /> : (
           <>
-        <div className="patient-bar">
-          <div className="patient-avatar">환자</div>
-          <div className="patient-identity">
-            <div><h1>환자이름</h1><span>성별 · 나이</span><span className="patient-id">환자등록번호</span></div>
-            <p>생년월일 <i /> 초진일 <i /> 최근 내원일</p>
-          </div>
-          <div className="patient-tags">
-            <span>주호소 <b>환자가 호소하는 주요 증상</b></span>
-            <span>알레르기 <b>약물·음식 알레르기 정보</b></span>
-          </div>
-          <button className="ghost-button">환자 차트 열기 <b>↗</b></button>
-        </div>
+            <div className="encounter-patient-bar">
+              <div className="encounter-patient-avatar">환자</div>
+              <div><strong>환자이름</strong><span>성별 · 나이</span><small>환자등록번호</small></div>
+              <dl><div><dt>주호소</dt><dd>환자가 호소하는 주요 증상</dd></div><div><dt>알레르기</dt><dd>약물·음식 알레르기 정보</dd></div><div><dt>진료구분</dt><dd>초진 / 재진</dd></div></dl>
+              <button onClick={() => setActiveStep('patient')}>환자정보 확인</button>
+            </div>
 
-        <div className="encounter-head">
-          <div>
-            <p className="eyebrow">진료일 · 진료시간</p>
-            <h2>진료 기록 <span className="visit-chip">초진 / 재진</span></h2>
-          </div>
-          <div className="workflow-state" aria-label="문서 처리 단계">
-            <span className="current"><i>1</i>진료 데이터 입력</span><b />
-            <span><i>2</i>AI 초안 생성</span><b />
-            <span><i>3</i>의사 검토·승인</span>
-          </div>
-          <span className="data-state">데이터 입력 대기</span>
-        </div>
+            <div className="flow-progress">
+              {flowSteps.map((step, index) => <button className={index === currentIndex ? 'active' : index < currentIndex ? 'done' : ''} key={step.id} onClick={() => setActiveStep(step.id)}><i>{index < currentIndex ? '✓' : index + 1}</i><span><strong>{step.label}</strong><small>{step.description}</small></span>{index < flowSteps.length - 1 && <b />}</button>)}
+            </div>
 
-        <div className="content-grid">
-          <section className="panel transcript-panel">
-            <header className="panel-title">
-              <div><p className="eyebrow">AUDIO INPUT</p><h3>진료 음성 및 Transcript</h3></div>
-              <div className="capture-switch" role="tablist" aria-label="오디오 입력 방식">
-                <button className={captureMode === 'live' ? 'active' : ''} onClick={() => setCaptureMode('live')}>실시간 녹음</button>
-                <button className={captureMode === 'upload' ? 'active' : ''} onClick={() => setCaptureMode('upload')}>파일 업로드</button>
-              </div>
-            </header>
+            <div className="flow-content">
+              {activeStep === 'patient' && <PatientStep />}
+              {activeStep === 'emr' && <EmrStep captured={emrCaptured} onCapture={() => setEmrCaptured(true)} />}
+              {activeStep === 'audio' && <AudioStep />}
+              {activeStep === 'data' && <DataStep />}
+              {activeStep === 'soap' && <SoapStep values={soapValues} onChange={(letter, value) => setSoapValues({ ...soapValues, [letter]: value })} />}
+              {activeStep === 'final' && <FinalStep approved={approved} onApprove={() => setApproved(true)} onNew={startEncounter} />}
+            </div>
 
-            {captureMode === 'live' ? (
-              <>
-                <div className="record-console">
-                  <div className="timer"><span>00</span><b>:</b><span>00</span><b>:</b><span>00</span></div>
-                  <div className={recording ? 'wave active-wave' : 'wave'} aria-hidden="true">
-                    {[18,34,22,48,29,56,31,40,21,51,37,26,45,20,33,49,25,38,17,30].map((height, index) => (
-                      <i style={{ height: recording ? height : 4 }} key={index} />
-                    ))}
-                  </div>
-                  <div className="record-controls">
-                    <span className={recording ? 'record-status' : 'record-status ready'}><i /> {recording ? '녹음 중' : '녹음 대기'}</span>
-                    <button className="stop-recording" onClick={() => setRecording(!recording)}><i /> {recording ? '중지' : '시작'}</button>
-                  </div>
-                </div>
-
-                <div className="transcript-list schema-list">
-                  <div className="empty-state-head"><strong>Transcript 표시 항목</strong><span>녹음을 시작하면 아래 구조로 발화가 표시됩니다.</span></div>
-                  {transcriptFields.map((field) => (
-                    <article className={`transcript-line ${field.role}`} key={field.speaker}>
-                      <div className="speaker-avatar">{field.role === 'doctor' ? '의' : field.role === 'patient' ? '환' : '?'}</div>
-                      <div>
-                        <div className="speaker-meta"><strong>{field.speaker}</strong><time>시작시간 · 종료시간</time></div>
-                        <p>{field.description}</p>
-                      </div>
-                      <span className="confidence-label">신뢰도</span>
-                    </article>
-                  ))}
-                  <div className="transcript-fields"><span>화자</span><span>Timestamp</span><span>발화 내용</span><span>Confidence</span><span>검토 필요 여부</span></div>
-                </div>
-              </>
-            ) : (
-              <div className="upload-workspace">
-                {!selectedFile ? (
-                  <div className="dropzone">
-                    <div className="upload-icon"><i /></div>
-                    <h4>진료 녹음파일 가져오기</h4>
-                    <p>iPhone 음성 메모 또는 Android 녹음파일을 선택합니다.</p>
-                    <label className="file-picker">
-                      <input
-                        type="file"
-                        accept=".m4a,.mp3,.wav,.aac,audio/*"
-                        onChange={(event) => {
-                          setSelectedFile(event.target.files?.[0] ?? null);
-                          setShowPipeline(false);
-                        }}
-                      />
-                      <span>파일 선택</span>
-                    </label>
-                    <small>입력 데이터: 원본 파일명 · 파일 형식 · 크기 · 재생시간 · Codec · Sample Rate · Hash</small>
-                  </div>
-                ) : (
-                  <>
-                    <div className="selected-file">
-                      <div className="file-type">{fileExtension}</div>
-                      <div><strong>{selectedFile.name}</strong><span>{formatFileSize(selectedFile.size)} <i /> {selectedFile.type || 'MIME type 확인 필요'}</span></div>
-                      <span className="secure-file">병원 내부 저장</span>
-                      <button aria-label="파일 제거" onClick={() => { setSelectedFile(null); setShowPipeline(false); }}>×</button>
-                    </div>
-                    {!showPipeline ? (
-                      <div className="analysis-ready">
-                        <div><i>i</i><p><strong>분석 전 확인 데이터</strong><span>실제 Codec · 재생시간 · Sample Rate · SHA-256 · 악성 파일 여부</span></p></div>
-                        <button onClick={() => setShowPipeline(true)}>분석 단계 확인 <span>→</span></button>
-                      </div>
-                    ) : (
-                      <div className="pipeline-card pipeline-schema">
-                        <div className="pipeline-heading"><div><strong>Audio 처리 Pipeline</strong><span>Backend 연결 후 각 단계의 상태와 진행률이 표시됩니다.</span></div><b>상태</b></div>
-                        <ol>
-                          {pipelineSteps.map(([step, data], index) => (
-                            <li key={step}><i>{index + 1}</i><span><strong>{step}</strong><small>{data}</small></span><b>처리 예정</b></li>
-                          ))}
-                        </ol>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
-
-            <footer className="transcript-footer">
-              <span><i>✓</i> 의료용어 자동 보정</span>
-              <span><i>✓</i> DOCTOR · PATIENT · UNKNOWN 구분</span>
-              <button>+ 의사 메모 입력</button>
+            <footer className="flow-footer-actions">
+              <button className="flow-previous" onClick={goPrevious}>← 이전 단계</button>
+              <div><span>{currentIndex + 1} / {flowSteps.length}</span><strong>{flowSteps[currentIndex].label}</strong></div>
+              {activeStep !== 'final' && <button className="flow-next" onClick={goNext}>{flowSteps[currentIndex + 1].label}로 <b>→</b></button>}
             </footer>
-          </section>
-
-          <aside className="panel soap-panel">
-            <header className="panel-title soap-title">
-              <div><p className="eyebrow">STRUCTURED OUTPUT</p><h3>SOAP 초안</h3></div>
-              <span className="waiting-chip"><i /> 입력 대기</span>
-            </header>
-            <div className="grounding-note pending"><i>i</i><p><strong>Transcript 기반 생성</strong><span>입력에 존재하는 정보만 사용하며, 없는 정보는 생성하지 않습니다.</span></p></div>
-            <div className="soap-sections">
-              {soapDefinitions.map(({ letter, label, placeholder }) => (
-                <label className="soap-field" key={letter}>
-                  <span className={`soap-letter soap-${letter.toLowerCase()}`}>{letter}</span>
-                  <span className="soap-label">{label}</span>
-                  <textarea
-                    value={soapValues[letter]}
-                    onChange={(event) => setSoapValues({ ...soapValues, [letter]: event.target.value })}
-                    aria-label={`${letter} 항목`}
-                    placeholder={placeholder}
-                  />
-                </label>
-              ))}
-            </div>
-            <div className="soap-actions">
-              <button className="secondary-button" onClick={() => setReviewOpen(true)}>검토 구조 보기</button>
-              <button className="primary-button muted-primary" disabled>Transcript 입력 필요 <span>→</span></button>
-            </div>
-            <p className="safety-copy"><i>i</i> AI 생성값, 의사 수정값, 최종 승인값은 각각 분리하여 저장됩니다.</p>
-          </aside>
-        </div>
           </>
         )}
       </section>
-
-      {reviewOpen && (
-        <div className="review-layer" role="dialog" aria-modal="true" aria-label="SOAP 검토 구조">
-          <button className="layer-backdrop" aria-label="검토 화면 닫기" onClick={() => setReviewOpen(false)} />
-          <section className="review-drawer">
-            <header>
-              <div><p className="eyebrow">DOCTOR REVIEW</p><h3>SOAP 검토 및 승인</h3></div>
-              <button aria-label="닫기" onClick={() => setReviewOpen(false)}>×</button>
-            </header>
-            <div className="review-patient"><span>환자이름 · 환자등록번호</span><b>진료일 · 진료 구분</b><i>DOCTOR_REVIEWING</i></div>
-            <div className="review-alert"><i>i</i><p><strong>의사가 원본과 수정본을 비교하는 영역입니다.</strong><span>Transcript의 숫자, 진단, 처방 및 검사계획과 대조합니다.</span></p></div>
-            <div className="compare-legend"><span><i className="original" />AI 생성값</span><span><i className="revision" />의사 수정값</span></div>
-            <div className="compare-list">
-              {soapDefinitions.map(({ letter, label }) => (
-                <article className="compare-section" key={letter}>
-                  <div className={`soap-letter soap-${letter.toLowerCase()}`}>{letter}</div>
-                  <div>
-                    <strong>{label}</strong>
-                    <div className="compare-grid">
-                      <p>AI가 Transcript에서 생성한 {label} 원문</p>
-                      <p>{soapValues[letter] || `의사가 확인·수정한 ${label} 내용`}</p>
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
-            <div className="validation-card pending-validation"><div><i>i</i><p><strong>Validation 확인 항목</strong><span>입력 근거 · 숫자 · 약품명 · 검사명 · 진단 발화 · SOAP Section</span></p></div><button>검증 결과 표시</button></div>
-            <footer>
-              <button className="secondary-button" onClick={() => setReviewOpen(false)}>수정 화면으로</button>
-              <button className="approve-button" disabled>검토 데이터 입력 필요 <span>✓</span></button>
-            </footer>
-            <small className="audit-note">최종 승인 시 담당의, 승인시간, 수정 이력, 모델·프롬프트 버전을 감사 로그에 기록합니다.</small>
-          </section>
-        </div>
-      )}
     </main>
   );
 }
