@@ -2,13 +2,13 @@
 
 import { useState } from 'react';
 
-type StepId = 'patient' | 'emr' | 'audio' | 'data' | 'soap' | 'final';
+type StepId = 'patient' | 'emr' | 'tests' | 'audio' | 'soap' | 'final';
 
 const flowSteps: { id: StepId; label: string; description: string }[] = [
   { id: 'patient', label: '환자 선택', description: '진료 대상 확인' },
-  { id: 'emr', label: 'EMR 캡처', description: '차트 데이터 수집' },
+  { id: 'emr', label: '환자정보 캡처', description: 'EMR 기본정보 확인' },
+  { id: 'tests', label: '검사자료 입력', description: '차트 붙여넣기·파일' },
   { id: 'audio', label: '음성 기록', description: '실시간·파일 입력' },
-  { id: 'data', label: '데이터 확인', description: '문진·검사·Transcript' },
   { id: 'soap', label: 'SOAP 검토', description: 'AI 초안·의사 수정' },
   { id: 'final', label: '최종 승인', description: '문서 확정' },
 ];
@@ -40,7 +40,7 @@ function HomeScreen({ onStart }: { onStart: () => void }) {
         <div className="agent-copy">
           <p className="eyebrow">ONE PATIENT · ONE ENCOUNTER</p>
           <h1>한 명의 환자,<br />하나의 진료 흐름</h1>
-          <p>환자를 선택하면 EMR 캡처부터 진료 음성, 데이터 확인, SOAP 검토와 최종 승인까지 끊김 없이 이어집니다.</p>
+          <p>환자를 선택하면 EMR 환자정보 확인, 검사자료 입력, 진료 음성, SOAP 검토와 최종 승인까지 끊김 없이 이어집니다.</p>
           <button className="hero-start" onClick={onStart}><i>＋</i><span><strong>진료 시작</strong><small>환자 선택부터 시작합니다</small></span><b>→</b></button>
         </div>
         <div className="agent-orbit" aria-hidden="true">
@@ -101,29 +101,31 @@ function PatientStep() {
 }
 
 function EmrStep({ captured, onCapture }: { captured: boolean; onCapture: () => void }) {
-  const extractedGroups = [
-    ['환자 기본정보', '환자이름 · 환자등록번호 · 성별 · 생년월일'],
-    ['사전 문진', '주호소 · 증상 · 기간 · 과거력 · 복약 · 알레르기'],
-    ['검사·차트', '검사명 · 결과값 · 단위 · 검사일 · Reference Range'],
-    ['의사 기록', '과거 진단 · 처방 · 치료계획 · 경과 기록'],
+  const patientFields = [
+    ['환자이름', 'EMR 환자명'],
+    ['환자등록번호', '병원 내부 환자 ID'],
+    ['성별 · 생년월일', '성별과 생년월일'],
+    ['연락처', '환자 연락처'],
+    ['초진일 · 최근 내원일', '진료 이력 기준일'],
+    ['알레르기', '약물·음식 알레르기'],
   ];
   return (
     <div className="step-surface">
-      <header className="step-heading"><div><p className="eyebrow">STEP 2 · EMR CAPTURE</p><h2>현재 EMR 화면 캡처</h2><span>진료에 필요한 환자·문진·검사·차트 정보를 구조화합니다.</span></div><span className={captured ? 'step-status complete' : 'step-status'}>{captured ? '캡처 구조 확인' : '캡처 대기'}</span></header>
+      <header className="step-heading"><div><p className="eyebrow">STEP 2 · PATIENT INFO CAPTURE</p><h2>EMR 환자정보 캡처</h2><span>이 단계에서는 검사 차트가 아닌 환자의 기본정보만 캡처하여 확인합니다.</span></div><span className={captured ? 'step-status complete' : 'step-status'}>{captured ? '환자정보 확인' : '캡처 대기'}</span></header>
       <div className="emr-layout">
         <section className="emr-capture-zone">
           <div className="capture-window">
-            <div className="capture-window-bar"><i /><i /><i /><span>현재 EMR 화면</span></div>
-            <div className="capture-placeholder"><i /><strong>EMR 캡처 영역</strong><span>Capture Agent가 현재 활성화된 EMR 화면을 가져옵니다.</span></div>
+            <div className="capture-window-bar"><i /><i /><i /><span>EMR 환자 기본정보 영역</span></div>
+            <div className="capture-placeholder"><i /><strong>환자정보 영역만 캡처</strong><span>환자이름, 환자등록번호, 성별, 생년월일 등 기본정보 영역을 가져옵니다.</span></div>
           </div>
-          <div className="capture-actions"><div><i /><span><strong>Capture Agent 연결 상태</strong><small>Windows Host의 EMR 화면 접근 여부</small></span></div><button onClick={onCapture}>{captured ? '다시 캡처' : 'EMR 화면 캡처'}</button></div>
+          <div className="capture-actions"><div><i /><span><strong>검사 차트는 캡처하지 않습니다</strong><small>다음 단계에서 검사 차트를 직접 복사·붙여넣기 합니다.</small></span></div><button onClick={onCapture}>{captured ? '환자정보 다시 캡처' : '환자정보 캡처'}</button></div>
         </section>
         <section className="extract-panel">
-          <header><div><p className="eyebrow">STRUCTURED DATA</p><h3>추출 데이터</h3></div><span>{captured ? '구조 확인' : '입력 대기'}</span></header>
-          <div className="extract-groups">
-            {extractedGroups.map(([title, fields], index) => <article key={title}><i>{index + 1}</i><div><strong>{title}</strong><p>{fields}</p></div><b>{captured ? '확인 필요' : '대기'}</b></article>)}
+          <header><div><p className="eyebrow">PATIENT IDENTITY</p><h3>캡처 결과 확인</h3></div><span>{captured ? '직접 확인 필요' : '입력 대기'}</span></header>
+          <div className="patient-field-grid">
+            {patientFields.map(([label, description]) => <label key={label}><span>{label}</span><input placeholder={captured ? `${description} 확인·수정` : '캡처 후 표시'} /></label>)}
           </div>
-          <div className="capture-policy"><i>i</i><span><strong>숫자와 단위는 별도 Validation</strong><small>OCR 결과를 그대로 확정하지 않고 Pattern · Unit · 범위를 검증합니다.</small></span></div>
+          <div className="capture-policy patient-policy"><i>i</i><span><strong>캡처한 환자정보는 반드시 직접 확인</strong><small>잘못 인식된 환자이름이나 등록번호를 수정한 뒤 다음 단계로 이동합니다.</small></span></div>
         </section>
       </div>
     </div>
@@ -138,7 +140,7 @@ function AudioStep() {
 
   return (
     <div className="step-surface">
-      <header className="step-heading"><div><p className="eyebrow">STEP 3 · AUDIO</p><h2>진료 음성 기록</h2><span>실시간 Microphone 또는 스마트폰 녹음파일 중 하나를 선택합니다.</span></div><div className="capture-switch"><button className={captureMode === 'live' ? 'active' : ''} onClick={() => setCaptureMode('live')}>실시간 녹음</button><button className={captureMode === 'upload' ? 'active' : ''} onClick={() => setCaptureMode('upload')}>파일 업로드</button></div></header>
+      <header className="step-heading"><div><p className="eyebrow">STEP 4 · AUDIO</p><h2>진료 음성 기록</h2><span>실시간 Microphone 또는 스마트폰 녹음파일 중 하나를 선택합니다.</span></div><div className="capture-switch"><button className={captureMode === 'live' ? 'active' : ''} onClick={() => setCaptureMode('live')}>실시간 녹음</button><button className={captureMode === 'upload' ? 'active' : ''} onClick={() => setCaptureMode('upload')}>파일 업로드</button></div></header>
       <div className="audio-flow-layout">
         <section className="audio-input-panel">
           {captureMode === 'live' ? (
@@ -168,22 +170,54 @@ function AudioStep() {
   );
 }
 
-function DataStep() {
-  const sources = [
-    ['사전 문진', 'Questionnaire', '주호소 · 증상 · 기간 · 과거력 · 복약 · 알레르기 · 생활습관'],
-    ['EMR · 검사', 'Structured Data', '진찰 소견 · 검사명 · 수치 · 단위 · Reference Range · 과거 차트'],
-    ['진료 음성', 'Transcript', '화자 · Timestamp · 발화 · Confidence · 검토 필요 구간'],
-  ];
+function TestsStep() {
+  const [chartText, setChartText] = useState('');
+  const [organized, setOrganized] = useState(false);
+  const [autonomicFile, setAutonomicFile] = useState<File | null>(null);
+  const [hasPrevious, setHasPrevious] = useState<boolean | null>(null);
+  const chartLines = chartText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+
   return (
     <div className="step-surface">
-      <header className="step-heading"><div><p className="eyebrow">STEP 4 · DATA REVIEW</p><h2>SOAP 생성 전 데이터 확인</h2><span>서로 다른 입력을 한 번 확인한 뒤, 검증된 정보만 AI에 전달합니다.</span></div><span className="step-status">검토 대기</span></header>
-      <div className="source-review-grid">
-        {sources.map(([title, type, fields], index) => <section key={title}><header><i>{index + 1}</i><div><strong>{title}</strong><span>{type}</span></div><b>입력 대기</b></header><p>{fields}</p><button>원본 데이터 확인 →</button></section>)}
+      <header className="step-heading"><div><p className="eyebrow">STEP 3 · EXAMINATION INPUT</p><h2>검사자료 입력 및 정리</h2><span>검사 차트는 복사·붙여넣기하고, 자율신경검사는 파일로 입력합니다.</span></div><span className="step-status">자료 입력 대기</span></header>
+
+      <div className="test-input-grid">
+        <section className="chart-paste-card">
+          <header><div><p className="eyebrow">COPY & PASTE</p><h3>환자 상태 관련 검사 차트</h3></div><span>EMR에서 복사</span></header>
+          <div className="chart-paste-body">
+            <label><strong>검사 차트 원문 붙여넣기</strong><span>EMR 차트의 검사명, 결과값, 단위, 판정 내용을 그대로 붙여넣습니다.</span><textarea value={chartText} onChange={(event) => { setChartText(event.target.value); setOrganized(false); }} placeholder={'검사 차트 내용을 이곳에 붙여넣으세요.\n검사명 · 결과값 · 단위 · Reference Range · 판정 등이 포함됩니다.'} /></label>
+            <div className="chart-input-actions"><small>입력한 숫자와 단위는 원문 그대로 보존합니다.</small><button disabled={!chartText.trim()} onClick={() => setOrganized(true)}>보기 쉽게 정리하기 →</button></div>
+          </div>
+        </section>
+
+        <section className="organized-chart-card">
+          <header><div><p className="eyebrow">READABLE CHART</p><h3>정리된 검사 결과</h3></div><span>{organized ? '원문 기반 정리' : '입력 대기'}</span></header>
+          {!organized ? (
+            <div className="organized-empty"><i /><strong>검사 차트를 붙여넣어 주세요</strong><span>검사 항목별 카드로 분리하여 의료진이 빠르게 읽을 수 있게 표시합니다.</span></div>
+          ) : (
+            <div className="organized-lines">
+              <div className="organized-columns"><span>검사 항목</span><span>결과값 · 단위</span><span>기준범위 · 판정</span></div>
+              {chartLines.map((line, index) => <article key={`${line}-${index}`}><i>{index + 1}</i><p>{line}</p><b>원문 확인</b></article>)}
+              <footer><span>검사명</span><span>결과값</span><span>단위</span><span>Reference Range</span><span>판정</span><span>검사일</span></footer>
+            </div>
+          )}
+        </section>
       </div>
-      <section className="preflight-card">
-        <header><div><p className="eyebrow">PRE-GENERATION CHECK</p><h3>SOAP 생성 전 확인 항목</h3></div><span>Validation Layer</span></header>
-        <div className="check-matrix">
-          {['환자 정보 일치', '숫자와 단위 보존', '약품명 확인', '검사명 확인', '의사 진단 발화 확인', '처방·계획 발화 확인', 'Low Confidence 구간 검토', '입력되지 않은 정보 차단'].map((item) => <span key={item}><i />{item}<b>확인 예정</b></span>)}
+
+      <section className="autonomic-card">
+        <header><div><p className="eyebrow">AUTONOMIC NERVOUS SYSTEM TEST</p><h3>자율신경검사 파일</h3><span>검사 장비에서 생성된 파일을 업로드하여 확인합니다.</span></div><b>{autonomicFile ? '파일 선택됨' : '입력 대기'}</b></header>
+        <div className="autonomic-body">
+          <div className="autonomic-upload">
+            {!autonomicFile ? <><i /><strong>자율신경검사 파일 선택</strong><span>지원 형식은 장비 Export 형식에 맞춰 연결합니다.</span><label><input type="file" onChange={(event) => { setAutonomicFile(event.target.files?.[0] ?? null); setHasPrevious(null); }} /><b>검사파일 선택</b></label></> : <div className="autonomic-file"><i>FILE</i><span><strong>{autonomicFile.name}</strong><small>{formatFileSize(autonomicFile.size)} · {autonomicFile.type || '파일 형식 확인 필요'}</small></span><button onClick={() => { setAutonomicFile(null); setHasPrevious(null); }}>×</button></div>}
+          </div>
+          <div className="previous-test-panel">
+            <strong>이전 자율신경검사 데이터</strong>
+            <span>환자의 이전 검사 존재 여부를 확인합니다.</span>
+            <div className="previous-choice"><button className={hasPrevious === true ? 'active' : ''} onClick={() => setHasPrevious(true)}>이전 검사 있음</button><button className={hasPrevious === false ? 'active' : ''} onClick={() => setHasPrevious(false)}>이전 검사 없음</button></div>
+            {hasPrevious === null && <p className="previous-placeholder">이전 검사 여부를 선택하면 결과 설명 방식이 표시됩니다.</p>}
+            {hasPrevious === false && <div className="baseline-message"><i>1</i><p><strong>이전 검사 데이터가 없습니다</strong><span>이번 검사 결과를 환자의 기준 데이터로 저장하고 현재 상태를 설명합니다. 다음 검사부터 이전 결과와 비교하여 변화량과 변화 방향을 안내합니다.</span></p></div>}
+            {hasPrevious === true && <div className="comparison-schema"><div><span>검사 지표</span><span>이전 검사</span><span>현재 검사</span><span>변화</span></div><p>HRV · LF · HF · LF/HF 등 지표별 Before / After 결과와 변화 설명이 표시됩니다.</p></div>}
+          </div>
         </div>
       </section>
     </div>
@@ -289,8 +323,8 @@ export default function Home() {
             <div className="flow-content">
               {activeStep === 'patient' && <PatientStep />}
               {activeStep === 'emr' && <EmrStep captured={emrCaptured} onCapture={() => setEmrCaptured(true)} />}
+              {activeStep === 'tests' && <TestsStep />}
               {activeStep === 'audio' && <AudioStep />}
-              {activeStep === 'data' && <DataStep />}
               {activeStep === 'soap' && <SoapStep values={soapValues} onChange={(letter, value) => setSoapValues({ ...soapValues, [letter]: value })} />}
               {activeStep === 'final' && <FinalStep approved={approved} onApprove={() => setApproved(true)} onNew={startEncounter} />}
             </div>
