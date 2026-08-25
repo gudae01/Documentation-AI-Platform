@@ -3,13 +3,24 @@
 import { useState } from 'react';
 
 type StepId = 'patient' | 'emr' | 'tests' | 'audio' | 'soap' | 'final';
+type EncounterType = 'new' | 'followup';
+type FlowStep = { id: StepId; label: string; description: string };
 
-const flowSteps: { id: StepId; label: string; description: string }[] = [
-  { id: 'patient', label: '환자 선택', description: '진료 대상 확인' },
+const firstVisitSteps: FlowStep[] = [
+  { id: 'patient', label: '환자 선택', description: '초진 · 재진 구분' },
   { id: 'emr', label: '환자정보 캡처', description: 'EMR 기본정보 확인' },
-  { id: 'tests', label: '검사자료 입력', description: '차트 붙여넣기·파일' },
-  { id: 'audio', label: '음성 기록', description: '실시간·파일 입력' },
-  { id: 'soap', label: 'SOAP 검토', description: 'AI 초안·의사 수정' },
+  { id: 'audio', label: '진료 녹음', description: '문진 · 진찰 대화' },
+  { id: 'tests', label: '검사자료 보완', description: '있는 자료만 추가' },
+  { id: 'soap', label: '차트 작성', description: '녹음 기반 SOAP' },
+  { id: 'final', label: '최종 승인', description: '문서 확정' },
+];
+
+const followupVisitSteps: FlowStep[] = [
+  { id: 'patient', label: '환자 선택', description: '초진 · 재진 구분' },
+  { id: 'emr', label: '환자정보 캡처', description: 'EMR 기본정보 확인' },
+  { id: 'tests', label: '이전자료 확인', description: '차트 · 검사 이력' },
+  { id: 'audio', label: '진료 녹음', description: '오늘 진료 내용' },
+  { id: 'soap', label: '차트 작성', description: '비교 · SOAP 초안' },
   { id: 'final', label: '최종 승인', description: '문서 확정' },
 ];
 
@@ -40,7 +51,7 @@ function HomeScreen({ onStart }: { onStart: () => void }) {
         <div className="agent-copy">
           <p className="eyebrow">ONE PATIENT · ONE ENCOUNTER</p>
           <h1>한 명의 환자,<br />하나의 진료 흐름</h1>
-          <p>환자를 선택하면 EMR 환자정보 확인, 검사자료 입력, 진료 음성, SOAP 검토와 최종 승인까지 끊김 없이 이어집니다.</p>
+          <p>초진은 환자정보 확인 후 진료를 먼저 녹음하고, 녹음 내용을 근거로 차트를 작성합니다. 재진은 이전자료 확인 단계가 자동으로 앞에 배치됩니다.</p>
           <button className="hero-start" onClick={onStart}><i>＋</i><span><strong>진료 시작</strong><small>환자 선택부터 시작합니다</small></span><b>→</b></button>
         </div>
         <div className="agent-orbit" aria-hidden="true">
@@ -50,13 +61,13 @@ function HomeScreen({ onStart }: { onStart: () => void }) {
       </div>
 
       <div className="journey-board">
-        <header><div><p className="eyebrow">ENCOUNTER JOURNEY</p><h2>진료가 진행되는 순서</h2></div><span>각 단계의 데이터는 다음 단계로 자동 전달</span></header>
+        <header><div><p className="eyebrow">FIRST VISIT JOURNEY</p><h2>초진이 진행되는 순서</h2></div><span>재진을 선택하면 이전자료 확인 후 녹음 순서로 자동 전환</span></header>
         <div className="journey-steps">
-          {flowSteps.map((step, index) => (
+          {firstVisitSteps.map((step, index) => (
             <button key={step.id} onClick={onStart}>
               <i>{index + 1}</i>
               <span><strong>{step.label}</strong><small>{step.description}</small></span>
-              {index < flowSteps.length - 1 && <b>→</b>}
+              {index < firstVisitSteps.length - 1 && <b>→</b>}
             </button>
           ))}
         </div>
@@ -80,13 +91,24 @@ function HomeScreen({ onStart }: { onStart: () => void }) {
   );
 }
 
-function PatientStep() {
+function PatientStep({ encounterType, onEncounterTypeChange }: { encounterType: EncounterType | null; onEncounterTypeChange: (value: EncounterType) => void }) {
   return (
     <div className="step-surface patient-step">
-      <header className="step-heading"><div><p className="eyebrow">STEP 1 · PATIENT</p><h2>진료 환자 선택</h2><span>환자이름 또는 환자등록번호로 오늘 진료할 환자를 확인합니다.</span></div><span className="step-status">환자 선택 대기</span></header>
+      <header className="step-heading"><div><p className="eyebrow">STEP 1 · PATIENT</p><h2>진료 환자와 진료구분 선택</h2><span>환자를 확인하고 초진인지 재진인지 선택하면 필요한 순서로 진료 흐름이 자동 조정됩니다.</span></div><span className={encounterType ? 'step-status complete' : 'step-status'}>{encounterType ? `${encounterType === 'new' ? '초진' : '재진'} 흐름 선택` : '진료구분 선택 대기'}</span></header>
       <section className="patient-search-card">
         <label className="encounter-search"><i /><input placeholder="환자이름 또는 환자등록번호 검색" aria-label="환자 검색" /><kbd>Enter</kbd></label>
         <div className="recent-filter"><button className="active">오늘 진료</button><button>최근 내원</button><button>전체 환자</button></div>
+      </section>
+      <section className="visit-type-card">
+        <header><div><p className="eyebrow">ENCOUNTER TYPE</p><strong>오늘 진료는 어떤 유형인가요?</strong></div><span>선택에 따라 3·4단계 순서가 바뀝니다.</span></header>
+        <div>
+          <button className={encounterType === 'new' ? 'active' : ''} onClick={() => onEncounterTypeChange('new')}>
+            <i>초진</i><span><strong>처음 진료하는 환자</strong><small>환자정보 확인 → 진료 녹음 → 검사자료 보완 → 차트 작성</small></span><b>{encounterType === 'new' ? '선택됨' : '선택'}</b>
+          </button>
+          <button className={encounterType === 'followup' ? 'active' : ''} onClick={() => onEncounterTypeChange('followup')}>
+            <i>재진</i><span><strong>이전 진료기록이 있는 환자</strong><small>환자정보 확인 → 이전자료 확인 → 오늘 진료 녹음 → 차트 작성</small></span><b>{encounterType === 'followup' ? '선택됨' : '선택'}</b>
+          </button>
+        </div>
       </section>
       <section className="patient-result-card">
         <div className="patient-result-head"><span>검색 결과</span><b>EMR 연결 후 표시</b></div>
@@ -100,7 +122,7 @@ function PatientStep() {
   );
 }
 
-function EmrStep({ captured, onCapture }: { captured: boolean; onCapture: () => void }) {
+function EmrStep({ stepNumber, encounterType, captured, onCapture }: { stepNumber: number; encounterType: EncounterType | null; captured: boolean; onCapture: () => void }) {
   const patientFields = [
     ['환자이름', 'EMR 환자명'],
     ['환자등록번호', '병원 내부 환자 ID'],
@@ -111,14 +133,14 @@ function EmrStep({ captured, onCapture }: { captured: boolean; onCapture: () => 
   ];
   return (
     <div className="step-surface">
-      <header className="step-heading"><div><p className="eyebrow">STEP 2 · PATIENT INFO CAPTURE</p><h2>EMR 환자정보 캡처</h2><span>이 단계에서는 검사 차트가 아닌 환자의 기본정보만 캡처하여 확인합니다.</span></div><span className={captured ? 'step-status complete' : 'step-status'}>{captured ? '환자정보 확인' : '캡처 대기'}</span></header>
+      <header className="step-heading"><div><p className="eyebrow">STEP {stepNumber} · PATIENT INFO CAPTURE</p><h2>EMR 환자정보 캡처</h2><span>이 단계에서는 검사 차트가 아닌 환자의 기본정보만 캡처하여 확인합니다.</span></div><span className={captured ? 'step-status complete' : 'step-status'}>{captured ? '환자정보 확인' : '캡처 대기'}</span></header>
       <div className="emr-layout">
         <section className="emr-capture-zone">
           <div className="capture-window">
             <div className="capture-window-bar"><i /><i /><i /><span>EMR 환자 기본정보 영역</span></div>
             <div className="capture-placeholder"><i /><strong>환자정보 영역만 캡처</strong><span>환자이름, 환자등록번호, 성별, 생년월일 등 기본정보 영역을 가져옵니다.</span></div>
           </div>
-          <div className="capture-actions"><div><i /><span><strong>검사 차트는 캡처하지 않습니다</strong><small>다음 단계에서 검사 차트를 직접 복사·붙여넣기 합니다.</small></span></div><button onClick={onCapture}>{captured ? '환자정보 다시 캡처' : '환자정보 캡처'}</button></div>
+          <div className="capture-actions"><div><i /><span><strong>검사 차트는 캡처하지 않습니다</strong><small>{encounterType === 'followup' ? '재진은 다음 단계에서 필요한 이전 차트와 검사자료만 확인합니다.' : '초진은 다음 단계에서 진료 대화를 먼저 녹음합니다.'}</small></span></div><button onClick={onCapture}>{captured ? '환자정보 다시 캡처' : '환자정보 캡처'}</button></div>
         </section>
         <section className="extract-panel">
           <header><div><p className="eyebrow">PATIENT IDENTITY</p><h3>캡처 결과 확인</h3></div><span>{captured ? '직접 확인 필요' : '입력 대기'}</span></header>
@@ -132,7 +154,7 @@ function EmrStep({ captured, onCapture }: { captured: boolean; onCapture: () => 
   );
 }
 
-function AudioStep() {
+function AudioStep({ stepNumber, encounterType }: { stepNumber: number; encounterType: EncounterType | null }) {
   const [captureMode, setCaptureMode] = useState<'live' | 'upload'>('live');
   const [recording, setRecording] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -140,7 +162,8 @@ function AudioStep() {
 
   return (
     <div className="step-surface">
-      <header className="step-heading"><div><p className="eyebrow">STEP 4 · AUDIO</p><h2>진료 음성 기록</h2><span>실시간 Microphone 또는 스마트폰 녹음파일 중 하나를 선택합니다.</span></div><div className="capture-switch"><button className={captureMode === 'live' ? 'active' : ''} onClick={() => setCaptureMode('live')}>실시간 녹음</button><button className={captureMode === 'upload' ? 'active' : ''} onClick={() => setCaptureMode('upload')}>파일 업로드</button></div></header>
+      <header className="step-heading"><div><p className="eyebrow">STEP {stepNumber} · AUDIO</p><h2>진료 음성 기록</h2><span>{encounterType === 'new' ? '초진은 기존 진료차트가 없으므로 진료 대화를 먼저 녹음하고 그 내용을 차트의 근거로 사용합니다.' : '실시간 Microphone 또는 스마트폰 녹음파일로 오늘 진료 내용을 기록합니다.'}</span></div><div className="capture-switch"><button className={captureMode === 'live' ? 'active' : ''} onClick={() => setCaptureMode('live')}>실시간 녹음</button><button className={captureMode === 'upload' ? 'active' : ''} onClick={() => setCaptureMode('upload')}>파일 업로드</button></div></header>
+      <div className="audio-to-chart-route"><span><i>1</i>진료 녹음</span><b>→</b><span><i>2</i>화자별 전사</span><b>→</b><span><i>3</i>의료용어 보정</span><b>→</b><span><i>4</i>SOAP 차트 초안</span></div>
       <div className="audio-flow-layout">
         <section className="audio-input-panel">
           {captureMode === 'live' ? (
@@ -171,6 +194,8 @@ function AudioStep() {
 }
 
 function TestsStep({
+  stepNumber,
+  encounterType,
   chartText,
   organized,
   autonomicFile,
@@ -180,6 +205,8 @@ function TestsStep({
   onAutonomicFileChange,
   onPreviousChange,
 }: {
+  stepNumber: number;
+  encounterType: EncounterType | null;
   chartText: string;
   organized: boolean;
   autonomicFile: File | null;
@@ -190,24 +217,25 @@ function TestsStep({
   onPreviousChange: (value: boolean | null) => void;
 }) {
   const chartLines = chartText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const isFirstVisit = encounterType !== 'followup';
 
   return (
     <div className="step-surface">
-      <header className="step-heading"><div><p className="eyebrow">STEP 3 · EXAMINATION INPUT</p><h2>검사자료 입력 및 정리</h2><span>검사 차트는 복사·붙여넣기하고, 자율신경검사는 파일로 입력합니다.</span></div><span className="step-status">자료 입력 대기</span></header>
+      <header className="step-heading"><div><p className="eyebrow">STEP {stepNumber} · EXAMINATION INPUT</p><h2>{isFirstVisit ? '검사자료 보완' : '이전 검사자료 확인'}</h2><span>{isFirstVisit ? '초진 녹음 후 실제로 시행한 검사가 있을 때만 결과를 추가합니다. 검사자료가 없으면 건너뛸 수 있습니다.' : '이전 검사 차트는 복사·붙여넣기하고 자율신경검사는 파일로 입력하여 오늘 진료와 비교합니다.'}</span></div><span className="step-status">{isFirstVisit ? '선택 입력' : '자료 입력 대기'}</span></header>
 
       <div className="test-input-grid">
         <section className="chart-paste-card">
-          <header><div><p className="eyebrow">COPY & PASTE</p><h3>환자 상태 관련 검사 차트</h3></div><span>EMR에서 복사</span></header>
+          <header><div><p className="eyebrow">COPY & PASTE</p><h3>{isFirstVisit ? '진료 중·진료 후 시행한 검사 결과' : '환자 상태 관련 이전 검사 차트'}</h3></div><span>{isFirstVisit ? '자료가 있을 때만' : 'EMR에서 복사'}</span></header>
           <div className="chart-paste-body">
-            <label><strong>검사 차트 원문 붙여넣기</strong><span>EMR 차트의 검사명, 결과값, 단위, 판정 내용을 그대로 붙여넣습니다.</span><textarea value={chartText} onChange={(event) => onChartTextChange(event.target.value)} placeholder={'검사 차트 내용을 이곳에 붙여넣으세요.\n검사명 · 결과값 · 단위 · Reference Range · 판정 등이 포함됩니다.'} /></label>
-            <div className="chart-input-actions"><small>입력한 숫자와 단위는 원문 그대로 보존합니다.</small><button disabled={!chartText.trim()} onClick={onOrganize}>보기 쉽게 정리하기 →</button></div>
+            <label><strong>{isFirstVisit ? '검사 결과가 있으면 원문 붙여넣기' : '검사 차트 원문 붙여넣기'}</strong><span>{isFirstVisit ? '이번 진료에서 확인된 검사명, 결과값, 단위와 판정 내용을 추가합니다.' : 'EMR 차트의 검사명, 결과값, 단위, 판정 내용을 그대로 붙여넣습니다.'}</span><textarea value={chartText} onChange={(event) => onChartTextChange(event.target.value)} placeholder={isFirstVisit ? '초진 검사 결과가 있을 때 이곳에 붙여넣으세요.\n검사가 없다면 입력하지 않고 다음 단계로 이동합니다.' : '이전 검사 차트 내용을 이곳에 붙여넣으세요.\n검사명 · 결과값 · 단위 · Reference Range · 판정 등이 포함됩니다.'} /></label>
+            <div className="chart-input-actions"><small>{isFirstVisit ? '검사자료가 없어도 녹음 기반 진료차트는 작성할 수 있습니다.' : '입력한 숫자와 단위는 원문 그대로 보존합니다.'}</small><button disabled={!chartText.trim()} onClick={onOrganize}>보기 쉽게 정리하기 →</button></div>
           </div>
         </section>
 
         <section className="organized-chart-card">
           <header><div><p className="eyebrow">READABLE CHART</p><h3>정리된 검사 결과</h3></div><span>{organized ? '원문 기반 정리' : '입력 대기'}</span></header>
           {!organized ? (
-            <div className="organized-empty"><i /><strong>검사 차트를 붙여넣어 주세요</strong><span>검사 항목별 카드로 분리하여 의료진이 빠르게 읽을 수 있게 표시합니다.</span></div>
+            <div className="organized-empty"><i /><strong>{isFirstVisit ? '추가할 검사자료가 없다면 건너뛰세요' : '검사 차트를 붙여넣어 주세요'}</strong><span>{isFirstVisit ? '다음 단계에서 진료 녹음을 근거로 SOAP 차트 초안을 작성합니다.' : '검사 항목별 카드로 분리하여 의료진이 빠르게 읽을 수 있게 표시합니다.'}</span></div>
           ) : (
             <div className="organized-lines">
               <div className="organized-columns"><span>검사 항목</span><span>결과값 · 단위</span><span>기준범위 · 판정</span></div>
@@ -238,10 +266,10 @@ function TestsStep({
   );
 }
 
-function SoapStep({ values, onChange }: { values: Record<string, string>; onChange: (letter: string, value: string) => void }) {
+function SoapStep({ stepNumber, values, onChange }: { stepNumber: number; values: Record<string, string>; onChange: (letter: string, value: string) => void }) {
   return (
     <div className="step-surface">
-      <header className="step-heading"><div><p className="eyebrow">STEP 5 · DOCTOR REVIEW</p><h2>SOAP 초안 검토</h2><span>AI 생성값과 입력 근거를 확인하고 의사가 직접 수정합니다.</span></div><span className="step-status">AI 생성 전</span></header>
+      <header className="step-heading"><div><p className="eyebrow">STEP {stepNumber} · DOCTOR REVIEW</p><h2>녹음 기반 진료차트 초안 검토</h2><span>진료 녹음 Transcript를 중심으로 검사자료를 보완하여 AI가 작성한 SOAP 차트를 의사가 직접 확인·수정합니다.</span></div><span className="step-status">차트 생성 대기</span></header>
       <div className="soap-flow-layout">
         <section className="soap-editor-card">
           <header><div><p className="eyebrow">STRUCTURED SOAP</p><h3>의사 수정본</h3></div><span>직접 편집 가능</span></header>
@@ -260,6 +288,7 @@ function SoapStep({ values, onChange }: { values: Record<string, string>; onChan
 }
 
 function FinalStep({
+  stepNumber,
   approved,
   soapValues,
   chartText,
@@ -268,6 +297,7 @@ function FinalStep({
   onApprove,
   onNew,
 }: {
+  stepNumber: number;
   approved: boolean;
   soapValues: Record<string, string>;
   chartText: string;
@@ -295,7 +325,7 @@ function FinalStep({
 
   return (
     <div className="step-surface final-step">
-      <header className="step-heading"><div><p className="eyebrow">STEP 6 · FINAL APPROVAL</p><h2>최종 확인 및 승인</h2><span>의사가 승인한 데이터만 Final Data와 환자용 문서에 사용합니다.</span></div><span className={approved ? 'step-status complete' : 'step-status'}>{approved ? 'FINALIZED' : '승인 대기'}</span></header>
+      <header className="step-heading"><div><p className="eyebrow">STEP {stepNumber} · FINAL APPROVAL</p><h2>최종 확인 및 승인</h2><span>의사가 승인한 데이터만 Final Data와 환자용 문서에 사용합니다.</span></div><span className={approved ? 'step-status complete' : 'step-status'}>{approved ? 'FINALIZED' : '승인 대기'}</span></header>
       <section className="patient-report-section" id="patient-report">
         <header>
           <div><p className="eyebrow">PATIENT REPORT PREVIEW</p><h3>환자 종합 진료 안내서</h3><span>진료 내용을 환자가 이해하기 쉬운 한 문서로 통합합니다.</span></div>
@@ -363,6 +393,7 @@ function FinalStep({
 
 export default function Home() {
   const [activeStep, setActiveStep] = useState<StepId | null>(null);
+  const [encounterType, setEncounterType] = useState<EncounterType | null>(null);
   const [emrCaptured, setEmrCaptured] = useState(false);
   const [approved, setApproved] = useState(false);
   const [soapValues, setSoapValues] = useState<Record<string, string>>({ S: '', O: '', A: '', P: '' });
@@ -371,9 +402,11 @@ export default function Home() {
   const [autonomicFile, setAutonomicFile] = useState<File | null>(null);
   const [hasPreviousAutonomic, setHasPreviousAutonomic] = useState<boolean | null>(null);
 
+  const flowSteps = encounterType === 'followup' ? followupVisitSteps : firstVisitSteps;
+  const encounterLabel = encounterType === 'new' ? '초진' : encounterType === 'followup' ? '재진' : '진료구분 선택 필요';
   const currentIndex = activeStep ? flowSteps.findIndex((step) => step.id === activeStep) : -1;
   const goHome = () => setActiveStep(null);
-  const startEncounter = () => { setApproved(false); setEmrCaptured(false); setSoapValues({ S: '', O: '', A: '', P: '' }); setChartText(''); setChartOrganized(false); setAutonomicFile(null); setHasPreviousAutonomic(null); setActiveStep('patient'); };
+  const startEncounter = () => { setEncounterType(null); setApproved(false); setEmrCaptured(false); setSoapValues({ S: '', O: '', A: '', P: '' }); setChartText(''); setChartOrganized(false); setAutonomicFile(null); setHasPreviousAutonomic(null); setActiveStep('patient'); };
   const goNext = () => { if (currentIndex < flowSteps.length - 1) setActiveStep(flowSteps[currentIndex + 1].id); };
   const goPrevious = () => { if (currentIndex > 0) setActiveStep(flowSteps[currentIndex - 1].id); else goHome(); };
 
@@ -385,7 +418,7 @@ export default function Home() {
         <div className="flow-rail-line" />
         <nav aria-label="진료 진행 단계">
           {flowSteps.map((step, index) => (
-            <button className={activeStep === step.id ? 'flow-step-nav active' : currentIndex > index ? 'flow-step-nav done' : 'flow-step-nav'} key={step.id} onClick={() => activeStep && setActiveStep(step.id)} disabled={!activeStep}>
+            <button className={activeStep === step.id ? 'flow-step-nav active' : currentIndex > index ? 'flow-step-nav done' : 'flow-step-nav'} key={step.id} onClick={() => activeStep && setActiveStep(step.id)} disabled={!activeStep || (!encounterType && step.id !== 'patient')}>
               <i>{currentIndex > index ? '✓' : index + 1}</i><span>{step.label}</span>
             </button>
           ))}
@@ -396,7 +429,7 @@ export default function Home() {
       <section className="flow-workspace">
         <header className="flow-topbar">
           <div><div className="product-name">MEDIFLOW <span>Clinical AI Agent</span></div><div className="local-badge"><i /> 병원 내부망 · Local AI</div></div>
-          {activeStep ? <div className="active-patient-mini"><i>환자</i><span><strong>환자이름</strong><small>성별 · 나이 · 환자등록번호</small></span><b>진료 진행 중</b></div> : <div className="topbar-idle"><i>✓</i><span>환자 데이터 외부 전송 없음</span></div>}
+          {activeStep ? <div className="active-patient-mini"><i>환자</i><span><strong>환자이름</strong><small>성별 · 나이 · 환자등록번호</small></span><b>{encounterLabel}</b></div> : <div className="topbar-idle"><i>✓</i><span>환자 데이터 외부 전송 없음</span></div>}
         </header>
 
         {!activeStep ? <HomeScreen onStart={startEncounter} /> : (
@@ -404,27 +437,27 @@ export default function Home() {
             <div className="encounter-patient-bar">
               <div className="encounter-patient-avatar">환자</div>
               <div><strong>환자이름</strong><span>성별 · 나이</span><small>환자등록번호</small></div>
-              <dl><div><dt>주호소</dt><dd>환자가 호소하는 주요 증상</dd></div><div><dt>알레르기</dt><dd>약물·음식 알레르기 정보</dd></div><div><dt>진료구분</dt><dd>초진 / 재진</dd></div></dl>
+              <dl><div><dt>주호소</dt><dd>환자가 호소하는 주요 증상</dd></div><div><dt>알레르기</dt><dd>약물·음식 알레르기 정보</dd></div><div><dt>진료구분</dt><dd>{encounterLabel}</dd></div></dl>
               <button onClick={() => setActiveStep('patient')}>환자정보 확인</button>
             </div>
 
             <div className="flow-progress">
-              {flowSteps.map((step, index) => <button className={index === currentIndex ? 'active' : index < currentIndex ? 'done' : ''} key={step.id} onClick={() => setActiveStep(step.id)}><i>{index < currentIndex ? '✓' : index + 1}</i><span><strong>{step.label}</strong><small>{step.description}</small></span>{index < flowSteps.length - 1 && <b />}</button>)}
+              {flowSteps.map((step, index) => <button className={index === currentIndex ? 'active' : index < currentIndex ? 'done' : ''} key={step.id} onClick={() => setActiveStep(step.id)} disabled={!encounterType && step.id !== 'patient'}><i>{index < currentIndex ? '✓' : index + 1}</i><span><strong>{step.label}</strong><small>{step.description}</small></span>{index < flowSteps.length - 1 && <b />}</button>)}
             </div>
 
             <div className="flow-content">
-              {activeStep === 'patient' && <PatientStep />}
-              {activeStep === 'emr' && <EmrStep captured={emrCaptured} onCapture={() => setEmrCaptured(true)} />}
-              {activeStep === 'tests' && <TestsStep chartText={chartText} organized={chartOrganized} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} onChartTextChange={(value) => { setChartText(value); setChartOrganized(false); }} onOrganize={() => setChartOrganized(true)} onAutonomicFileChange={(file) => { setAutonomicFile(file); setHasPreviousAutonomic(null); }} onPreviousChange={setHasPreviousAutonomic} />}
-              {activeStep === 'audio' && <AudioStep />}
-              {activeStep === 'soap' && <SoapStep values={soapValues} onChange={(letter, value) => setSoapValues({ ...soapValues, [letter]: value })} />}
-              {activeStep === 'final' && <FinalStep approved={approved} soapValues={soapValues} chartText={chartText} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} onApprove={() => setApproved(true)} onNew={startEncounter} />}
+              {activeStep === 'patient' && <PatientStep encounterType={encounterType} onEncounterTypeChange={setEncounterType} />}
+              {activeStep === 'emr' && <EmrStep stepNumber={currentIndex + 1} encounterType={encounterType} captured={emrCaptured} onCapture={() => setEmrCaptured(true)} />}
+              {activeStep === 'tests' && <TestsStep stepNumber={currentIndex + 1} encounterType={encounterType} chartText={chartText} organized={chartOrganized} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} onChartTextChange={(value) => { setChartText(value); setChartOrganized(false); }} onOrganize={() => setChartOrganized(true)} onAutonomicFileChange={(file) => { setAutonomicFile(file); setHasPreviousAutonomic(null); }} onPreviousChange={setHasPreviousAutonomic} />}
+              {activeStep === 'audio' && <AudioStep stepNumber={currentIndex + 1} encounterType={encounterType} />}
+              {activeStep === 'soap' && <SoapStep stepNumber={currentIndex + 1} values={soapValues} onChange={(letter, value) => setSoapValues({ ...soapValues, [letter]: value })} />}
+              {activeStep === 'final' && <FinalStep stepNumber={currentIndex + 1} approved={approved} soapValues={soapValues} chartText={chartText} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} onApprove={() => setApproved(true)} onNew={startEncounter} />}
             </div>
 
             <footer className="flow-footer-actions">
               <button className="flow-previous" onClick={goPrevious}>← 이전 단계</button>
               <div><span>{currentIndex + 1} / {flowSteps.length}</span><strong>{flowSteps[currentIndex].label}</strong></div>
-              {activeStep !== 'final' && <button className="flow-next" onClick={goNext}>{flowSteps[currentIndex + 1].label}로 <b>→</b></button>}
+              {activeStep !== 'final' && <button className="flow-next" disabled={activeStep === 'patient' && !encounterType} onClick={goNext}>{activeStep === 'patient' && !encounterType ? '초진 또는 재진을 선택하세요' : `${flowSteps[currentIndex + 1].label}로`} <b>→</b></button>}
             </footer>
           </>
         )}
