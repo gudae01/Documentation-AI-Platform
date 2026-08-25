@@ -170,11 +170,25 @@ function AudioStep() {
   );
 }
 
-function TestsStep() {
-  const [chartText, setChartText] = useState('');
-  const [organized, setOrganized] = useState(false);
-  const [autonomicFile, setAutonomicFile] = useState<File | null>(null);
-  const [hasPrevious, setHasPrevious] = useState<boolean | null>(null);
+function TestsStep({
+  chartText,
+  organized,
+  autonomicFile,
+  hasPrevious,
+  onChartTextChange,
+  onOrganize,
+  onAutonomicFileChange,
+  onPreviousChange,
+}: {
+  chartText: string;
+  organized: boolean;
+  autonomicFile: File | null;
+  hasPrevious: boolean | null;
+  onChartTextChange: (value: string) => void;
+  onOrganize: () => void;
+  onAutonomicFileChange: (file: File | null) => void;
+  onPreviousChange: (value: boolean | null) => void;
+}) {
   const chartLines = chartText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
 
   return (
@@ -185,8 +199,8 @@ function TestsStep() {
         <section className="chart-paste-card">
           <header><div><p className="eyebrow">COPY & PASTE</p><h3>환자 상태 관련 검사 차트</h3></div><span>EMR에서 복사</span></header>
           <div className="chart-paste-body">
-            <label><strong>검사 차트 원문 붙여넣기</strong><span>EMR 차트의 검사명, 결과값, 단위, 판정 내용을 그대로 붙여넣습니다.</span><textarea value={chartText} onChange={(event) => { setChartText(event.target.value); setOrganized(false); }} placeholder={'검사 차트 내용을 이곳에 붙여넣으세요.\n검사명 · 결과값 · 단위 · Reference Range · 판정 등이 포함됩니다.'} /></label>
-            <div className="chart-input-actions"><small>입력한 숫자와 단위는 원문 그대로 보존합니다.</small><button disabled={!chartText.trim()} onClick={() => setOrganized(true)}>보기 쉽게 정리하기 →</button></div>
+            <label><strong>검사 차트 원문 붙여넣기</strong><span>EMR 차트의 검사명, 결과값, 단위, 판정 내용을 그대로 붙여넣습니다.</span><textarea value={chartText} onChange={(event) => onChartTextChange(event.target.value)} placeholder={'검사 차트 내용을 이곳에 붙여넣으세요.\n검사명 · 결과값 · 단위 · Reference Range · 판정 등이 포함됩니다.'} /></label>
+            <div className="chart-input-actions"><small>입력한 숫자와 단위는 원문 그대로 보존합니다.</small><button disabled={!chartText.trim()} onClick={onOrganize}>보기 쉽게 정리하기 →</button></div>
           </div>
         </section>
 
@@ -208,12 +222,12 @@ function TestsStep() {
         <header><div><p className="eyebrow">AUTONOMIC NERVOUS SYSTEM TEST</p><h3>자율신경검사 파일</h3><span>검사 장비에서 생성된 파일을 업로드하여 확인합니다.</span></div><b>{autonomicFile ? '파일 선택됨' : '입력 대기'}</b></header>
         <div className="autonomic-body">
           <div className="autonomic-upload">
-            {!autonomicFile ? <><i /><strong>자율신경검사 파일 선택</strong><span>지원 형식은 장비 Export 형식에 맞춰 연결합니다.</span><label><input type="file" onChange={(event) => { setAutonomicFile(event.target.files?.[0] ?? null); setHasPrevious(null); }} /><b>검사파일 선택</b></label></> : <div className="autonomic-file"><i>FILE</i><span><strong>{autonomicFile.name}</strong><small>{formatFileSize(autonomicFile.size)} · {autonomicFile.type || '파일 형식 확인 필요'}</small></span><button onClick={() => { setAutonomicFile(null); setHasPrevious(null); }}>×</button></div>}
+            {!autonomicFile ? <><i /><strong>자율신경검사 파일 선택</strong><span>지원 형식은 장비 Export 형식에 맞춰 연결합니다.</span><label><input type="file" onChange={(event) => onAutonomicFileChange(event.target.files?.[0] ?? null)} /><b>검사파일 선택</b></label></> : <div className="autonomic-file"><i>FILE</i><span><strong>{autonomicFile.name}</strong><small>{formatFileSize(autonomicFile.size)} · {autonomicFile.type || '파일 형식 확인 필요'}</small></span><button onClick={() => onAutonomicFileChange(null)}>×</button></div>}
           </div>
           <div className="previous-test-panel">
             <strong>이전 자율신경검사 데이터</strong>
             <span>환자의 이전 검사 존재 여부를 확인합니다.</span>
-            <div className="previous-choice"><button className={hasPrevious === true ? 'active' : ''} onClick={() => setHasPrevious(true)}>이전 검사 있음</button><button className={hasPrevious === false ? 'active' : ''} onClick={() => setHasPrevious(false)}>이전 검사 없음</button></div>
+            <div className="previous-choice"><button className={hasPrevious === true ? 'active' : ''} onClick={() => onPreviousChange(true)}>이전 검사 있음</button><button className={hasPrevious === false ? 'active' : ''} onClick={() => onPreviousChange(false)}>이전 검사 없음</button></div>
             {hasPrevious === null && <p className="previous-placeholder">이전 검사 여부를 선택하면 결과 설명 방식이 표시됩니다.</p>}
             {hasPrevious === false && <div className="baseline-message"><i>1</i><p><strong>이전 검사 데이터가 없습니다</strong><span>이번 검사 결과를 환자의 기준 데이터로 저장하고 현재 상태를 설명합니다. 다음 검사부터 이전 결과와 비교하여 변화량과 변화 방향을 안내합니다.</span></p></div>}
             {hasPrevious === true && <div className="comparison-schema"><div><span>검사 지표</span><span>이전 검사</span><span>현재 검사</span><span>변화</span></div><p>HRV · LF · HF · LF/HF 등 지표별 Before / After 결과와 변화 설명이 표시됩니다.</p></div>}
@@ -245,15 +259,88 @@ function SoapStep({ values, onChange }: { values: Record<string, string>; onChan
   );
 }
 
-function FinalStep({ approved, onApprove, onNew }: { approved: boolean; onApprove: () => void; onNew: () => void }) {
+function FinalStep({
+  approved,
+  soapValues,
+  chartText,
+  autonomicFile,
+  hasPrevious,
+  onApprove,
+  onNew,
+}: {
+  approved: boolean;
+  soapValues: Record<string, string>;
+  chartText: string;
+  autonomicFile: File | null;
+  hasPrevious: boolean | null;
+  onApprove: () => void;
+  onNew: () => void;
+}) {
   const outputs = [
+    ['환자 종합 진료 리포트', '증상·검사·의사소견·치료계획을 한 문서로 통합'],
     ['진료기록', '최종 승인된 SOAP와 의사 수정 이력'],
-    ['환자용 리포트', '확정된 진단·검사·치료계획의 쉬운 설명'],
     ['처방 설명서', '확정 처방의 목적·복용법·주의사항'],
   ];
+  const chartLines = chartText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const reportText = (key: string, fallback: string) => soapValues[key]?.trim() || fallback;
+  const autonomicSummary = autonomicFile
+    ? hasPrevious === true
+      ? '현재 검사와 이전 검사의 지표별 변화량·변화 방향·의료진 설명이 표시됩니다.'
+      : hasPrevious === false
+        ? '이전 검사 데이터가 없어 현재 검사 결과를 기준 데이터로 저장합니다. 다음 검사부터 변화 내용을 비교합니다.'
+        : '검사파일 항목과 수치가 표시되며, 이전 검사 존재 여부 확인 후 비교 설명이 생성됩니다.'
+    : '자율신경검사 파일을 입력하면 검사 항목, 현재 결과, 이전 결과 및 변화 설명이 표시됩니다.';
+  const printReport = () => window.print();
+  const showReport = () => document.getElementById('patient-report')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
   return (
     <div className="step-surface final-step">
       <header className="step-heading"><div><p className="eyebrow">STEP 6 · FINAL APPROVAL</p><h2>최종 확인 및 승인</h2><span>의사가 승인한 데이터만 Final Data와 환자용 문서에 사용합니다.</span></div><span className={approved ? 'step-status complete' : 'step-status'}>{approved ? 'FINALIZED' : '승인 대기'}</span></header>
+      <section className="patient-report-section" id="patient-report">
+        <header>
+          <div><p className="eyebrow">PATIENT REPORT PREVIEW</p><h3>환자 종합 진료 안내서</h3><span>진료 내용을 환자가 이해하기 쉬운 한 문서로 통합합니다.</span></div>
+          <div className="report-actions"><b>{approved ? '의사 승인 완료' : '승인 전 미리보기'}</b><button disabled={!approved} onClick={printReport}>PDF 저장 / 인쇄</button></div>
+        </header>
+        <article className={approved ? 'patient-report-paper approved' : 'patient-report-paper'}>
+          <div className="report-document-head">
+            <div><span>병원명</span><strong>환자 종합 진료 안내서</strong><small>Clinical Visit Summary</small></div>
+            <b>{approved ? '의사 승인본' : '미리보기 · 승인 전'}</b>
+          </div>
+          <dl className="report-patient-info">
+            <div><dt>환자</dt><dd>환자이름</dd></div><div><dt>환자등록번호</dt><dd>환자등록번호</dd></div><div><dt>진료일</dt><dd>진료일</dd></div><div><dt>담당의</dt><dd>담당의사</dd></div>
+          </dl>
+          <section className="report-overview">
+            <span>오늘의 진료 요약</span>
+            <h4>{reportText('A', '담당 의사가 확정한 평가와 진료 요약이 표시됩니다.')}</h4>
+            <p>{reportText('P', '의사가 확정한 치료계획, 처방, 생활관리 및 추후 검사 계획을 환자가 이해하기 쉬운 문장으로 표시합니다.')}</p>
+          </section>
+          <div className="report-clinical-grid">
+            <section><i>S</i><div><strong>주요 증상과 경과</strong><p>{reportText('S', '환자가 말한 주호소, 증상 양상, 발생 시점, 기간과 악화·완화 요인이 표시됩니다.')}</p></div></section>
+            <section><i>O</i><div><strong>진찰 및 검사 결과</strong><p>{reportText('O', '의사가 확인한 진찰 소견과 객관적인 검사 결과가 표시됩니다.')}</p></div></section>
+            <section><i>A</i><div><strong>담당 의사 소견</strong><p>{reportText('A', '담당 의사가 최종 확인한 평가와 진단만 표시됩니다.')}</p></div></section>
+            <section><i>P</i><div><strong>치료·관리 계획</strong><p>{reportText('P', '담당 의사가 확정한 처방, 검사 계획, 생활 안내와 경과관찰 계획이 표시됩니다.')}</p></div></section>
+          </div>
+          <div className="report-result-grid">
+            <section>
+              <header><div><span>EXAMINATION</span><strong>검사 차트 요약</strong></div><b>{chartLines.length ? `${chartLines.length}개 항목` : '입력 대기'}</b></header>
+              {chartLines.length ? <ul>{chartLines.slice(0, 5).map((line, index) => <li key={`${line}-${index}`}><i>{index + 1}</i><span>{line}</span></li>)}</ul> : <p>검사 차트를 입력하면 검사명, 결과값, 단위, 기준범위와 판정 내용이 원문에 근거하여 표시됩니다.</p>}
+            </section>
+            <section>
+              <header><div><span>AUTONOMIC TEST</span><strong>자율신경검사 설명</strong></div><b>{autonomicFile ? '검사파일 연결' : '입력 대기'}</b></header>
+              <p>{autonomicSummary}</p>
+              {autonomicFile && <small>연결 파일 · {autonomicFile.name}</small>}
+            </section>
+          </div>
+          <section className="report-prescription">
+            <div><span>PRESCRIPTION GUIDE</span><strong>처방 및 복용 안내</strong></div>
+            <p>의사가 최종 확정한 처방의 목적, 복용 방법, 주의사항과 환자가 알아야 할 내용이 표시됩니다.</p>
+          </section>
+          <footer className="report-document-footer">
+            <p>본 문서는 담당 의료진이 확인·승인한 진료정보를 환자가 이해하기 쉽게 정리한 안내서입니다. 증상이 변하거나 문의사항이 있으면 담당 의료진에게 확인해 주세요.</p>
+            <div><span>담당의 서명</span><b>{approved ? '전자 승인 완료' : '승인 후 표시'}</b></div>
+          </footer>
+        </article>
+      </section>
       <div className="final-layout">
         <section className="approval-summary">
           <header><div><p className="eyebrow">APPROVAL SUMMARY</p><h3>승인 전 최종 확인</h3></div><i>{approved ? '✓' : '!'}</i></header>
@@ -265,7 +352,8 @@ function FinalStep({ approved, onApprove, onNew }: { approved: boolean; onApprov
         </section>
         <aside className="output-documents">
           <header><p className="eyebrow">FINAL OUTPUT</p><h3>승인 후 생성 문서</h3></header>
-          {outputs.map(([title, description], index) => <article key={title}><i>{index + 1}</i><div><strong>{title}</strong><span>{description}</span></div><b>{approved ? '생성 가능' : '승인 후'}</b></article>)}
+          {outputs.map(([title, description], index) => <article key={title}><i>{index + 1}</i><div><strong>{title}</strong><span>{description}</span></div><b>{approved ? 'PDF 가능' : '승인 후'}</b></article>)}
+          <button onClick={showReport}>종합 리포트 보기 ↑</button>
           {approved && <button onClick={onNew}>새 진료 시작 →</button>}
         </aside>
       </div>
@@ -278,10 +366,14 @@ export default function Home() {
   const [emrCaptured, setEmrCaptured] = useState(false);
   const [approved, setApproved] = useState(false);
   const [soapValues, setSoapValues] = useState<Record<string, string>>({ S: '', O: '', A: '', P: '' });
+  const [chartText, setChartText] = useState('');
+  const [chartOrganized, setChartOrganized] = useState(false);
+  const [autonomicFile, setAutonomicFile] = useState<File | null>(null);
+  const [hasPreviousAutonomic, setHasPreviousAutonomic] = useState<boolean | null>(null);
 
   const currentIndex = activeStep ? flowSteps.findIndex((step) => step.id === activeStep) : -1;
   const goHome = () => setActiveStep(null);
-  const startEncounter = () => { setApproved(false); setEmrCaptured(false); setSoapValues({ S: '', O: '', A: '', P: '' }); setActiveStep('patient'); };
+  const startEncounter = () => { setApproved(false); setEmrCaptured(false); setSoapValues({ S: '', O: '', A: '', P: '' }); setChartText(''); setChartOrganized(false); setAutonomicFile(null); setHasPreviousAutonomic(null); setActiveStep('patient'); };
   const goNext = () => { if (currentIndex < flowSteps.length - 1) setActiveStep(flowSteps[currentIndex + 1].id); };
   const goPrevious = () => { if (currentIndex > 0) setActiveStep(flowSteps[currentIndex - 1].id); else goHome(); };
 
@@ -323,10 +415,10 @@ export default function Home() {
             <div className="flow-content">
               {activeStep === 'patient' && <PatientStep />}
               {activeStep === 'emr' && <EmrStep captured={emrCaptured} onCapture={() => setEmrCaptured(true)} />}
-              {activeStep === 'tests' && <TestsStep />}
+              {activeStep === 'tests' && <TestsStep chartText={chartText} organized={chartOrganized} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} onChartTextChange={(value) => { setChartText(value); setChartOrganized(false); }} onOrganize={() => setChartOrganized(true)} onAutonomicFileChange={(file) => { setAutonomicFile(file); setHasPreviousAutonomic(null); }} onPreviousChange={setHasPreviousAutonomic} />}
               {activeStep === 'audio' && <AudioStep />}
               {activeStep === 'soap' && <SoapStep values={soapValues} onChange={(letter, value) => setSoapValues({ ...soapValues, [letter]: value })} />}
-              {activeStep === 'final' && <FinalStep approved={approved} onApprove={() => setApproved(true)} onNew={startEncounter} />}
+              {activeStep === 'final' && <FinalStep approved={approved} soapValues={soapValues} chartText={chartText} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} onApprove={() => setApproved(true)} onNew={startEncounter} />}
             </div>
 
             <footer className="flow-footer-actions">
