@@ -2,12 +2,26 @@
 
 import { useState } from 'react';
 
-type StepId = 'patient' | 'emr' | 'tests' | 'audio' | 'soap' | 'final';
+type StepId = 'emr' | 'tests' | 'audio' | 'soap' | 'final';
 type EncounterType = 'new' | 'followup';
 type FlowStep = { id: StepId; label: string; description: string };
+type PatientRecord = {
+  id: string;
+  name: string;
+  gender: string;
+  age: number;
+  birthDate: string;
+  lastVisit: string;
+  visits: number;
+  chiefComplaint: string;
+  allergies: string;
+  department: string;
+  diagnoses: string[];
+  soap: Record<'S' | 'O' | 'A' | 'P', string>;
+  tests: [string, string, string][];
+};
 
 const firstVisitSteps: FlowStep[] = [
-  { id: 'patient', label: '환자 선택', description: '초진 · 재진 구분' },
   { id: 'emr', label: '환자정보 캡처', description: 'EMR 기본정보 확인' },
   { id: 'audio', label: '진료 녹음', description: '문진 · 진찰 대화' },
   { id: 'tests', label: '검사자료 보완', description: '있는 자료만 추가' },
@@ -16,7 +30,6 @@ const firstVisitSteps: FlowStep[] = [
 ];
 
 const followupVisitSteps: FlowStep[] = [
-  { id: 'patient', label: '환자 선택', description: '초진 · 재진 구분' },
   { id: 'emr', label: '환자정보 캡처', description: 'EMR 기본정보 확인' },
   { id: 'tests', label: '이전자료 확인', description: '차트 · 검사 이력' },
   { id: 'audio', label: '진료 녹음', description: '오늘 진료 내용' },
@@ -37,6 +50,53 @@ const transcriptFields = [
   ['화자 미확정', '?', '화자 신뢰도가 낮아 의사 확인이 필요한 발화'],
 ];
 
+const patientRecords: PatientRecord[] = [
+  {
+    id: 'P-2024-01842', name: '김민준', gender: '남', age: 47, birthDate: '1979.03.18', lastVisit: '2026.08.12', visits: 8,
+    chiefComplaint: '만성 피로와 수면장애', allergies: '페니실린', department: '가정의학과', diagnoses: ['자율신경 기능 이상', '수면장애'],
+    soap: {
+      S: '최근 3개월간 쉽게 잠들지 못하고 아침 피로가 지속됨. 업무 스트레스가 심한 날 증상이 악화됨.',
+      O: '혈압 128/82 mmHg. 자율신경검사 LF/HF 2.41, 스트레스 지수 높음.',
+      A: '수면장애 및 스트레스 연관 자율신경 불균형 경과 관찰.',
+      P: '수면위생 교육, 카페인 섭취 조절. 4주 후 자율신경검사 재평가.',
+    },
+    tests: [['2026.08.12', '자율신경검사', 'LF/HF 2.41 · 스트레스 지수 높음'], ['2026.05.02', '혈액검사', 'CBC · 갑상선 기능 정상 범위']],
+  },
+  {
+    id: 'P-2025-00671', name: '이서연', gender: '여', age: 34, birthDate: '1992.11.07', lastVisit: '2026.08.05', visits: 4,
+    chiefComplaint: '두통과 어지럼', allergies: '없음', department: '신경과', diagnoses: ['긴장형 두통'],
+    soap: {
+      S: '오후에 양측 관자놀이가 조이는 두통이 주 3회 발생. 구토나 시야 이상은 없음.',
+      O: '신경학적 진찰 특이소견 없음. 혈압 116/74 mmHg.',
+      A: '긴장형 두통 양상. 위험 징후는 현재 확인되지 않음.',
+      P: '두통 일지 작성, 수분 섭취와 스트레칭 안내. 증상 악화 시 조기 내원.',
+    },
+    tests: [['2026.08.05', '신경학적 진찰', '국소 신경학적 결손 없음'], ['2026.04.19', '뇌 MRI', '특이 병변 없음']],
+  },
+  {
+    id: 'P-2023-03109', name: '박지훈', gender: '남', age: 58, birthDate: '1968.01.22', lastVisit: '2026.07.29', visits: 12,
+    chiefComplaint: '혈압 추적 관찰', allergies: '설파계 약물', department: '내과', diagnoses: ['고혈압', '이상지질혈증'],
+    soap: {
+      S: '복약은 규칙적으로 하고 있으며 흉통, 호흡곤란, 어지럼은 없음.',
+      O: '혈압 134/86 mmHg. LDL-C 112 mg/dL.',
+      A: '고혈압은 비교적 안정적이며 이상지질혈증은 생활습관 관리 지속 필요.',
+      P: '현재 약 유지. 저염식과 유산소 운동 안내, 3개월 후 혈액검사.',
+    },
+    tests: [['2026.07.29', '지질검사', 'LDL-C 112 mg/dL'], ['2026.04.25', '신장기능검사', 'Cr 0.9 mg/dL · eGFR 정상']],
+  },
+  {
+    id: 'P-2025-01426', name: '최유진', gender: '여', age: 42, birthDate: '1984.06.14', lastVisit: '2026.07.18', visits: 3,
+    chiefComplaint: '소화불량과 복부 팽만', allergies: '없음', department: '소화기내과', diagnoses: ['기능성 소화불량'],
+    soap: {
+      S: '식후 더부룩함과 조기 포만감이 반복됨. 체중 감소나 흑색변은 없음.',
+      O: '복부 진찰상 압통 없음. 상부위장관 내시경 특이소견 없음.',
+      A: '기능성 소화불량에 합당한 양상.',
+      P: '식사량 분할, 자극적 음식 제한. 6주 후 증상 변화 확인.',
+    },
+    tests: [['2026.07.18', '상부위장관 내시경', '특이소견 없음'], ['2026.06.30', '복부 초음파', '간담췌 특이소견 없음']],
+  },
+];
+
 function formatFileSize(bytes: number) {
   if (bytes === 0) return '0 KB';
   const units = ['B', 'KB', 'MB', 'GB'];
@@ -44,24 +104,27 @@ function formatFileSize(bytes: number) {
   return `${(bytes / 1024 ** index).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
 }
 
-function HomeScreen({ onStart }: { onStart: () => void }) {
+function HomeScreen({ onStart, onOpenPatients }: { onStart: () => void; onOpenPatients: () => void }) {
   return (
     <section className="agent-home">
       <div className="agent-hero">
         <div className="agent-copy">
           <p className="eyebrow">ONE PATIENT · ONE ENCOUNTER</p>
           <h1>한 명의 환자,<br />하나의 진료 흐름</h1>
-          <p>초진은 환자정보 확인 후 진료를 먼저 녹음하고, 녹음 내용을 근거로 차트를 작성합니다. 재진은 이전자료 확인 단계가 자동으로 앞에 배치됩니다.</p>
-          <button className="hero-start" onClick={onStart}><i>＋</i><span><strong>진료 시작</strong><small>환자 선택부터 시작합니다</small></span><b>→</b></button>
+          <p>새 진료는 EMR 환자정보 캡처부터 바로 시작합니다. 기존 기록이 있는 환자는 별도 환자기록에서 과거 진료와 검사를 먼저 확인할 수 있습니다.</p>
+          <div className="home-primary-actions">
+            <button className="hero-start" onClick={onStart}><i>＋</i><span><strong>새 진료 시작</strong><small>환자정보 캡처부터 시작</small></span><b>→</b></button>
+            <button className="patient-history-start" onClick={onOpenPatients}><i>기록</i><span><strong>기존 환자 기록</strong><small>과거 진료·검사 데이터 조회</small></span><b>→</b></button>
+          </div>
         </div>
         <div className="agent-orbit" aria-hidden="true">
           <div className="orbit-center"><i>M</i><strong>Clinical<br />Agent</strong></div>
-          {['환자', 'EMR', 'Audio', 'Data', 'SOAP', '승인'].map((label, index) => <span className={`orbit-item orbit-${index}`} key={label}>{label}</span>)}
+          {['캡처', 'EMR', 'Audio', 'Data', 'SOAP', '승인'].map((label, index) => <span className={`orbit-item orbit-${index}`} key={label}>{label}</span>)}
         </div>
       </div>
 
       <div className="journey-board">
-        <header><div><p className="eyebrow">FIRST VISIT JOURNEY</p><h2>초진이 진행되는 순서</h2></div><span>재진을 선택하면 이전자료 확인 후 녹음 순서로 자동 전환</span></header>
+        <header><div><p className="eyebrow">NEW ENCOUNTER JOURNEY</p><h2>환자정보 캡처부터 시작하는 진료 흐름</h2></div><span>기존 환자는 환자기록에서 선택해 재진 흐름으로 연결</span></header>
         <div className="journey-steps">
           {firstVisitSteps.map((step, index) => (
             <button key={step.id} onClick={onStart}>
@@ -83,69 +146,110 @@ function HomeScreen({ onStart }: { onStart: () => void }) {
           <div><strong>AI는 정리하고, 의사가 판단</strong><p>AI 초안은 의사가 직접 수정하고 승인하기 전까지 Final Data가 아닙니다.</p></div>
         </section>
         <section className="active-encounter-card">
-          <div><p className="eyebrow">ACTIVE ENCOUNTER</p><strong>진행 중인 진료 없음</strong><span>새 진료를 시작하면 환자와 현재 단계가 여기에 표시됩니다.</span></div>
-          <button onClick={onStart}>진료 시작 →</button>
+          <div><p className="eyebrow">PATIENT RECORDS</p><strong>기존 환자 기록을 한곳에서</strong><span>최근 진료, SOAP 차트와 검사 이력을 확인한 뒤 재진을 시작할 수 있습니다.</span></div>
+          <button onClick={onOpenPatients}>환자기록 보기 →</button>
         </section>
       </div>
     </section>
   );
 }
 
-function PatientStep({ encounterType, onEncounterTypeChange }: { encounterType: EncounterType | null; onEncounterTypeChange: (value: EncounterType) => void }) {
+function PatientDirectory({ onStartEncounter }: { onStartEncounter: (patient: PatientRecord) => void }) {
+  const [query, setQuery] = useState('');
+  const [selectedId, setSelectedId] = useState(patientRecords[0].id);
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredPatients = patientRecords.filter((patient) => [patient.name, patient.id, patient.chiefComplaint, patient.department].some((value) => value.toLowerCase().includes(normalizedQuery)));
+  const selectedPatient = patientRecords.find((patient) => patient.id === selectedId) ?? filteredPatients[0] ?? null;
+  const printDate = new Intl.DateTimeFormat('ko-KR').format(new Date());
+  const printPatientRecord = () => {
+    if (!selectedPatient) return;
+    const previousTitle = document.title;
+    document.title = `${selectedPatient.name}_${selectedPatient.id}_진료기록`;
+    document.body.classList.add('printing-patient-record');
+    window.print();
+    document.body.classList.remove('printing-patient-record');
+    document.title = previousTitle;
+  };
+
   return (
-    <div className="step-surface patient-step">
-      <header className="step-heading"><div><p className="eyebrow">STEP 1 · PATIENT</p><h2>진료 환자와 진료구분 선택</h2><span>환자를 확인하고 초진인지 재진인지 선택하면 필요한 순서로 진료 흐름이 자동 조정됩니다.</span></div><span className={encounterType ? 'step-status complete' : 'step-status'}>{encounterType ? `${encounterType === 'new' ? '초진' : '재진'} 흐름 선택` : '진료구분 선택 대기'}</span></header>
-      <section className="patient-search-card">
-        <label className="encounter-search"><i /><input placeholder="환자이름 또는 환자등록번호 검색" aria-label="환자 검색" /><kbd>Enter</kbd></label>
-        <div className="recent-filter"><button className="active">오늘 진료</button><button>최근 내원</button><button>전체 환자</button></div>
-      </section>
-      <section className="visit-type-card">
-        <header><div><p className="eyebrow">ENCOUNTER TYPE</p><strong>오늘 진료는 어떤 유형인가요?</strong></div><span>선택에 따라 3·4단계 순서가 바뀝니다.</span></header>
-        <div>
-          <button className={encounterType === 'new' ? 'active' : ''} onClick={() => onEncounterTypeChange('new')}>
-            <i>초진</i><span><strong>처음 진료하는 환자</strong><small>환자정보 확인 → 진료 녹음 → 검사자료 보완 → 차트 작성</small></span><b>{encounterType === 'new' ? '선택됨' : '선택'}</b>
-          </button>
-          <button className={encounterType === 'followup' ? 'active' : ''} onClick={() => onEncounterTypeChange('followup')}>
-            <i>재진</i><span><strong>이전 진료기록이 있는 환자</strong><small>환자정보 확인 → 이전자료 확인 → 오늘 진료 녹음 → 차트 작성</small></span><b>{encounterType === 'followup' ? '선택됨' : '선택'}</b>
-          </button>
-        </div>
-      </section>
-      <section className="patient-result-card">
-        <div className="patient-result-head"><span>검색 결과</span><b>EMR 연결 후 표시</b></div>
-        <div className="patient-result-empty"><i /><strong>환자를 검색해 주세요</strong><span>환자이름 · 환자등록번호 · 성별 · 나이 · 최근 내원일 · 주호소가 표시됩니다.</span></div>
-      </section>
-      <section className="selected-patient-schema">
-        <header><strong>선택 후 진료 세션에 유지되는 환자 정보</strong><span>모든 다음 단계 상단에 고정 표시</span></header>
-        <div><span>환자이름</span><span>성별 · 나이</span><span>환자등록번호</span><span>생년월일</span><span>주호소</span><span>알레르기</span><span>초진 / 재진</span><span>담당 진료과</span></div>
-      </section>
-    </div>
+    <section className="patient-directory">
+      <header className="directory-heading">
+        <div><p className="eyebrow">PATIENT RECORDS</p><h1>기존 환자 기록</h1><span>기록이 있는 환자의 과거 진료와 검사 데이터를 확인하고 재진으로 연결합니다.</span></div>
+        <b>총 {patientRecords.length}명 · 병원 내부 데이터</b>
+      </header>
+      <div className="patient-directory-layout">
+        <aside className="patient-record-list">
+          <label className="directory-search"><i /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="환자명 · 등록번호 · 주호소 검색" aria-label="기존 환자 기록 검색" /></label>
+          <div className="record-list-meta"><strong>검색 결과 {filteredPatients.length}명</strong><span>최근 내원일 순</span></div>
+          <div className="patient-record-items">
+            {filteredPatients.map((patient) => (
+              <button className={selectedPatient?.id === patient.id ? 'active' : ''} key={patient.id} onClick={() => setSelectedId(patient.id)}>
+                <i>{patient.name.slice(-1)}</i>
+                <span><strong>{patient.name}<small>{patient.gender} · {patient.age}세</small></strong><b>{patient.id}</b><em>{patient.chiefComplaint}</em></span>
+                <time>{patient.lastVisit}</time>
+              </button>
+            ))}
+            {!filteredPatients.length && <div className="record-empty"><strong>검색 결과가 없습니다</strong><span>환자명이나 등록번호를 다시 확인해 주세요.</span></div>}
+          </div>
+        </aside>
+        {selectedPatient && (
+          <article className="patient-record-detail">
+            <div className="patient-record-print-title"><span>MEDIFLOW</span><strong>환자 진료기록</strong><small>Patient Clinical Record</small></div>
+            <header className="record-detail-head">
+              <div className="record-patient-avatar">{selectedPatient.name.slice(-1)}</div>
+              <div><p><strong>{selectedPatient.name}</strong><span>{selectedPatient.gender} · {selectedPatient.age}세 · {selectedPatient.birthDate}</span></p><small>{selectedPatient.id} · {selectedPatient.department} · 총 {selectedPatient.visits}회 내원</small></div>
+              <div className="record-detail-actions">
+                <button className="record-pdf-button" onClick={printPatientRecord}>PDF 저장 / 인쇄</button>
+                <button className="record-start-button" onClick={() => onStartEncounter(selectedPatient)}>이 환자로 재진 시작 <b>→</b></button>
+              </div>
+            </header>
+            <dl className="record-summary-strip">
+              <div><dt>최근 내원</dt><dd>{selectedPatient.lastVisit}</dd></div><div><dt>주호소</dt><dd>{selectedPatient.chiefComplaint}</dd></div><div><dt>알레르기</dt><dd>{selectedPatient.allergies}</dd></div><div><dt>진단 이력</dt><dd>{selectedPatient.diagnoses.join(' · ')}</dd></div>
+            </dl>
+            <div className="record-detail-grid">
+              <section className="past-soap-card">
+                <header><div><p className="eyebrow">LATEST SOAP</p><h2>최근 진료기록</h2></div><time>{selectedPatient.lastVisit}</time></header>
+                <div>{(['S', 'O', 'A', 'P'] as const).map((letter) => <article key={letter}><i>{letter}</i><p>{selectedPatient.soap[letter]}</p></article>)}</div>
+              </section>
+              <section className="past-test-card">
+                <header><div><p className="eyebrow">TEST HISTORY</p><h2>검사 이력</h2></div><b>{selectedPatient.tests.length}건</b></header>
+                <div>{selectedPatient.tests.map(([date, name, result]) => <article key={`${date}-${name}`}><time>{date}</time><div><strong>{name}</strong><span>{result}</span></div><button aria-label={`${name} 상세 보기`}>›</button></article>)}</div>
+                <footer><span>재진을 시작하면 이 자료가 이전자료 확인 단계에 연결됩니다.</span></footer>
+              </section>
+            </div>
+            <footer className="patient-record-print-footer"><span>출력일 {printDate}</span><p>본 문서는 병원 내부에 저장된 환자 진료기록을 의료진 확인용으로 출력한 자료입니다.</p></footer>
+          </article>
+        )}
+      </div>
+    </section>
   );
 }
 
-function EmrStep({ stepNumber, encounterType, captured, onCapture }: { stepNumber: number; encounterType: EncounterType | null; captured: boolean; onCapture: () => void }) {
+function EmrStep({ stepNumber, encounterType, captured, patient, onCapture }: { stepNumber: number; encounterType: EncounterType; captured: boolean; patient: PatientRecord | null; onCapture: () => void }) {
   const patientFields = [
-    ['환자이름', 'EMR 환자명'],
-    ['환자등록번호', '병원 내부 환자 ID'],
-    ['성별 · 생년월일', '성별과 생년월일'],
-    ['연락처', '환자 연락처'],
-    ['초진일 · 최근 내원일', '진료 이력 기준일'],
-    ['알레르기', '약물·음식 알레르기'],
+    ['환자이름', 'EMR 환자명', patient?.name],
+    ['환자등록번호', '병원 내부 환자 ID', patient?.id],
+    ['성별 · 생년월일', '성별과 생년월일', patient ? `${patient.gender} · ${patient.birthDate}` : undefined],
+    ['연락처', '환자 연락처', undefined],
+    ['초진일 · 최근 내원일', '진료 이력 기준일', patient?.lastVisit],
+    ['알레르기', '약물·음식 알레르기', patient?.allergies],
   ];
   return (
     <div className="step-surface">
-      <header className="step-heading"><div><p className="eyebrow">STEP {stepNumber} · PATIENT INFO CAPTURE</p><h2>EMR 환자정보 캡처</h2><span>이 단계에서는 검사 차트가 아닌 환자의 기본정보만 캡처하여 확인합니다.</span></div><span className={captured ? 'step-status complete' : 'step-status'}>{captured ? '환자정보 확인' : '캡처 대기'}</span></header>
+      <header className="step-heading"><div><p className="eyebrow">STEP {stepNumber} · PATIENT INFO CAPTURE</p><h2>EMR 환자정보 캡처</h2><span>모든 새 진료는 환자의 EMR 기본정보를 캡처하고 확인하는 단계부터 시작합니다.</span></div><span className={captured ? 'step-status complete' : 'step-status'}>{captured ? '환자정보 확인' : '캡처 대기'}</span></header>
+      {patient && <div className="linked-patient-banner"><i>기록</i><span><strong>{patient.name} 환자의 기존 기록에서 재진을 시작했습니다</strong><small>최근 내원 {patient.lastVisit} · 과거 검사 {patient.tests.length}건이 다음 이전자료 확인 단계에 연결됩니다.</small></span><b>재진</b></div>}
       <div className="emr-layout">
         <section className="emr-capture-zone">
           <div className="capture-window">
             <div className="capture-window-bar"><i /><i /><i /><span>EMR 환자 기본정보 영역</span></div>
             <div className="capture-placeholder"><i /><strong>환자정보 영역만 캡처</strong><span>환자이름, 환자등록번호, 성별, 생년월일 등 기본정보 영역을 가져옵니다.</span></div>
           </div>
-          <div className="capture-actions"><div><i /><span><strong>검사 차트는 캡처하지 않습니다</strong><small>{encounterType === 'followup' ? '재진은 다음 단계에서 필요한 이전 차트와 검사자료만 확인합니다.' : '초진은 다음 단계에서 진료 대화를 먼저 녹음합니다.'}</small></span></div><button onClick={onCapture}>{captured ? '환자정보 다시 캡처' : '환자정보 캡처'}</button></div>
+          <div className="capture-actions"><div><i /><span><strong>검사 차트는 캡처하지 않습니다</strong><small>{encounterType === 'followup' ? '기존 환자의 이전 차트와 검사자료는 다음 단계에 자동 연결됩니다.' : '초진은 환자정보 확인 후 진료 대화를 먼저 녹음합니다.'}</small></span></div><button onClick={onCapture}>{captured ? '환자정보 다시 캡처' : '환자정보 캡처'}</button></div>
         </section>
         <section className="extract-panel">
           <header><div><p className="eyebrow">PATIENT IDENTITY</p><h3>캡처 결과 확인</h3></div><span>{captured ? '직접 확인 필요' : '입력 대기'}</span></header>
           <div className="patient-field-grid">
-            {patientFields.map(([label, description]) => <label key={label}><span>{label}</span><input placeholder={captured ? `${description} 확인·수정` : '캡처 후 표시'} /></label>)}
+            {patientFields.map(([label, description, value]) => <label key={`${label}-${captured}`}><span>{label}</span><input defaultValue={captured ? value : ''} placeholder={captured ? `${description} 확인·수정` : '캡처 후 표시'} /></label>)}
           </div>
           <div className="capture-policy patient-policy"><i>i</i><span><strong>캡처한 환자정보는 반드시 직접 확인</strong><small>잘못 인식된 환자이름이나 등록번호를 수정한 뒤 다음 단계로 이동합니다.</small></span></div>
         </section>
@@ -290,6 +394,7 @@ function SoapStep({ stepNumber, values, onChange }: { stepNumber: number; values
 function FinalStep({
   stepNumber,
   approved,
+  patient,
   soapValues,
   chartText,
   autonomicFile,
@@ -299,6 +404,7 @@ function FinalStep({
 }: {
   stepNumber: number;
   approved: boolean;
+  patient: PatientRecord | null;
   soapValues: Record<string, string>;
   chartText: string;
   autonomicFile: File | null;
@@ -337,7 +443,7 @@ function FinalStep({
             <b>{approved ? '의사 승인본' : '미리보기 · 승인 전'}</b>
           </div>
           <dl className="report-patient-info">
-            <div><dt>환자</dt><dd>환자이름</dd></div><div><dt>환자등록번호</dt><dd>환자등록번호</dd></div><div><dt>진료일</dt><dd>진료일</dd></div><div><dt>담당의</dt><dd>담당의사</dd></div>
+            <div><dt>환자</dt><dd>{patient?.name ?? '캡처한 환자정보'}</dd></div><div><dt>환자등록번호</dt><dd>{patient?.id ?? '캡처 후 표시'}</dd></div><div><dt>진료일</dt><dd>오늘 진료일</dd></div><div><dt>담당의</dt><dd>담당의사</dd></div>
           </dl>
           <section className="report-overview">
             <span>오늘의 진료 요약</span>
@@ -392,8 +498,11 @@ function FinalStep({
 }
 
 export default function Home() {
-  const [activeStep, setActiveStep] = useState<StepId | null>(null);
-  const [encounterType, setEncounterType] = useState<EncounterType | null>(null);
+  const [activeView, setActiveView] = useState<'home' | 'patients' | 'encounter'>('home');
+  const [activeStep, setActiveStep] = useState<StepId>('emr');
+  const [encounterType, setEncounterType] = useState<EncounterType>('new');
+  const [selectedPatient, setSelectedPatient] = useState<PatientRecord | null>(null);
+  const [encounterStarted, setEncounterStarted] = useState(false);
   const [emrCaptured, setEmrCaptured] = useState(false);
   const [approved, setApproved] = useState(false);
   const [soapValues, setSoapValues] = useState<Record<string, string>>({ S: '', O: '', A: '', P: '' });
@@ -403,61 +512,66 @@ export default function Home() {
   const [hasPreviousAutonomic, setHasPreviousAutonomic] = useState<boolean | null>(null);
 
   const flowSteps = encounterType === 'followup' ? followupVisitSteps : firstVisitSteps;
-  const encounterLabel = encounterType === 'new' ? '초진' : encounterType === 'followup' ? '재진' : '진료구분 선택 필요';
-  const currentIndex = activeStep ? flowSteps.findIndex((step) => step.id === activeStep) : -1;
-  const goHome = () => setActiveStep(null);
-  const startEncounter = () => { setEncounterType(null); setApproved(false); setEmrCaptured(false); setSoapValues({ S: '', O: '', A: '', P: '' }); setChartText(''); setChartOrganized(false); setAutonomicFile(null); setHasPreviousAutonomic(null); setActiveStep('patient'); };
+  const encounterLabel = encounterType === 'new' ? '초진' : '재진';
+  const currentIndex = flowSteps.findIndex((step) => step.id === activeStep);
+  const goHome = () => setActiveView('home');
+  const openPatientDirectory = () => setActiveView('patients');
+  const startEncounter = (patient: PatientRecord | null = null) => { setSelectedPatient(patient); setEncounterType(patient ? 'followup' : 'new'); setApproved(false); setEmrCaptured(false); setSoapValues({ S: '', O: '', A: '', P: '' }); setChartText(''); setChartOrganized(false); setAutonomicFile(null); setHasPreviousAutonomic(null); setActiveStep('emr'); setEncounterStarted(true); setActiveView('encounter'); };
   const goNext = () => { if (currentIndex < flowSteps.length - 1) setActiveStep(flowSteps[currentIndex + 1].id); };
   const goPrevious = () => { if (currentIndex > 0) setActiveStep(flowSteps[currentIndex - 1].id); else goHome(); };
+  const patientName = selectedPatient?.name ?? '새 환자';
+  const patientMeta = selectedPatient ? `${selectedPatient.gender} · ${selectedPatient.age}세 · ${selectedPatient.id}` : 'EMR 환자정보 캡처 대기';
 
   return (
     <main className="flow-app">
       <aside className="flow-rail">
         <button className="flow-brand" onClick={goHome} aria-label="홈">M</button>
-        <button className={!activeStep ? 'flow-home-button active' : 'flow-home-button'} onClick={goHome}><i /><span>홈</span></button>
+        <button className={activeView === 'home' ? 'flow-home-button active' : 'flow-home-button'} onClick={goHome}><i /><span>홈</span></button>
+        <button className={activeView === 'patients' ? 'patient-records-button active' : 'patient-records-button'} onClick={openPatientDirectory}><i>기록</i><span>환자기록</span></button>
         <div className="flow-rail-line" />
         <nav aria-label="진료 진행 단계">
           {flowSteps.map((step, index) => (
-            <button className={activeStep === step.id ? 'flow-step-nav active' : currentIndex > index ? 'flow-step-nav done' : 'flow-step-nav'} key={step.id} onClick={() => activeStep && setActiveStep(step.id)} disabled={!activeStep || (!encounterType && step.id !== 'patient')}>
+            <button className={activeView === 'encounter' && activeStep === step.id ? 'flow-step-nav active' : encounterStarted && currentIndex > index ? 'flow-step-nav done' : 'flow-step-nav'} key={step.id} onClick={() => { setActiveStep(step.id); setActiveView('encounter'); }} disabled={!encounterStarted}>
               <i>{currentIndex > index ? '✓' : index + 1}</i><span>{step.label}</span>
             </button>
           ))}
         </nav>
-        {activeStep && <button className="new-encounter" onClick={startEncounter}><i>＋</i><span>새 진료</span></button>}
+        {encounterStarted && <button className="new-encounter" onClick={() => startEncounter()}><i>＋</i><span>새 진료</span></button>}
       </aside>
 
       <section className="flow-workspace">
         <header className="flow-topbar">
           <div><div className="product-name">MEDIFLOW <span>Clinical AI Agent</span></div><div className="local-badge"><i /> 병원 내부망 · Local AI</div></div>
-          {activeStep ? <div className="active-patient-mini"><i>환자</i><span><strong>환자이름</strong><small>성별 · 나이 · 환자등록번호</small></span><b>{encounterLabel}</b></div> : <div className="topbar-idle"><i>✓</i><span>환자 데이터 외부 전송 없음</span></div>}
+          {activeView === 'encounter' ? <div className="active-patient-mini"><i>환자</i><span><strong>{patientName}</strong><small>{patientMeta}</small></span><b>{encounterLabel}</b></div> : <div className="topbar-idle"><i>✓</i><span>{activeView === 'patients' ? '기존 환자 기록 · 병원 내부 조회' : '환자 데이터 외부 전송 없음'}</span></div>}
         </header>
 
-        {!activeStep ? <HomeScreen onStart={startEncounter} /> : (
+        {activeView === 'home' && <HomeScreen onStart={() => startEncounter()} onOpenPatients={openPatientDirectory} />}
+        {activeView === 'patients' && <PatientDirectory onStartEncounter={startEncounter} />}
+        {activeView === 'encounter' && (
           <>
             <div className="encounter-patient-bar">
               <div className="encounter-patient-avatar">환자</div>
-              <div><strong>환자이름</strong><span>성별 · 나이</span><small>환자등록번호</small></div>
-              <dl><div><dt>주호소</dt><dd>환자가 호소하는 주요 증상</dd></div><div><dt>알레르기</dt><dd>약물·음식 알레르기 정보</dd></div><div><dt>진료구분</dt><dd>{encounterLabel}</dd></div></dl>
-              <button onClick={() => setActiveStep('patient')}>환자정보 확인</button>
+              <div><strong>{patientName}</strong><span>{selectedPatient ? `${selectedPatient.gender} · ${selectedPatient.age}세` : '기본정보 캡처 전'}</span><small>{selectedPatient?.id ?? '등록번호 확인 대기'}</small></div>
+              <dl><div><dt>주호소</dt><dd>{selectedPatient?.chiefComplaint ?? '캡처 후 확인'}</dd></div><div><dt>알레르기</dt><dd>{selectedPatient?.allergies ?? '캡처 후 확인'}</dd></div><div><dt>진료구분</dt><dd>{encounterLabel}</dd></div></dl>
+              <button onClick={openPatientDirectory}>기존 환자 기록</button>
             </div>
 
             <div className="flow-progress">
-              {flowSteps.map((step, index) => <button className={index === currentIndex ? 'active' : index < currentIndex ? 'done' : ''} key={step.id} onClick={() => setActiveStep(step.id)} disabled={!encounterType && step.id !== 'patient'}><i>{index < currentIndex ? '✓' : index + 1}</i><span><strong>{step.label}</strong><small>{step.description}</small></span>{index < flowSteps.length - 1 && <b />}</button>)}
+              {flowSteps.map((step, index) => <button className={index === currentIndex ? 'active' : index < currentIndex ? 'done' : ''} key={step.id} onClick={() => setActiveStep(step.id)}><i>{index < currentIndex ? '✓' : index + 1}</i><span><strong>{step.label}</strong><small>{step.description}</small></span>{index < flowSteps.length - 1 && <b />}</button>)}
             </div>
 
             <div className="flow-content">
-              {activeStep === 'patient' && <PatientStep encounterType={encounterType} onEncounterTypeChange={setEncounterType} />}
-              {activeStep === 'emr' && <EmrStep stepNumber={currentIndex + 1} encounterType={encounterType} captured={emrCaptured} onCapture={() => setEmrCaptured(true)} />}
+              {activeStep === 'emr' && <EmrStep stepNumber={currentIndex + 1} encounterType={encounterType} captured={emrCaptured} patient={selectedPatient} onCapture={() => setEmrCaptured(true)} />}
               {activeStep === 'tests' && <TestsStep stepNumber={currentIndex + 1} encounterType={encounterType} chartText={chartText} organized={chartOrganized} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} onChartTextChange={(value) => { setChartText(value); setChartOrganized(false); }} onOrganize={() => setChartOrganized(true)} onAutonomicFileChange={(file) => { setAutonomicFile(file); setHasPreviousAutonomic(null); }} onPreviousChange={setHasPreviousAutonomic} />}
               {activeStep === 'audio' && <AudioStep stepNumber={currentIndex + 1} encounterType={encounterType} />}
               {activeStep === 'soap' && <SoapStep stepNumber={currentIndex + 1} values={soapValues} onChange={(letter, value) => setSoapValues({ ...soapValues, [letter]: value })} />}
-              {activeStep === 'final' && <FinalStep stepNumber={currentIndex + 1} approved={approved} soapValues={soapValues} chartText={chartText} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} onApprove={() => setApproved(true)} onNew={startEncounter} />}
+              {activeStep === 'final' && <FinalStep stepNumber={currentIndex + 1} approved={approved} patient={selectedPatient} soapValues={soapValues} chartText={chartText} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} onApprove={() => setApproved(true)} onNew={() => startEncounter()} />}
             </div>
 
             <footer className="flow-footer-actions">
               <button className="flow-previous" onClick={goPrevious}>← 이전 단계</button>
               <div><span>{currentIndex + 1} / {flowSteps.length}</span><strong>{flowSteps[currentIndex].label}</strong></div>
-              {activeStep !== 'final' && <button className="flow-next" disabled={activeStep === 'patient' && !encounterType} onClick={goNext}>{activeStep === 'patient' && !encounterType ? '초진 또는 재진을 선택하세요' : `${flowSteps[currentIndex + 1].label}로`} <b>→</b></button>}
+              {activeStep !== 'final' && <button className="flow-next" onClick={goNext}>{`${flowSteps[currentIndex + 1].label}로`} <b>→</b></button>}
             </footer>
           </>
         )}
