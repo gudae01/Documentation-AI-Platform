@@ -22,6 +22,23 @@ type PatientRecord = {
     assessment: string;
     plan: string;
   };
+  clinicalDetails: { label: string; value: string }[];
+  clinician: string;
+  approvedAt: string;
+  courseSummary: {
+    title: string;
+    status: '호전' | '유지' | '관찰 필요';
+    summary: string;
+    sources: string[];
+  }[];
+  previousRecords: {
+    date: string;
+    visitType: string;
+    chiefComplaint: string;
+    assessment: string;
+    treatment: string;
+    clinician: string;
+  }[];
   soap: Record<'S' | 'O' | 'A' | 'P', string>;
   tests: [string, string, string][];
   autonomic: {
@@ -64,6 +81,24 @@ const patientRecords: PatientRecord[] = [
       assessment: '위험 신호나 급성 신경학적 이상은 확인되지 않음. 수면장애와 지속적인 스트레스가 자율신경 불균형에 영향을 주는 것으로 판단함.',
       plan: '수면위생과 카페인 섭취 조절을 우선 적용하고, 규칙적인 유산소 운동을 안내함. 4주 후 증상과 자율신경검사 변화를 재평가하기로 함.',
     },
+    clinicalDetails: [
+      { label: '발병·경과', value: '약 3개월 전부터 입면 시간이 1시간 이상으로 길어졌으며, 야간 각성과 기상 후 피로가 지속됨. 업무량과 긴장이 증가한 날 두근거림 및 경항부 긴장이 동반됨.' },
+      { label: '과거력·가족력', value: '기록상 중대한 만성질환 및 수술력 없음. 이번 진료에서 수면장애와 직접 관련된 가족력은 별도 확인되지 않음.' },
+      { label: '복용약·알레르기', value: '정기 복용약 없음. 페니실린 투여 후 발진 병력이 기록되어 있음.' },
+      { label: '진찰·검사 소견', value: '혈압 128/82 mmHg. 급성 신경학적 이상 소견 없음. HRV 32 ms, LF/HF 2.41, 스트레스 지수 78로 교감신경 우세 및 높은 스트레스 상태가 확인됨.' },
+      { label: '진단·의사 소견', value: '수면장애 및 스트레스와 연관된 자율신경 기능 이상으로 판단함. 즉시 추가검사가 필요한 위험 신호는 현재 확인되지 않음.' },
+      { label: '치료·처방·교육', value: '수면위생 교육, 오후 카페인 제한, 규칙적인 유산소 운동을 안내함. 4주 후 증상 변화와 자율신경검사를 재평가하기로 함.' },
+    ],
+    clinician: '홍길동 의사', approvedAt: '2026.08.12 15:42',
+    courseSummary: [
+      { title: '수면과 피로 경과', status: '관찰 필요', summary: '입면 지연과 기상 후 피로가 계속되지만 야간 각성 횟수는 이전 기록보다 감소함.', sources: ['2026.05.02', '2026.08.12'] },
+      { title: '자율신경 지표 변화', status: '호전', summary: 'HRV는 28 ms에서 32 ms로 증가했고 LF/HF와 스트레스 지수는 감소함.', sources: ['2026.05.02', '2026.08.12'] },
+      { title: '치료 계획 변화', status: '유지', summary: '약물치료 없이 수면위생과 생활관리 중심의 계획을 유지하며 4주 후 재평가 예정임.', sources: ['2026.05.02', '2026.08.12'] },
+    ],
+    previousRecords: [
+      { date: '2026.05.02', visitType: '재진', chiefComplaint: '입면 지연, 아침 피로 및 업무 스트레스', assessment: '스트레스 연관 수면장애 의심. CBC 및 갑상선 기능은 정상 범위로 확인됨.', treatment: '수면일지 작성과 카페인 섭취 제한을 안내하고 자율신경검사를 시행함.', clinician: '홍길동 의사' },
+      { date: '2026.02.10', visitType: '초진', chiefComplaint: '쉽게 잠들지 못하고 휴식 후에도 지속되는 피로', assessment: '수면시간 불규칙과 업무 스트레스가 증상에 영향을 주는 것으로 평가함.', treatment: '규칙적인 취침·기상 시간과 주 3회 유산소 운동을 우선 권고함.', clinician: '홍길동 의사' },
+    ],
     soap: {
       S: '최근 3개월간 쉽게 잠들지 못하고 아침 피로가 지속됨. 업무 스트레스가 심한 날 증상이 악화됨.',
       O: '혈압 128/82 mmHg. 자율신경검사 LF/HF 2.41, 스트레스 지수 높음.',
@@ -86,6 +121,24 @@ const patientRecords: PatientRecord[] = [
       assessment: '진찰에서 국소 신경학적 이상과 이차성 두통의 위험 징후는 확인되지 않아 긴장형 두통 가능성이 높은 것으로 판단함.',
       plan: '두통 발생 시간과 유발 요인을 기록하도록 안내하고, 수분 섭취와 목·어깨 스트레칭을 권고함. 증상 빈도가 증가하거나 신경학적 증상이 동반되면 조기 내원하도록 설명함.',
     },
+    clinicalDetails: [
+      { label: '발병·경과', value: '약 2개월 전부터 오후 시간대에 양측 관자놀이를 조이는 양상의 두통이 주 3회 발생함. 장시간 화면을 본 날과 수면이 부족한 날 악화됨.' },
+      { label: '과거력·가족력', value: '특이 만성질환 및 두부 외상력 없음. 두통 관련 가족력은 기록상 확인되지 않음.' },
+      { label: '복용약·알레르기', value: '두통이 심한 날 일반 진통제를 간헐적으로 복용함. 알려진 약물 알레르기 없음.' },
+      { label: '진찰·검사 소견', value: '혈압 116/74 mmHg. 의식 및 뇌신경·운동·감각 진찰에서 국소 신경학적 결손 없음. 구토, 시야 이상, 편측 마비 등 위험 증상 없음.' },
+      { label: '진단·의사 소견', value: '임상 양상상 긴장형 두통 가능성이 높음. 현재 이차성 두통을 시사하는 위험 신호는 확인되지 않음.' },
+      { label: '치료·처방·교육', value: '두통 일지 작성, 충분한 수분 섭취와 경항부 스트레칭을 안내함. 빈도 증가 또는 신경학적 증상 발생 시 조기 내원하도록 설명함.' },
+    ],
+    clinician: '홍길동 의사', approvedAt: '2026.08.05 14:18',
+    courseSummary: [
+      { title: '두통 빈도', status: '유지', summary: '두통은 주 3회 수준으로 지속되며 이전 기록과 비교해 뚜렷한 빈도 증가는 없음.', sources: ['2026.04.19', '2026.08.05'] },
+      { title: '위험 신호', status: '호전', summary: '뇌 MRI와 신경학적 진찰에서 특이소견이 없고 새로운 신경학적 증상도 확인되지 않음.', sources: ['2026.04.19', '2026.08.05'] },
+      { title: '관리 계획', status: '관찰 필요', summary: '화면 노출과 경항부 긴장이 유발 요인으로 보여 두통 일지를 통한 추적이 필요함.', sources: ['2026.06.11', '2026.08.05'] },
+    ],
+    previousRecords: [
+      { date: '2026.06.11', visitType: '재진', chiefComplaint: '오후에 반복되는 조이는 양상의 두통', assessment: '영상검사 특이소견 없이 긴장형 두통 양상이 지속됨.', treatment: '화면 사용 중 휴식, 수분 섭취 및 목·어깨 스트레칭을 안내함.', clinician: '홍길동 의사' },
+      { date: '2026.04.19', visitType: '초진', chiefComplaint: '반복되는 두통과 간헐적인 어지럼', assessment: '신경학적 결손은 없으며 뇌 MRI에서 특이 병변이 확인되지 않음.', treatment: '위험 증상을 교육하고 증상·유발 요인 기록을 시작하도록 안내함.', clinician: '홍길동 의사' },
+    ],
     soap: {
       S: '오후에 양측 관자놀이가 조이는 두통이 주 3회 발생. 구토나 시야 이상은 없음.',
       O: '신경학적 진찰 특이소견 없음. 혈압 116/74 mmHg.',
@@ -107,6 +160,24 @@ const patientRecords: PatientRecord[] = [
       assessment: '진료실 혈압은 목표 범위에 가깝고 급성 심혈관 증상은 없음. LDL 콜레스테롤은 이전보다 감소했으나 지속적인 생활습관 관리가 필요하다고 판단함.',
       plan: '현재 약제를 유지하고 저염식과 유산소 운동을 지속하도록 안내함. 3개월 후 혈압 기록과 지질·신장기능검사를 재확인하기로 함.',
     },
+    clinicalDetails: [
+      { label: '발병·경과', value: '고혈압과 이상지질혈증으로 정기 추적 중임. 최근 흉통, 호흡곤란, 두근거림 및 어지럼은 없으며 주 4회 30분 걷기를 유지함.' },
+      { label: '과거력·가족력', value: '고혈압 및 이상지질혈증 치료 중. 심혈관질환 관련 가족력은 기존 기록에 별도 기재되지 않음.' },
+      { label: '복용약·알레르기', value: '처방된 혈압약과 지질저하제를 규칙적으로 복용함. 설파계 약물 알레르기 있음.' },
+      { label: '진찰·검사 소견', value: '혈압 134/86 mmHg, LDL-C 112 mg/dL. 급성 심혈관 증상 없음. 최근 Cr 0.9 mg/dL 및 eGFR 정상 범위.' },
+      { label: '진단·의사 소견', value: '고혈압은 비교적 안정적이며 LDL 콜레스테롤은 이전보다 감소함. 이상지질혈증에 대한 생활습관 관리는 계속 필요함.' },
+      { label: '치료·처방·교육', value: '현재 처방을 유지하고 저염식 및 유산소 운동을 지속하도록 안내함. 3개월 후 혈압 기록, 지질검사와 신장기능검사를 재확인함.' },
+    ],
+    clinician: '홍길동 의사', approvedAt: '2026.07.29 11:36',
+    courseSummary: [
+      { title: '혈압 경과', status: '유지', summary: '진료실 혈압은 목표 범위에 가까우며 급성 심혈관 증상 없이 안정적으로 유지됨.', sources: ['2026.04.25', '2026.07.29'] },
+      { title: '지질 수치', status: '호전', summary: 'LDL 콜레스테롤이 이전 기록보다 감소했으나 생활습관 관리가 계속 필요함.', sources: ['2026.04.25', '2026.07.29'] },
+      { title: '복약·생활관리', status: '유지', summary: '복약 순응도와 주 4회 걷기를 유지하고 있으며 현재 처방 변경은 없음.', sources: ['2026.04.25', '2026.07.29'] },
+    ],
+    previousRecords: [
+      { date: '2026.04.25', visitType: '정기 재진', chiefComplaint: '혈압 및 이상지질혈증 추적', assessment: '가정혈압은 대체로 안정적이며 신장기능은 정상 범위임.', treatment: '현재 약제를 유지하고 저염식과 유산소 운동을 지속하도록 안내함.', clinician: '홍길동 의사' },
+      { date: '2026.01.16', visitType: '정기 재진', chiefComplaint: '혈압 기록 확인 및 복약 상담', assessment: '복약 순응도는 양호하나 운동량이 부족한 상태로 평가함.', treatment: '주 4회 30분 걷기 목표를 설정하고 3개월 후 추적하기로 함.', clinician: '홍길동 의사' },
+    ],
     soap: {
       S: '복약은 규칙적으로 하고 있으며 흉통, 호흡곤란, 어지럼은 없음.',
       O: '혈압 134/86 mmHg. LDL-C 112 mg/dL.',
@@ -129,6 +200,24 @@ const patientRecords: PatientRecord[] = [
       assessment: '복부 진찰과 내시경에서 기질적 이상이 확인되지 않아 기능성 소화불량에 합당한 양상으로 판단함.',
       plan: '한 번의 식사량을 줄여 나누어 먹고 자극적인 음식과 늦은 야식을 피하도록 안내함. 6주 후 증상 변화를 확인하기로 함.',
     },
+    clinicalDetails: [
+      { label: '발병·경과', value: '약 3개월 전부터 식후 더부룩함과 조기 포만감이 반복됨. 스트레스가 심하거나 늦게 식사한 날 복부 팽만이 증가함.' },
+      { label: '과거력·가족력', value: '소화기 수술력 및 중대한 만성질환 없음. 소화기계 질환 가족력은 기록상 확인되지 않음.' },
+      { label: '복용약·알레르기', value: '정기 복용약 없음. 알려진 약물 및 음식 알레르기 없음.' },
+      { label: '진찰·검사 소견', value: '복부 진찰에서 압통과 반발통 없음. 상부위장관 내시경과 복부 초음파에서 증상을 설명할 기질적 이상이 확인되지 않음.' },
+      { label: '진단·의사 소견', value: '경고 증상 및 기질적 병변 없이 식후 불편감이 반복되어 기능성 소화불량에 합당한 양상으로 판단함.' },
+      { label: '치료·처방·교육', value: '소량씩 나누어 먹고 자극적인 음식과 늦은 야식을 피하도록 안내함. 체중 감소, 반복 구토 또는 흑색변 발생 시 즉시 내원하도록 교육함.' },
+    ],
+    clinician: '홍길동 의사', approvedAt: '2026.07.18 16:05',
+    courseSummary: [
+      { title: '소화기 증상', status: '관찰 필요', summary: '조기 포만감은 비슷하게 지속되며 늦은 식사 후 복부 팽만이 두드러짐.', sources: ['2026.06.30', '2026.07.18'] },
+      { title: '위험 신호·검사', status: '호전', summary: '체중 감소·반복 구토·흑색변이 없고 내시경과 초음파에서도 특이소견이 없음.', sources: ['2026.06.30', '2026.07.18'] },
+      { title: '생활관리', status: '유지', summary: '식사량 분할과 야식 제한을 유지하며 6주 후 증상 변화를 평가할 예정임.', sources: ['2026.06.30', '2026.07.18'] },
+    ],
+    previousRecords: [
+      { date: '2026.06.30', visitType: '재진', chiefComplaint: '식후 복부 팽만과 더부룩함', assessment: '복부 초음파에서 간담췌 특이소견 없이 기능성 원인을 우선 고려함.', treatment: '식사량을 나누고 식후 바로 눕지 않도록 생활지도를 시행함.', clinician: '홍길동 의사' },
+      { date: '2026.05.14', visitType: '초진', chiefComplaint: '식후 조기 포만감과 반복되는 소화불량', assessment: '체중 감소와 출혈 증상은 없으며 우선 기질적 원인 감별을 계획함.', treatment: '상부위장관 내시경과 복부 초음파를 계획하고 경고 증상을 교육함.', clinician: '홍길동 의사' },
+    ],
     soap: {
       S: '식후 더부룩함과 조기 포만감이 반복됨. 체중 감소나 흑색변은 없음.',
       O: '복부 진찰상 압통 없음. 상부위장관 내시경 특이소견 없음.',
@@ -321,13 +410,55 @@ function PatientDirectory({ onStartEncounter }: { onStartEncounter: (patient: Pa
               <div><dt>최근 내원</dt><dd>{selectedPatient.lastVisit}</dd></div><div><dt>주호소</dt><dd>{selectedPatient.chiefComplaint}</dd></div><div><dt>알레르기</dt><dd>{selectedPatient.allergies}</dd></div><div><dt>진단 이력</dt><dd>{selectedPatient.diagnoses.join(' · ')}</dd></div>
             </dl>
             <section className="record-chart-card">
-              <header><div><p className="eyebrow">CLINICAL CHART</p><h2>진료 차트</h2></div><time>{selectedPatient.lastVisit}</time></header>
+              <header><div><p className="eyebrow">TODAY&apos;S CLINICAL SUMMARY</p><h2>오늘 진료 요약</h2></div><span><b>요약</b><time>{selectedPatient.lastVisit}</time></span></header>
               <div className="chart-narrative-grid">
                 <article><i>환자</i><div><strong>환자가 설명한 증상과 경과</strong><p>{selectedPatient.chart.symptoms}</p></div></article>
                 <article><i>판단</i><div><strong>의사의 판단</strong><p>{selectedPatient.chart.assessment}</p></div></article>
                 <article><i>계획</i><div><strong>치료·관리 계획</strong><p>{selectedPatient.chart.plan}</p></div></article>
               </div>
             </section>
+            <section className="record-detailed-card" id={`current-record-${selectedPatient.lastVisit.replace(/\./g, '-')}`}>
+              <header>
+                <div><p className="eyebrow">CURRENT ENCOUNTER DETAIL</p><h2>오늘의 상세 진료기록</h2><span>요약에 생략된 진찰·치료 내용을 포함한 승인 기록입니다.</span></div>
+                <b>의사 승인 완료</b>
+              </header>
+              <div className="clinical-detail-table">
+                <div className="clinical-detail-table-head"><span>기록 항목</span><span>상세 내용</span></div>
+                {selectedPatient.clinicalDetails.map((detail) => <div className="clinical-detail-row" key={detail.label}><strong>{detail.label}</strong><p>{detail.value}</p></div>)}
+              </div>
+              <footer><span>진료일시 <b>{selectedPatient.approvedAt}</b></span><span>작성·승인자 <b>{selectedPatient.clinician}</b></span></footer>
+            </section>
+            <div className="record-history-grid">
+              <section className="course-summary-card">
+                <header><div><p className="eyebrow">LONGITUDINAL SUMMARY</p><h2>과거 기록 기반 경과 요약</h2></div><b>{selectedPatient.previousRecords.length}개 기록 비교</b></header>
+                <div className="course-summary-list">
+                  {selectedPatient.courseSummary.map((item) => (
+                    <article key={item.title}>
+                      <div><strong>{item.title}</strong><b className={`course-status ${item.status === '호전' ? 'improved' : item.status === '관찰 필요' ? 'attention' : ''}`}>{item.status}</b></div>
+                      <p>{item.summary}</p>
+                      <footer><span>근거 기록</span>{item.sources.map((source) => <a key={source} href={`#${source === selectedPatient.lastVisit ? 'current-record' : 'previous-record'}-${source.replace(/\./g, '-')}`}>{source}</a>)}</footer>
+                    </article>
+                  ))}
+                </div>
+                <footer className="summary-disclosure"><i>i</i><span>과거 기록을 현재 진료와 합치지 않고, 변화만 별도로 요약했습니다.</span></footer>
+              </section>
+              <section className="previous-records-card">
+                <header><div><p className="eyebrow">SOURCE RECORDS</p><h2>날짜별 이전 진료 원본</h2></div><span>눌러서 상세 확인</span></header>
+                <div className="previous-record-list">
+                  {selectedPatient.previousRecords.map((record) => (
+                    <details key={record.date} open id={`previous-record-${record.date.replace(/\./g, '-')}`}>
+                      <summary><span><time>{record.date}</time><b>{record.visitType}</b></span><strong>{record.chiefComplaint}</strong><em>원본 기록 보기</em></summary>
+                      <dl>
+                        <div><dt>주호소</dt><dd>{record.chiefComplaint}</dd></div>
+                        <div><dt>평가·진단</dt><dd>{record.assessment}</dd></div>
+                        <div><dt>치료·교육</dt><dd>{record.treatment}</dd></div>
+                      </dl>
+                      <footer><span>작성·승인자</span><b>{record.clinician}</b></footer>
+                    </details>
+                  ))}
+                </div>
+              </section>
+            </div>
             <div className="record-detail-grid">
               <section className="past-soap-card">
                 <header><div><p className="eyebrow">LATEST SOAP</p><h2>최근 SOAP 기록</h2></div><time>{selectedPatient.lastVisit}</time></header>

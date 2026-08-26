@@ -503,6 +503,8 @@ button { cursor: pointer; }
 .record-chart-card > header { min-height: 62px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-bottom: 1px solid #e4eaea; }
 .record-chart-card h2 { margin: 0; color: #304c54; font-size: 16px; }
 .record-chart-card > header time { color: #7e8f93; font-size: 10px; }
+.record-chart-card > header > span { display: flex; align-items: center; gap: 9px; }
+.record-chart-card > header > span > b { padding: 5px 7px; border-radius: 6px; background: #eef4f3; color: #637b7f; font-size: 9px; }
 .chart-narrative-grid { display: grid; grid-template-columns: repeat(3, 1fr); }
 .chart-narrative-grid article { min-width: 0; display: grid; grid-template-columns: 38px 1fr; align-items: start; gap: 11px; padding: 16px; border-right: 1px solid #e6ecec; }
 .chart-narrative-grid article:last-child { border-right: 0; }
@@ -511,6 +513,60 @@ button { cursor: pointer; }
 .chart-narrative-grid article:nth-child(3) > i { background: #f7f1e7; color: #8b6b37; }
 .chart-narrative-grid strong { color: #3c565e; font-size: 12px; }
 .chart-narrative-grid p { margin: 7px 0 0; color: #65787e; font-size: 11px; line-height: 1.65; }
+.record-detailed-card { margin: 16px 20px 0; border: 1px solid #d9e4e3; border-radius: 12px; overflow: hidden; scroll-margin-top: 12px; }
+.record-detailed-card > header { min-height: 73px; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 13px 16px; border-bottom: 1px solid #e1e8e8; background: #fbfcfc; }
+.record-detailed-card > header h2 { margin: 0; color: #304c54; font-size: 16px; }
+.record-detailed-card > header span { display: block; margin-top: 5px; color: #839297; font-size: 10px; }
+.record-detailed-card > header > b { flex: 0 0 auto; padding: 6px 9px; border-radius: 7px; background: #e4f3ee; color: #29756b; font-size: 9px; }
+.clinical-detail-table-head, .clinical-detail-row { display: grid; grid-template-columns: 155px minmax(0, 1fr); }
+.clinical-detail-table-head { min-height: 34px; align-items: center; border-bottom: 1px solid #e1e8e8; background: #edf3f2; color: #74868a; font-size: 9px; font-weight: 750; }
+.clinical-detail-table-head span, .clinical-detail-row > strong, .clinical-detail-row > p { padding-inline: 14px; }
+.clinical-detail-table-head span:first-child, .clinical-detail-row > strong { border-right: 1px solid #dce5e4; }
+.clinical-detail-row { min-height: 58px; border-bottom: 1px solid #e7ecec; }
+.clinical-detail-row > strong { display: flex; align-items: center; background: #fafcfc; color: #3f5c63; font-size: 11px; }
+.clinical-detail-row > p { display: flex; align-items: center; margin: 0; padding-block: 12px; color: #586f75; font-size: 11px; line-height: 1.65; }
+.record-detailed-card > footer { min-height: 39px; display: flex; align-items: center; justify-content: flex-end; gap: 22px; padding: 8px 14px; background: #f8faf9; color: #879599; font-size: 9px; }
+.record-detailed-card > footer b { margin-left: 5px; color: #4d676d; font-size: 10px; }
+.record-history-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 20px 0; }
+.course-summary-card, .previous-records-card { min-width: 0; border: 1px solid #dfe6e7; border-radius: 12px; overflow: hidden; }
+.course-summary-card > header, .previous-records-card > header { min-height: 65px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 16px; border-bottom: 1px solid #e4eaea; }
+.course-summary-card h2, .previous-records-card h2 { margin: 0; color: #304c54; font-size: 16px; }
+.course-summary-card > header > b { padding: 5px 7px; border-radius: 6px; background: #e8f4f2; color: #337b72; font-size: 9px; }
+.previous-records-card > header > span { color: #879599; font-size: 9px; }
+.course-summary-list { padding: 3px 15px; }
+.course-summary-list > article { padding: 13px 0 12px; border-bottom: 1px solid #e8eeee; }
+.course-summary-list > article:last-child { border-bottom: 0; }
+.course-summary-list > article > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.course-summary-list strong { color: #405a61; font-size: 11px; }
+.course-status { flex: 0 0 auto; padding: 4px 7px; border-radius: 999px; background: #f0f3f3; color: #657b80; font-size: 8px; }
+.course-status.improved { background: #e6f4ef; color: #27766b; }
+.course-status.attention { background: #f8f0df; color: #8c6a2f; }
+.course-summary-list p { margin: 7px 0 9px; color: #60767c; font-size: 10px; line-height: 1.6; }
+.course-summary-list article > footer { display: flex; align-items: center; gap: 6px; }
+.course-summary-list article > footer span { margin-right: 2px; color: #8b999d; font-size: 8px; }
+.course-summary-list article > footer a { padding: 3px 6px; border: 1px solid #d5e3e1; border-radius: 5px; background: #f7faf9; color: #367a72; font-size: 8px; text-decoration: none; }
+.course-summary-list article > footer a:hover { border-color: #8dbcb6; background: #edf7f4; }
+.summary-disclosure { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid #dbe8e5; background: #edf7f4; color: #52776f; font-size: 9px; line-height: 1.45; }
+.summary-disclosure i { width: 17px; height: 17px; display: grid; place-items: center; flex: 0 0 auto; border: 1px solid #8abcb4; border-radius: 50%; font-style: normal; }
+.previous-record-list { padding: 3px 15px; }
+.previous-record-list details { border-bottom: 1px solid #e8eeee; scroll-margin-top: 12px; }
+.previous-record-list details:last-child { border-bottom: 0; }
+.previous-record-list summary { min-height: 69px; position: relative; display: grid; grid-template-columns: 76px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 11px 20px 11px 0; cursor: pointer; list-style: none; }
+.previous-record-list summary::-webkit-details-marker { display: none; }
+.previous-record-list summary::after { content: "⌄"; position: absolute; right: 1px; color: #43887f; font-size: 15px; transition: transform .2s ease; }
+.previous-record-list details[open] summary::after { transform: rotate(180deg); }
+.previous-record-list summary > span time, .previous-record-list summary > span b { display: block; }
+.previous-record-list summary time { color: #60787e; font-size: 9px; }
+.previous-record-list summary b { width: fit-content; margin-top: 5px; padding: 3px 5px; border-radius: 4px; background: #eef4f3; color: #627d80; font-size: 8px; }
+.previous-record-list summary > strong { color: #405a61; font-size: 10px; line-height: 1.45; }
+.previous-record-list summary > em { color: #3d7f77; font-size: 8px; font-style: normal; white-space: nowrap; }
+.previous-record-list details > dl { margin: 0 0 10px; padding: 3px 11px; border: 1px solid #dfe8e7; border-radius: 8px; background: #fafcfc; }
+.previous-record-list details > dl > div { display: grid; grid-template-columns: 68px minmax(0, 1fr); padding: 9px 0; border-bottom: 1px solid #e7eded; }
+.previous-record-list details > dl > div:last-child { border-bottom: 0; }
+.previous-record-list dt { color: #76898e; font-size: 9px; font-weight: 750; }
+.previous-record-list dd { margin: 0; color: #566e74; font-size: 10px; line-height: 1.55; }
+.previous-record-list details > footer { display: flex; align-items: center; justify-content: flex-end; gap: 7px; padding: 0 3px 10px; color: #8a989c; font-size: 8px; }
+.previous-record-list details > footer b { color: #536c72; font-size: 9px; }
 .record-detail-grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 16px; padding: 18px 20px 22px; }
 .past-soap-card, .past-test-card, .autonomic-record-card { min-width: 0; border: 1px solid #dfe6e7; border-radius: 12px; overflow: hidden; }
 .past-soap-card > header, .past-test-card > header { min-height: 65px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-bottom: 1px solid #e4eaea; }
@@ -958,6 +1014,7 @@ button { cursor: pointer; }
   .active-encounter-card { grid-column: 1 / 3; }
   .patient-directory { padding-inline: 20px; }
   .patient-directory-layout { grid-template-columns: 300px minmax(0, 1fr); }
+  .record-history-grid { grid-template-columns: 1fr; }
   .record-detail-grid { grid-template-columns: 1fr; }
   .flow-progress button small, .flow-progress button > b { display: none; }
   .encounter-patient-bar dl { display: none; }
@@ -1043,6 +1100,15 @@ button { cursor: pointer; }
   .chart-narrative-grid { grid-template-columns: 1fr; }
   .chart-narrative-grid article { border-right: 0; border-bottom: 1px solid #e6ecec; }
   .chart-narrative-grid article:last-child { border-bottom: 0; }
+  .record-detailed-card { margin: 12px 12px 0; }
+  .record-detailed-card > header { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .clinical-detail-table-head, .clinical-detail-row { grid-template-columns: 105px minmax(0, 1fr); }
+  .clinical-detail-table-head span, .clinical-detail-row > strong, .clinical-detail-row > p { padding-inline: 10px; }
+  .record-detailed-card > footer { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .record-history-grid { grid-template-columns: 1fr; margin: 12px 12px 0; }
+  .course-summary-card > header, .previous-records-card > header { align-items: flex-start; flex-direction: column; justify-content: center; padding-block: 12px; }
+  .previous-record-list summary { grid-template-columns: 68px minmax(0, 1fr); }
+  .previous-record-list summary > em { display: none; }
   .record-detail-grid { padding: 12px; }
   .record-test-history { margin: 0 12px 18px; }
   .record-test-history > div { grid-template-columns: 1fr; }
@@ -1133,10 +1199,29 @@ button { cursor: pointer; }
   body.printing-patient-record .chart-narrative-grid article { grid-template-columns: 1fr; gap: 5px; padding: 10px; border-right: 1px solid #e6ecec; border-bottom: 0; }
   body.printing-patient-record .chart-narrative-grid article > i { display: none; }
   body.printing-patient-record .chart-narrative-grid p { font-size: 9px; line-height: 1.45; }
+  body.printing-patient-record .record-detailed-card { margin: 10px 0 0; }
+  body.printing-patient-record .record-detailed-card > header { min-height: 52px; padding: 8px 12px; }
+  body.printing-patient-record .record-detailed-card > header span { display: none; }
+  body.printing-patient-record .clinical-detail-table-head, body.printing-patient-record .clinical-detail-row { grid-template-columns: 120px minmax(0, 1fr); }
+  body.printing-patient-record .clinical-detail-row { min-height: 0; }
+  body.printing-patient-record .clinical-detail-row > strong, body.printing-patient-record .clinical-detail-row > p { padding: 8px 10px; font-size: 9px; line-height: 1.45; }
+  body.printing-patient-record .record-detailed-card > footer { min-height: 30px; padding: 6px 10px; }
+  body.printing-patient-record .record-history-grid { grid-template-columns: 1fr 1fr !important; gap: 10px; margin: 10px 0 0; }
+  body.printing-patient-record .course-summary-card > header, body.printing-patient-record .previous-records-card > header { min-height: 50px; padding: 8px 11px; }
+  body.printing-patient-record .course-summary-list { padding-inline: 11px; }
+  body.printing-patient-record .course-summary-list > article { padding: 8px 0; }
+  body.printing-patient-record .course-summary-list p { margin-block: 4px 6px; font-size: 9px; line-height: 1.45; }
+  body.printing-patient-record .summary-disclosure { display: none; }
+  body.printing-patient-record .previous-record-list { padding-inline: 11px; }
+  body.printing-patient-record .previous-record-list summary { min-height: 48px; grid-template-columns: 61px 1fr; padding-block: 7px; }
+  body.printing-patient-record .previous-record-list summary > em, body.printing-patient-record .previous-record-list summary::after { display: none; }
+  body.printing-patient-record .previous-record-list details > dl { margin-bottom: 6px; }
+  body.printing-patient-record .previous-record-list details > dl > div { grid-template-columns: 58px 1fr; padding: 6px 0; }
+  body.printing-patient-record .previous-record-list dt, body.printing-patient-record .previous-record-list dd { font-size: 8px; line-height: 1.4; }
   body.printing-patient-record .record-detail-grid { grid-template-columns: 1.05fr .95fr !important; gap: 10px; padding: 14px 0 0; }
   body.printing-patient-record .record-test-history { margin: 12px 0 0; }
   body.printing-patient-record .record-test-history > div { grid-template-columns: repeat(2, 1fr); }
-  body.printing-patient-record .record-chart-card, body.printing-patient-record .past-soap-card, body.printing-patient-record .past-test-card, body.printing-patient-record .autonomic-record-card, body.printing-patient-record .past-soap-card article, body.printing-patient-record .past-test-card article { break-inside: avoid; }
+  body.printing-patient-record .record-chart-card, body.printing-patient-record .record-detailed-card, body.printing-patient-record .course-summary-card, body.printing-patient-record .previous-records-card, body.printing-patient-record .past-soap-card, body.printing-patient-record .past-test-card, body.printing-patient-record .autonomic-record-card, body.printing-patient-record .clinical-detail-row, body.printing-patient-record .course-summary-list article, body.printing-patient-record .previous-record-list details, body.printing-patient-record .past-soap-card article, body.printing-patient-record .past-test-card article { break-inside: avoid; }
   body.printing-patient-record .past-soap-card > header, body.printing-patient-record .past-test-card > header { min-height: 50px; }
   body.printing-patient-record .past-soap-card article { min-height: 0; padding: 9px 0; }
   body.printing-patient-record .past-soap-card article p, body.printing-patient-record .past-test-card article span { font-size: 10px; line-height: 1.45; }
