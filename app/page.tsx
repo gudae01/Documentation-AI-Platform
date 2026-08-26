@@ -68,7 +68,6 @@ const firstVisitSteps: FlowStep[] = [
 ];
 
 const followupVisitSteps: FlowStep[] = [
-  { id: 'emr', label: '환자정보 캡처', description: 'EMR 기본정보 확인' },
   { id: 'tests', label: '이전자료 확인', description: '차트 · 검사 이력' },
   { id: 'audio', label: '진료 녹음 입력', description: '실시간 · 녹음파일' },
   { id: 'soap', label: '차트 작성', description: '비교 · SOAP 초안' },
@@ -262,6 +261,13 @@ function formatFileSize(bytes: number) {
   const units = ['B', 'KB', 'MB', 'GB'];
   const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
   return `${(bytes / 1024 ** index).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
+}
+
+function formatRecordingTime(totalSeconds: number) {
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(' : ');
 }
 
 function getAutonomicChangeTone(metric: string, previousText: string, currentText: string) {
@@ -594,9 +600,9 @@ function EmrStep({ stepNumber, encounterType, captured, patient, onCapture }: { 
   );
 }
 
-function AudioStep({ stepNumber, encounterType, selectedFile, onSelectedFileChange }: { stepNumber: number; encounterType: EncounterType; selectedFile: File | null; onSelectedFileChange: (file: File | null) => void }) {
-  const [recording, setRecording] = useState(false);
+function AudioStep({ stepNumber, encounterType, selectedFile, recording, recordingStarted, recordingSeconds, onSelectedFileChange, onToggleRecording }: { stepNumber: number; encounterType: EncounterType; selectedFile: File | null; recording: boolean; recordingStarted: boolean; recordingSeconds: number; onSelectedFileChange: (file: File | null) => void; onToggleRecording: () => void }) {
   const fileExtension = selectedFile?.name.split('.').pop()?.toUpperCase() || 'AUDIO';
+  const recordingStatus = recording ? '녹음 중' : recordingStarted ? '일시정지' : '대기';
 
   return (
     <div className="step-surface">
@@ -604,11 +610,11 @@ function AudioStep({ stepNumber, encounterType, selectedFile, onSelectedFileChan
       <div className="audio-to-chart-route"><span><i>1</i>진료 녹음·파일</span><b>→</b><span><i>2</i>음성 내용 분석</span><b>→</b><span><i>3</i>차트·SOAP 초안</span><b>→</b><span><i>4</i>의사 수정·승인</span></div>
       <div className="audio-flow-layout">
         <section className="audio-input-panel live-audio-card">
-          <header><div><p className="eyebrow">LIVE RECORDING</p><h3>실시간 녹음</h3></div><span>{recording ? '녹음 중' : '대기'}</span></header>
+          <header><div><p className="eyebrow">LIVE RECORDING</p><h3>실시간 녹음</h3></div><span>{recordingStatus}</span></header>
           <div className="live-recorder">
             <span className={recording ? 'record-orb active' : 'record-orb'}><i /></span>
-            <div><p className="eyebrow">RECORDING TIME</p><strong>00 : 00 : 00</strong><small>{recording ? '진료 음성을 기록하고 있습니다' : '녹음 시작을 눌러 진료 기록을 시작하세요'}</small></div>
-            <button onClick={() => setRecording(!recording)}>{recording ? '녹음 중지' : '녹음 시작'}</button>
+            <div><p className="eyebrow">RECORDING TIME</p><strong>{formatRecordingTime(recordingSeconds)}</strong><small>{recording ? '진료 음성을 기록하고 있습니다' : recordingStarted ? '녹음이 일시정지되었습니다' : '녹음 시작을 눌러 진료 기록을 시작하세요'}</small></div>
+            <button onClick={onToggleRecording}>{recording ? '녹음 중지' : recordingStarted ? '녹음 다시 시작' : '녹음 시작'}</button>
           </div>
           <div className="audio-wave" aria-hidden="true">{[18,34,22,48,29,56,31,40,21,51,37,26,45,20,33,49,25,38,17,30,42,27,50,22].map((height, index) => <i style={{ height: recording ? height : 3 }} key={index} />)}</div>
         </section>
@@ -890,15 +896,49 @@ export default function Home() {
   const [hasPreviousAutonomic, setHasPreviousAutonomic] = useState<boolean | null>(null);
   const [autonomicValues, setAutonomicValues] = useState<Record<string, string>>({});
   const [sessionAutonomicFiles, setSessionAutonomicFiles] = useState<Record<string, AutonomicFileRecord[]>>({});
+  const [recording, setRecording] = useState(false);
+  const [recordingStarted, setRecordingStarted] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
 
   const flowSteps = encounterType === 'followup' ? followupVisitSteps : firstVisitSteps;
   const encounterLabel = encounterType === 'new' ? '초진' : '재진';
   const currentIndex = flowSteps.findIndex((step) => step.id === activeStep);
-  const goHome = () => setActiveView('home');
-  const openPatientDirectory = () => setActiveView('patients');
-  const startEncounter = (patient: PatientRecord | null = null) => { setSelectedPatient(patient); setEncounterType(patient ? 'followup' : 'new'); setApproved(false); setEmrCaptured(false); setSoapValues({ S: '', O: '', A: '', P: '' }); setChartText(''); setAudioFile(null); setAutonomicFile(null); setHasPreviousAutonomic(patient ? true : null); setAutonomicValues({}); setActiveStep('emr'); setEncounterStarted(true); setActiveView('encounter'); };
-  const goNext = () => { if (currentIndex < flowSteps.length - 1) setActiveStep(flowSteps[currentIndex + 1].id); };
-  const goPrevious = () => { if (currentIndex > 0) setActiveStep(flowSteps[currentIndex - 1].id); else goHome(); };
+  const resetScroll = () => window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: 'auto' }));
+  const goHome = () => { setActiveView('home'); resetScroll(); };
+  const openPatientDirectory = () => { setActiveView('patients'); resetScroll(); };
+  useEffect(() => {
+    if (!recording) return;
+    const timer = window.setInterval(() => setRecordingSeconds((seconds) => seconds + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, [recording]);
+
+  const toggleRecording = () => {
+    setRecordingStarted(true);
+    setRecording((current) => !current);
+  };
+  const startEncounter = (patient: PatientRecord | null = null) => {
+    const isFollowup = Boolean(patient);
+    setSelectedPatient(patient);
+    setEncounterType(isFollowup ? 'followup' : 'new');
+    setApproved(false);
+    setEmrCaptured(isFollowup);
+    setSoapValues({ S: '', O: '', A: '', P: '' });
+    setChartText('');
+    setAudioFile(null);
+    setAutonomicFile(null);
+    setHasPreviousAutonomic(isFollowup ? true : null);
+    setAutonomicValues({});
+    setRecording(false);
+    setRecordingStarted(false);
+    setRecordingSeconds(0);
+    setActiveStep(isFollowup ? 'tests' : 'emr');
+    setEncounterStarted(true);
+    setActiveView('encounter');
+    resetScroll();
+  };
+  const openStep = (step: StepId) => { setActiveStep(step); setActiveView('encounter'); resetScroll(); };
+  const goNext = () => { if (currentIndex < flowSteps.length - 1) openStep(flowSteps[currentIndex + 1].id); };
+  const goPrevious = () => { if (currentIndex > 0) openStep(flowSteps[currentIndex - 1].id); else goHome(); };
   const approveEncounter = () => {
     if (!approved && selectedPatient && autonomicFile) {
       const now = new Date();
@@ -930,9 +970,9 @@ export default function Home() {
         <button className={activeView === 'home' ? 'flow-home-button active' : 'flow-home-button'} onClick={goHome}><i /><span>홈</span></button>
         <button className={activeView === 'patients' ? 'patient-records-button active' : 'patient-records-button'} onClick={openPatientDirectory}><i>기록</i><span>환자기록</span></button>
         <div className="flow-rail-line" />
-        <nav aria-label="진료 진행 단계">
+        <nav className={`flow-step-count-${flowSteps.length}`} aria-label="진료 진행 단계">
           {flowSteps.map((step, index) => (
-            <button className={activeView === 'encounter' && activeStep === step.id ? 'flow-step-nav active' : encounterStarted && currentIndex > index ? 'flow-step-nav done' : 'flow-step-nav'} key={step.id} onClick={() => { setActiveStep(step.id); setActiveView('encounter'); }} disabled={!encounterStarted}>
+            <button className={activeView === 'encounter' && activeStep === step.id ? 'flow-step-nav active' : encounterStarted && currentIndex > index ? 'flow-step-nav done' : 'flow-step-nav'} key={step.id} onClick={() => openStep(step.id)} disabled={!encounterStarted}>
               <i>{currentIndex > index ? '✓' : index + 1}</i><span>{step.label}</span>
             </button>
           ))}
@@ -941,9 +981,18 @@ export default function Home() {
       </aside>
 
       <section className="flow-workspace">
-        <header className="flow-topbar">
+        <header className={recordingStarted ? 'flow-topbar has-recording' : 'flow-topbar'}>
           <div><div className="product-name">MEDIFLOW <span>Clinical AI Agent</span></div><div className="local-badge"><i /> 병원 내부망 · Local AI</div></div>
-          {activeView === 'encounter' ? <div className="active-patient-mini"><i>환자</i><span><strong>{patientName}</strong><small>{patientMeta}</small></span><b>{encounterLabel}</b></div> : <div className="topbar-idle"><i>✓</i><span>{activeView === 'patients' ? '기존 환자 기록 · 병원 내부 조회' : '환자 데이터 외부 전송 없음'}</span></div>}
+          <div className={recordingStarted ? 'flow-topbar-context has-recording' : 'flow-topbar-context'}>
+            {activeView === 'encounter' ? <div className="active-patient-mini"><i>환자</i><span><strong>{patientName}</strong><small>{patientMeta}</small></span><b>{encounterLabel}</b></div> : <div className="topbar-idle"><i>✓</i><span>{activeView === 'patients' ? '기존 환자 기록 · 병원 내부 조회' : '환자 데이터 외부 전송 없음'}</span></div>}
+            {recordingStarted && (
+              <div className={recording ? 'persistent-recording active' : 'persistent-recording paused'} role="status" aria-live="polite">
+                <i><span /></i>
+                <div><strong>{recording ? '녹음 중' : '녹음 일시정지'}</strong><small>{formatRecordingTime(recordingSeconds)} · {patientName}</small></div>
+                <button onClick={toggleRecording} aria-label={recording ? '녹음 일시정지' : '녹음 다시 시작'}>{recording ? '중지' : '다시 시작'}</button>
+              </div>
+            )}
+          </div>
         </header>
 
         {activeView === 'home' && <HomeScreen onStart={() => startEncounter()} onOpenPatients={openPatientDirectory} />}
@@ -957,14 +1006,14 @@ export default function Home() {
               <button onClick={openPatientDirectory}>기존 환자 기록</button>
             </div>
 
-            <div className="flow-progress">
-              {flowSteps.map((step, index) => <button className={index === currentIndex ? 'active' : index < currentIndex ? 'done' : ''} key={step.id} onClick={() => setActiveStep(step.id)}><i>{index < currentIndex ? '✓' : index + 1}</i><span><strong>{step.label}</strong><small>{step.description}</small></span>{index < flowSteps.length - 1 && <b />}</button>)}
+            <div className="flow-progress" style={{ gridTemplateColumns: `repeat(${flowSteps.length}, minmax(0, 1fr))` }}>
+              {flowSteps.map((step, index) => <button className={index === currentIndex ? 'active' : index < currentIndex ? 'done' : ''} key={step.id} onClick={() => openStep(step.id)}><i>{index < currentIndex ? '✓' : index + 1}</i><span><strong>{step.label}</strong><small>{step.description}</small></span>{index < flowSteps.length - 1 && <b />}</button>)}
             </div>
 
             <div className="flow-content">
               {activeStep === 'emr' && <EmrStep stepNumber={currentIndex + 1} encounterType={encounterType} captured={emrCaptured} patient={selectedPatient} onCapture={() => setEmrCaptured(true)} />}
               {activeStep === 'tests' && <TestsStep stepNumber={currentIndex + 1} encounterType={encounterType} chartText={chartText} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} onChartTextChange={setChartText} onAutonomicFileChange={(file) => { setAutonomicFile(file); setHasPreviousAutonomic(file ? Boolean(selectedPatient) : selectedPatient ? true : null); }} onPreviousChange={setHasPreviousAutonomic} />}
-              {activeStep === 'audio' && <AudioStep stepNumber={currentIndex + 1} encounterType={encounterType} selectedFile={audioFile} onSelectedFileChange={setAudioFile} />}
+              {activeStep === 'audio' && <AudioStep stepNumber={currentIndex + 1} encounterType={encounterType} selectedFile={audioFile} recording={recording} recordingStarted={recordingStarted} recordingSeconds={recordingSeconds} onSelectedFileChange={setAudioFile} onToggleRecording={toggleRecording} />}
               {activeStep === 'soap' && <SoapStep stepNumber={currentIndex + 1} values={soapValues} onChange={(letter, value) => setSoapValues({ ...soapValues, [letter]: value })} />}
               {activeStep === 'final' && <FinalStep stepNumber={currentIndex + 1} approved={approved} patient={selectedPatient} soapValues={soapValues} chartText={chartText} audioFile={audioFile} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} autonomicValues={autonomicValues} onSoapChange={(letter, value) => setSoapValues((current) => ({ ...current, [letter]: value }))} onChartTextChange={setChartText} onAutonomicChange={(key, value) => setAutonomicValues((current) => ({ ...current, [key]: value }))} onApprove={approveEncounter} />}
             </div>
