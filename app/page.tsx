@@ -5,6 +5,24 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, ty
 type StepId = 'emr' | 'tests' | 'audio' | 'soap' | 'final';
 type EncounterType = 'new' | 'followup';
 type FlowStep = { id: StepId; label: string; description: string };
+type EncounterDraft = {
+  version: 1;
+  savedAt: string;
+  savedDevice: string;
+  patientId: string | null;
+  patientName: string;
+  encounterType: EncounterType;
+  activeStep: StepId;
+  emrCaptured: boolean;
+  soapValues: Record<string, string>;
+  chartText: string;
+  hasPreviousAutonomic: boolean | null;
+  autonomicValues: Record<string, string>;
+  recordingStarted: boolean;
+  recordingSeconds: number;
+  audioFileName: string | null;
+  autonomicFileName: string | null;
+};
 type AutonomicFileRecord = {
   id: string;
   date: string;
@@ -66,6 +84,8 @@ const firstVisitSteps: FlowStep[] = [
   { id: 'soap', label: '차트 작성', description: '녹음 기반 SOAP' },
   { id: 'final', label: '최종 승인', description: '문서 확정' },
 ];
+
+const DRAFT_STORAGE_KEY = 'mediflow:encounter-draft:v1';
 
 const followupVisitSteps: FlowStep[] = [
   { id: 'tests', label: '이전자료 확인', description: '차트 · 검사 이력' },
@@ -268,6 +288,37 @@ function formatRecordingTime(totalSeconds: number) {
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
   return [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(' : ');
+}
+
+function getCurrentDeviceLabel() {
+  const isIPad = /iPad/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (isIPad) return 'iPad';
+  if (/Android|iPhone|Mobile/i.test(navigator.userAgent)) return '모바일';
+  return '데스크탑';
+}
+
+function readEncounterDraft() {
+  try {
+    const stored = window.localStorage.getItem(DRAFT_STORAGE_KEY);
+    if (!stored) return null;
+    const draft = JSON.parse(stored) as Partial<EncounterDraft>;
+    const validSteps: StepId[] = ['emr', 'tests', 'audio', 'soap', 'final'];
+    if (draft.version !== 1 || !draft.savedAt || !draft.savedDevice || !draft.encounterType || !draft.activeStep || !validSteps.includes(draft.activeStep)) return null;
+    return draft as EncounterDraft;
+  } catch {
+    return null;
+  }
+}
+
+function formatDraftSavedAt(savedAt: string) {
+  const date = new Date(savedAt);
+  if (Number.isNaN(date.getTime())) return '저장 시간 확인 필요';
+  return new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(date);
+}
+
+function getDraftStepLabel(draft: EncounterDraft) {
+  const steps = draft.encounterType === 'followup' ? followupVisitSteps : firstVisitSteps;
+  return steps.find((step) => step.id === draft.activeStep)?.label ?? '진료 단계';
 }
 
 function getAutonomicChangeTone(metric: string, previousText: string, currentText: string) {
@@ -900,6 +951,8 @@ export default function Home() {
   const [recordingStarted, setRecordingStarted] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [recordingPosition, setRecordingPosition] = useState<{ x: number; y: number } | null>(null);
+  const [draftPrompt, setDraftPrompt] = useState<EncounterDraft | null>(() => typeof window === 'undefined' ? null : readEncounterDraft());
+  const [draftSaveState, setDraftSaveState] = useState<'idle' | 'saved' | 'error'>('idle');
   const recordingWidgetRef = useRef<HTMLDivElement>(null);
 
   const flowSteps = encounterType === 'followup' ? followupVisitSteps : firstVisitSteps;
@@ -908,6 +961,13 @@ export default function Home() {
   const resetScroll = () => window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: 'auto' }));
   const goHome = () => { setActiveView('home'); resetScroll(); };
   const openPatientDirectory = () => { setActiveView('patients'); resetScroll(); };
+
+  useEffect(() => {
+    if (draftSaveState === 'idle') return;
+    const timer = window.setTimeout(() => setDraftSaveState('idle'), 2600);
+    return () => window.clearTimeout(timer);
+  }, [draftSaveState]);
+
   useEffect(() => {
     if (!recording) return;
     const timer = window.setInterval(() => setRecordingSeconds((seconds) => seconds + 1), 1000);
@@ -990,6 +1050,59 @@ export default function Home() {
   const openStep = (step: StepId) => { setActiveStep(step); setActiveView('encounter'); resetScroll(); };
   const goNext = () => { if (currentIndex < flowSteps.length - 1) openStep(flowSteps[currentIndex + 1].id); };
   const goPrevious = () => { if (currentIndex > 0) openStep(flowSteps[currentIndex - 1].id); else goHome(); };
+  const saveEncounterDraft = () => {
+    const draft: EncounterDraft = {
+      version: 1,
+      savedAt: new Date().toISOString(),
+      savedDevice: getCurrentDeviceLabel(),
+      patientId: selectedPatient?.id ?? null,
+      patientName: selectedPatient?.name ?? '새 환자',
+      encounterType,
+      activeStep,
+      emrCaptured,
+      soapValues,
+      chartText,
+      hasPreviousAutonomic,
+      autonomicValues,
+      recordingStarted,
+      recordingSeconds,
+      audioFileName: audioFile?.name ?? null,
+      autonomicFileName: autonomicFile?.name ?? null,
+    };
+    try {
+      window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
+      setRecording(false);
+      setDraftPrompt(null);
+      setDraftSaveState('saved');
+    } catch {
+      setDraftSaveState('error');
+    }
+  };
+  const restoreEncounterDraft = (draft: EncounterDraft) => {
+    const patient = draft.patientId ? patientRecords.find((record) => record.id === draft.patientId) ?? null : null;
+    const restoredSteps = draft.encounterType === 'followup' ? followupVisitSteps : firstVisitSteps;
+    const restoredStep = restoredSteps.some((step) => step.id === draft.activeStep) ? draft.activeStep : restoredSteps[0].id;
+    setSelectedPatient(patient);
+    setEncounterType(draft.encounterType);
+    setApproved(false);
+    setEmrCaptured(Boolean(draft.emrCaptured));
+    setSoapValues({ S: '', O: '', A: '', P: '', ...draft.soapValues });
+    setChartText(draft.chartText ?? '');
+    setAudioFile(null);
+    setAutonomicFile(null);
+    setHasPreviousAutonomic(draft.hasPreviousAutonomic ?? null);
+    setAutonomicValues(draft.autonomicValues ?? {});
+    setRecording(false);
+    setRecordingStarted(Boolean(draft.recordingStarted));
+    setRecordingSeconds(Math.max(0, Number(draft.recordingSeconds) || 0));
+    setRecordingPosition(null);
+    setActiveStep(restoredStep);
+    setEncounterStarted(true);
+    setActiveView('encounter');
+    setDraftPrompt(null);
+    setDraftSaveState('idle');
+    resetScroll();
+  };
   const approveEncounter = () => {
     if (!approved && selectedPatient && autonomicFile) {
       const now = new Date();
@@ -1010,6 +1123,8 @@ export default function Home() {
       setSessionAutonomicFiles((current) => ({ ...current, [selectedPatient.id]: [uploadedRecord, ...(current[selectedPatient.id] ?? []).filter((record) => record.id !== uploadedRecord.id)] }));
     }
     setApproved(true);
+    window.localStorage.removeItem(DRAFT_STORAGE_KEY);
+    setDraftPrompt(null);
   };
   const patientName = selectedPatient?.name ?? '새 환자';
   const patientMeta = selectedPatient ? `${selectedPatient.gender} · ${selectedPatient.age}세 · ${selectedPatient.id}` : 'EMR 환자정보 캡처 대기';
@@ -1081,11 +1196,30 @@ export default function Home() {
             <footer className="flow-footer-actions">
               <button className="flow-previous" onClick={goPrevious}>← 이전 단계</button>
               <div><span>{currentIndex + 1} / {flowSteps.length}</span><strong>{flowSteps[currentIndex].label}</strong></div>
+              <button className={`flow-draft-save ${draftSaveState}`} onClick={saveEncounterDraft}>{draftSaveState === 'saved' ? '임시 저장 완료 ✓' : draftSaveState === 'error' ? '저장 실패 · 다시 시도' : '임시 저장'}</button>
               {activeStep !== 'final' && <button className="flow-next" onClick={goNext}>{`${flowSteps[currentIndex + 1].label}로`} <b>→</b></button>}
             </footer>
           </>
         )}
       </section>
+
+      {draftPrompt && (
+        <div className="draft-resume-backdrop">
+          <section className="draft-resume-dialog" role="dialog" aria-modal="true" aria-labelledby="draft-resume-title">
+            <header><i>임시</i><div><p className="eyebrow">SAVED ENCOUNTER</p><h2 id="draft-resume-title">임시 저장된 작업이 있습니다</h2><span>저장한 진료 단계와 입력 내용을 이어서 작성할 수 있습니다.</span></div></header>
+            <dl className="draft-resume-meta">
+              <div><dt>환자</dt><dd>{draftPrompt.patientName}</dd></div>
+              <div><dt>저장 단계</dt><dd>{getDraftStepLabel(draftPrompt)}</dd></div>
+              <div><dt>저장한 기기</dt><dd>{draftPrompt.savedDevice}</dd></div>
+              <div><dt>저장 시간</dt><dd>{formatDraftSavedAt(draftPrompt.savedAt)}</dd></div>
+            </dl>
+            {(draftPrompt.audioFileName || draftPrompt.autonomicFileName) && <p className="draft-file-notice">첨부 파일은 보안을 위해 브라우저에 저장하지 않습니다. 이어서 작성한 뒤 필요한 파일을 다시 선택해 주세요.</p>}
+            <div className="draft-account-plan"><i>K</i><span><strong>카카오 로그인은 한 곳에서</strong><small>정식 연동 시 하나의 로그인 화면에서 인증하고, 같은 계정의 iPad와 데스크탑에서 임시저장을 동기화하도록 연결합니다.</small></span></div>
+            <p className="draft-local-limit">현재 GitHub Pages 시제품은 이 브라우저에만 임시 저장됩니다. 실제 기기 간 공유에는 카카오 로그인과 서버 저장소 연결이 필요합니다.</p>
+            <footer><button onClick={() => setDraftPrompt(null)}>나중에</button><button onClick={() => restoreEncounterDraft(draftPrompt)}>확인하고 이어서 작성 <b>→</b></button></footer>
+          </section>
+        </div>
+      )}
     </main>
   );
 }
