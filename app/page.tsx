@@ -34,7 +34,7 @@ type PatientRecord = {
 
 const firstVisitSteps: FlowStep[] = [
   { id: 'emr', label: '환자정보 캡처', description: 'EMR 기본정보 확인' },
-  { id: 'audio', label: '진료 녹음', description: '문진 · 진찰 대화' },
+  { id: 'audio', label: '진료 녹음 입력', description: '실시간 · 녹음파일' },
   { id: 'tests', label: '검사자료 보완', description: '있는 자료만 추가' },
   { id: 'soap', label: '차트 작성', description: '녹음 기반 SOAP' },
   { id: 'final', label: '최종 승인', description: '문서 확정' },
@@ -43,7 +43,7 @@ const firstVisitSteps: FlowStep[] = [
 const followupVisitSteps: FlowStep[] = [
   { id: 'emr', label: '환자정보 캡처', description: 'EMR 기본정보 확인' },
   { id: 'tests', label: '이전자료 확인', description: '차트 · 검사 이력' },
-  { id: 'audio', label: '진료 녹음', description: '오늘 진료 내용' },
+  { id: 'audio', label: '진료 녹음 입력', description: '실시간 · 녹음파일' },
   { id: 'soap', label: '차트 작성', description: '비교 · SOAP 초안' },
   { id: 'final', label: '최종 승인', description: '문서 확정' },
 ];
@@ -53,12 +53,6 @@ const soapDefinitions = [
   ['O', 'Objective', '실제 진찰 소견, 활력징후, 검사명, 검사 수치와 단위 등 객관적 정보'],
   ['A', 'Assessment', '의사가 진료 중 직접 언급하거나 확정한 평가·진단'],
   ['P', 'Plan', '의사가 직접 언급한 처방, 검사 계획, 생활 안내와 경과관찰 계획'],
-];
-
-const transcriptFields = [
-  ['의사 발화', '의', '문진 질문 · 진찰 소견 · 평가 · 처방 및 검사 계획'],
-  ['환자 발화', '환', '주호소 · 증상 양상과 기간 · 과거력 · 복약 · 생활습관'],
-  ['화자 미확정', '?', '화자 신뢰도가 낮아 의사 확인이 필요한 발화'],
 ];
 
 const patientRecords: PatientRecord[] = [
@@ -335,16 +329,15 @@ function EmrStep({ stepNumber, encounterType, captured, patient, onCapture }: { 
   );
 }
 
-function AudioStep({ stepNumber, encounterType }: { stepNumber: number; encounterType: EncounterType | null }) {
-  const [captureMode, setCaptureMode] = useState<'live' | 'upload'>('live');
+function AudioStep({ stepNumber, encounterType, selectedFile, onSelectedFileChange }: { stepNumber: number; encounterType: EncounterType; selectedFile: File | null; onSelectedFileChange: (file: File | null) => void }) {
+  const [captureMode, setCaptureMode] = useState<'live' | 'upload'>('upload');
   const [recording, setRecording] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileExtension = selectedFile?.name.split('.').pop()?.toUpperCase() || 'AUDIO';
 
   return (
     <div className="step-surface">
-      <header className="step-heading"><div><p className="eyebrow">STEP {stepNumber} · AUDIO</p><h2>진료 음성 기록</h2><span>{encounterType === 'new' ? '초진은 기존 진료차트가 없으므로 진료 대화를 먼저 녹음하고 그 내용을 차트의 근거로 사용합니다.' : '실시간 Microphone 또는 스마트폰 녹음파일로 오늘 진료 내용을 기록합니다.'}</span></div><div className="capture-switch"><button className={captureMode === 'live' ? 'active' : ''} onClick={() => setCaptureMode('live')}>실시간 녹음</button><button className={captureMode === 'upload' ? 'active' : ''} onClick={() => setCaptureMode('upload')}>파일 업로드</button></div></header>
-      <div className="audio-to-chart-route"><span><i>1</i>진료 녹음</span><b>→</b><span><i>2</i>화자별 전사</span><b>→</b><span><i>3</i>의료용어 보정</span><b>→</b><span><i>4</i>SOAP 차트 초안</span></div>
+      <header className="step-heading"><div><p className="eyebrow">STEP {stepNumber} · AUDIO INPUT</p><h2>진료 녹음 입력</h2><span>{encounterType === 'new' ? '진료 중 차트를 작성하기 어려운 경우 진료 대화를 녹음하고, 진료 후 녹음파일을 넣어 차트 초안을 만들 수 있습니다.' : '오늘 진료의 실시간 녹음 또는 스마트폰 녹음파일을 기존 환자기록과 함께 차트 근거로 사용합니다.'}</span></div><div className="capture-switch"><button className={captureMode === 'upload' ? 'active' : ''} onClick={() => setCaptureMode('upload')}>녹음파일 업로드</button><button className={captureMode === 'live' ? 'active' : ''} onClick={() => setCaptureMode('live')}>실시간 녹음</button></div></header>
+      <div className="audio-to-chart-route"><span><i>1</i>진료 녹음·파일</span><b>→</b><span><i>2</i>음성 내용 분석</span><b>→</b><span><i>3</i>차트·SOAP 초안</span><b>→</b><span><i>4</i>의사 수정·승인</span></div>
       <div className="audio-flow-layout">
         <section className="audio-input-panel">
           {captureMode === 'live' ? (
@@ -357,17 +350,19 @@ function AudioStep({ stepNumber, encounterType }: { stepNumber: number; encounte
               <div className="audio-wave" aria-hidden="true">{[18,34,22,48,29,56,31,40,21,51,37,26,45,20,33,49,25,38,17,30,42,27,50,22].map((height, index) => <i style={{ height: recording ? height : 3 }} key={index} />)}</div>
             </>
           ) : !selectedFile ? (
-            <div className="flow-dropzone"><i /><strong>진료 녹음파일 선택</strong><span>M4A · MP3 · WAV · AAC</span><label><input type="file" accept=".m4a,.mp3,.wav,.aac,audio/*" onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)} /><b>파일 선택</b></label><small>원본은 병원 내부 저장소에만 저장됩니다.</small></div>
+            <div className="flow-dropzone"><i /><strong>진료 후 녹음파일 넣기</strong><span>스마트폰·녹음기 파일 · M4A · MP3 · WAV · AAC</span><label><input type="file" accept=".m4a,.mp3,.wav,.aac,audio/*" onChange={(event) => onSelectedFileChange(event.target.files?.[0] ?? null)} /><b>녹음파일 선택</b></label><small>진료 중 차트를 작성하지 못한 경우에도 이 파일을 근거로 차트와 SOAP 초안을 만듭니다.</small></div>
           ) : (
-            <div className="flow-file-selected"><i>{fileExtension}</i><div><strong>{selectedFile.name}</strong><span>{formatFileSize(selectedFile.size)} · {selectedFile.type || 'MIME type 확인 필요'}</span><small>재생시간 · Codec · Sample Rate · Hash는 분석 단계에서 확인</small></div><button onClick={() => setSelectedFile(null)}>×</button></div>
+            <div className="flow-file-selected"><i>{fileExtension}</i><div><strong>{selectedFile.name}</strong><span>{formatFileSize(selectedFile.size)} · {selectedFile.type || 'MIME type 확인 필요'}</span><small>이 파일은 차트·SOAP 초안과 최종 승인 기록의 근거로 연결됩니다.</small></div><button onClick={() => onSelectedFileChange(null)}>×</button></div>
           )}
         </section>
-        <section className="live-transcript-panel">
-          <header><div><p className="eyebrow">LIVE TRANSCRIPT</p><h3>화자별 Transcript</h3></div><span>입력 대기</span></header>
-          <div className="flow-transcript-list">
-            {transcriptFields.map(([speaker, avatar, fields], index) => <article key={speaker}><i className={`speaker-${index}`}>{avatar}</i><div><strong>{speaker}<small>Timestamp · Confidence</small></strong><p>{fields}</p></div></article>)}
+        <section className="recording-use-panel">
+          <header><div><p className="eyebrow">AUDIO TO CHART</p><h3>녹음파일 활용 방식</h3></div><span>{selectedFile ? '파일 연결됨' : '입력 안내'}</span></header>
+          <div>
+            <article><i>1</i><span><strong>진료에 집중</strong><small>문진과 진찰 중에는 환자 진료에 집중하고 대화를 녹음합니다.</small></span></article>
+            <article><i>2</i><span><strong>진료 후 파일 입력</strong><small>스마트폰 또는 녹음기의 원본 파일을 이 단계에서 추가합니다.</small></span></article>
+            <article><i>3</i><span><strong>최종 기록에 근거 연결</strong><small>분석된 내용은 차트와 SOAP 초안에 반영되고 의사가 최종 화면에서 수정합니다.</small></span></article>
           </div>
-          <footer><span>Medical Term Correction</span><span>Speaker Diarization</span><span>Low Confidence Review</span></footer>
+          <footer><i>i</i><span>음성 분석 과정은 별도 화면으로 노출하지 않고, 필요한 내용만 진료 차트와 SOAP 초안으로 정리합니다.</span></footer>
         </section>
       </div>
     </div>
@@ -398,6 +393,16 @@ function TestsStep({
   onPreviousChange: (value: boolean | null) => void;
 }) {
   const chartLines = chartText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const organizedSections: { title: string; lines: string[] }[] = [];
+  chartLines.forEach((line) => {
+    const heading = line.match(/^(.{1,30}?):$/);
+    if (heading) {
+      organizedSections.push({ title: heading[1], lines: [] });
+      return;
+    }
+    if (!organizedSections.length) organizedSections.push({ title: '검사 및 진료 요약', lines: [] });
+    organizedSections[organizedSections.length - 1].lines.push(line.replace(/^[-•]\s*/, ''));
+  });
   const isFirstVisit = encounterType !== 'followup';
 
   return (
@@ -418,10 +423,17 @@ function TestsStep({
           {!organized ? (
             <div className="organized-empty"><i /><strong>{isFirstVisit ? '추가할 검사자료가 없다면 건너뛰세요' : '검사 차트를 붙여넣어 주세요'}</strong><span>{isFirstVisit ? '다음 단계에서 진료 녹음을 근거로 SOAP 차트 초안을 작성합니다.' : '검사 항목별 카드로 분리하여 의료진이 빠르게 읽을 수 있게 표시합니다.'}</span></div>
           ) : (
-            <div className="organized-lines">
-              <div className="organized-columns"><span>검사 항목</span><span>결과값 · 단위</span><span>기준범위 · 판정</span></div>
-              {chartLines.map((line, index) => <article key={`${line}-${index}`}><i>{index + 1}</i><p>{line}</p><b>원문 확인</b></article>)}
-              <footer><span>검사명</span><span>결과값</span><span>단위</span><span>Reference Range</span><span>판정</span><span>검사일</span></footer>
+            <div className="organized-text-result">
+              <div className="organized-text-intro"><i>✓</i><span><strong>의료진이 읽기 쉬운 문장으로 정리했습니다</strong><small>수치와 단위는 원문을 유지하고 항목별 내용을 하나의 설명으로 묶었습니다.</small></span></div>
+              <div className="organized-text-sections">
+                {organizedSections.map((section, index) => (
+                  <section key={`${section.title}-${index}`}>
+                    <span>{index + 1}</span>
+                    <div><strong>{section.title}</strong><p>{section.lines.map((line) => /[.!?。]$/.test(line) ? line : `${line}.`).join(' ') || '관련 내용이 입력되지 않았습니다.'}</p></div>
+                  </section>
+                ))}
+              </div>
+              <footer>원문에 없는 정보는 추가하지 않았으며, 최종 승인 화면에서 의사가 다시 수정할 수 있습니다.</footer>
             </div>
           )}
         </section>
@@ -450,7 +462,7 @@ function TestsStep({
 function SoapStep({ stepNumber, values, onChange }: { stepNumber: number; values: Record<string, string>; onChange: (letter: string, value: string) => void }) {
   return (
     <div className="step-surface">
-      <header className="step-heading"><div><p className="eyebrow">STEP {stepNumber} · DOCTOR REVIEW</p><h2>녹음 기반 진료차트 초안 검토</h2><span>진료 녹음 Transcript를 중심으로 검사자료를 보완하여 AI가 작성한 SOAP 차트를 의사가 직접 확인·수정합니다.</span></div><span className="step-status">차트 생성 대기</span></header>
+      <header className="step-heading"><div><p className="eyebrow">STEP {stepNumber} · DOCTOR REVIEW</p><h2>녹음 기반 진료차트 초안 검토</h2><span>진료 녹음 내용을 중심으로 검사자료를 보완하여 AI가 작성한 SOAP 차트를 의사가 직접 확인·수정합니다.</span></div><span className="step-status">차트 생성 대기</span></header>
       <div className="soap-flow-layout">
         <section className="soap-editor-card">
           <header><div><p className="eyebrow">STRUCTURED SOAP</p><h3>의사 수정본</h3></div><span>직접 편집 가능</span></header>
@@ -460,7 +472,7 @@ function SoapStep({ stepNumber, values, onChange }: { stepNumber: number; values
         </section>
         <aside className="evidence-panel">
           <header><div><p className="eyebrow">GROUNDING</p><h3>입력 근거</h3></div><span>원본 연결</span></header>
-          <div className="evidence-empty"><i /><strong>SOAP 문장을 선택하세요</strong><span>선택한 문장의 Transcript, 문진 또는 검사 원본이 여기에 표시됩니다.</span></div>
+          <div className="evidence-empty"><i /><strong>SOAP 문장을 선택하세요</strong><span>선택한 문장의 녹음 구간, 문진 또는 검사 원본이 여기에 표시됩니다.</span></div>
           <div className="evidence-rules"><strong>생성 제한 규칙</strong>{['입력에 없는 정보 생성 금지', '새로운 확정 진단 생성 금지', '의사가 말하지 않은 처방 금지', '숫자와 단위 변경 금지'].map((rule) => <span key={rule}><i>✓</i>{rule}</span>)}</div>
         </aside>
       </div>
@@ -474,8 +486,13 @@ function FinalStep({
   patient,
   soapValues,
   chartText,
+  audioFile,
   autonomicFile,
   hasPrevious,
+  autonomicValues,
+  onSoapChange,
+  onChartTextChange,
+  onAutonomicChange,
   onApprove,
   onNew,
 }: {
@@ -484,8 +501,13 @@ function FinalStep({
   patient: PatientRecord | null;
   soapValues: Record<string, string>;
   chartText: string;
+  audioFile: File | null;
   autonomicFile: File | null;
   hasPrevious: boolean | null;
+  autonomicValues: Record<string, string>;
+  onSoapChange: (letter: string, value: string) => void;
+  onChartTextChange: (value: string) => void;
+  onAutonomicChange: (key: string, value: string) => void;
   onApprove: () => void;
   onNew: () => void;
 }) {
@@ -495,6 +517,7 @@ function FinalStep({
     ['처방 설명서', '확정 처방의 목적·복용법·주의사항'],
   ];
   const chartLines = chartText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const autonomicMetrics = [['HRV', 'hrv'], ['LF/HF', 'lfhf'], ['스트레스 지수', 'stress']];
   const reportText = (key: string, fallback: string) => soapValues[key]?.trim() || fallback;
   const autonomicSummary = autonomicFile
     ? hasPrevious === true
@@ -503,12 +526,56 @@ function FinalStep({
         ? '이전 검사 데이터가 없어 현재 검사 결과를 기준 데이터로 저장합니다. 다음 검사부터 변화 내용을 비교합니다.'
         : '검사파일 항목과 수치가 표시되며, 이전 검사 존재 여부 확인 후 비교 설명이 생성됩니다.'
     : '자율신경검사 파일을 입력하면 검사 항목, 현재 결과, 이전 결과 및 변화 설명이 표시됩니다.';
+  const editableAutonomicSummary = autonomicValues.interpretation?.trim() || autonomicSummary;
   const printReport = () => window.print();
   const showReport = () => document.getElementById('patient-report')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   return (
     <div className="step-surface final-step">
       <header className="step-heading"><div><p className="eyebrow">STEP {stepNumber} · FINAL APPROVAL</p><h2>최종 확인 및 승인</h2><span>의사가 승인한 데이터만 Final Data와 환자용 문서에 사용합니다.</span></div><span className={approved ? 'step-status complete' : 'step-status'}>{approved ? 'FINALIZED' : '승인 대기'}</span></header>
+      <section className="final-record-editor">
+        <header className="final-record-editor-head">
+          <div><p className="eyebrow">DOCTOR FINAL EDIT</p><h3>최종 진료기록</h3><span>기존 환자기록과 같은 구조에서 모든 내용을 직접 수정한 뒤 승인합니다.</span></div>
+          <b>{approved ? '승인 완료 · 수정 잠금' : '의사 직접 수정 가능'}</b>
+        </header>
+        <div className={audioFile ? 'final-audio-source connected' : 'final-audio-source'}>
+          <i>음성</i><span><strong>{audioFile ? '진료 녹음파일이 기록 근거로 연결되었습니다' : '연결된 진료 녹음파일 없음'}</strong><small>{audioFile ? `${audioFile.name} · ${formatFileSize(audioFile.size)}` : '진료 녹음 입력 단계에서 파일을 추가하면 차트와 SOAP의 근거로 연결됩니다.'}</small></span><b>{audioFile ? '원본 연결' : '선택 입력'}</b>
+        </div>
+        <section className="record-chart-card final-chart-editor">
+          <header><div><p className="eyebrow">CLINICAL CHART</p><h2>진료 차트</h2></div><span>직접 편집</span></header>
+          <div className="chart-narrative-grid">
+            <article><i>환자</i><label><strong>환자가 설명한 증상과 경과</strong><textarea disabled={approved} value={soapValues.S} onChange={(event) => onSoapChange('S', event.target.value)} placeholder="환자의 주호소, 증상 양상, 기간과 악화·완화 요인을 입력하세요." /></label></article>
+            <article><i>판단</i><label><strong>의사의 판단</strong><textarea disabled={approved} value={soapValues.A} onChange={(event) => onSoapChange('A', event.target.value)} placeholder="진찰과 검사에 근거한 의사의 평가를 입력하세요." /></label></article>
+            <article><i>계획</i><label><strong>치료·관리 계획</strong><textarea disabled={approved} value={soapValues.P} onChange={(event) => onSoapChange('P', event.target.value)} placeholder="처방, 검사, 생활관리와 경과관찰 계획을 입력하세요." /></label></article>
+          </div>
+        </section>
+        <div className="record-detail-grid final-review-grid">
+          <section className="past-soap-card final-soap-editor">
+            <header><div><p className="eyebrow">LATEST SOAP</p><h2>SOAP 기록</h2></div><b>직접 편집</b></header>
+            <div>{soapDefinitions.map(([letter, label, placeholder]) => <article key={letter}><i>{letter}</i><label><strong>{label}</strong><textarea disabled={approved} value={soapValues[letter]} onChange={(event) => onSoapChange(letter, event.target.value)} placeholder={placeholder} /></label></article>)}</div>
+          </section>
+          <section className="autonomic-record-card final-autonomic-editor">
+            <header><div><p className="eyebrow">AUTONOMIC TEST</p><h2>자율신경검사</h2></div><b>{hasPrevious === true ? '이전 검사 비교' : '현재 검사만'}</b></header>
+            <div className="autonomic-record-meta"><span>검사파일</span><strong>{autonomicFile?.name ?? '입력되지 않음'}</strong></div>
+            {hasPrevious === true ? (
+              <div className="autonomic-comparison-table final-autonomic-table">
+                <header><span>지표</span><span>이전</span><span>현재</span><span>변화</span></header>
+                {autonomicMetrics.map(([metric, key]) => <div key={key}><strong>{metric}</strong><input disabled={approved} value={autonomicValues[`${key}Previous`] ?? ''} onChange={(event) => onAutonomicChange(`${key}Previous`, event.target.value)} placeholder="이전값" /><input disabled={approved} value={autonomicValues[`${key}Current`] ?? ''} onChange={(event) => onAutonomicChange(`${key}Current`, event.target.value)} placeholder="현재값" /><input disabled={approved} value={autonomicValues[`${key}Change`] ?? ''} onChange={(event) => onAutonomicChange(`${key}Change`, event.target.value)} placeholder="변화량" /></div>)}
+              </div>
+            ) : (
+              <div className="autonomic-current-table final-autonomic-table">
+                <header><span>지표</span><span>현재 결과</span><span>상태</span></header>
+                {autonomicMetrics.map(([metric, key]) => <div key={key}><strong>{metric}</strong><input disabled={approved} value={autonomicValues[`${key}Current`] ?? ''} onChange={(event) => onAutonomicChange(`${key}Current`, event.target.value)} placeholder="현재값" /><input disabled={approved} value={autonomicValues[`${key}Status`] ?? ''} onChange={(event) => onAutonomicChange(`${key}Status`, event.target.value)} placeholder="정상·경계·높음" /></div>)}
+              </div>
+            )}
+            <label className="final-autonomic-interpretation"><strong>검사 해석</strong><textarea disabled={approved} value={autonomicValues.interpretation ?? ''} onChange={(event) => onAutonomicChange('interpretation', event.target.value)} placeholder={autonomicSummary} /></label>
+          </section>
+        </div>
+        <section className="past-test-card final-test-editor">
+          <header><div><p className="eyebrow">EXAMINATION</p><h2>정리된 검사 결과</h2></div><b>직접 편집</b></header>
+          <textarea disabled={approved} value={chartText} onChange={(event) => onChartTextChange(event.target.value)} placeholder="검사자료 보완 단계에서 정리된 검사 결과가 표시됩니다. 이곳에서 의사가 최종 문장을 수정할 수 있습니다." />
+        </section>
+      </section>
       <section className="patient-report-section" id="patient-report">
         <header>
           <div><p className="eyebrow">PATIENT REPORT PREVIEW</p><h3>환자 종합 진료 안내서</h3><span>진료 내용을 환자가 이해하기 쉬운 한 문서로 통합합니다.</span></div>
@@ -540,7 +607,7 @@ function FinalStep({
             </section>
             <section>
               <header><div><span>AUTONOMIC TEST</span><strong>자율신경검사 설명</strong></div><b>{autonomicFile ? '검사파일 연결' : '입력 대기'}</b></header>
-              <p>{autonomicSummary}</p>
+              <p>{editableAutonomicSummary}</p>
               {autonomicFile && <small>연결 파일 · {autonomicFile.name}</small>}
             </section>
           </div>
@@ -558,7 +625,7 @@ function FinalStep({
         <section className="approval-summary">
           <header><div><p className="eyebrow">APPROVAL SUMMARY</p><h3>승인 전 최종 확인</h3></div><i>{approved ? '✓' : '!'}</i></header>
           <div className="approval-checks">
-            {['환자 기본정보', 'Transcript 검토 구간', 'SOAP Subjective', 'SOAP Objective', '의사가 확정한 Assessment', '의사가 확정한 Plan', '숫자·단위 Validation', '변경 이력 저장'].map((item) => <span key={item}><i>{approved ? '✓' : '○'}</i>{item}<b>{approved ? '확인' : '검토 필요'}</b></span>)}
+            {['환자 기본정보', '진료 녹음 원본 연결', 'SOAP Subjective', 'SOAP Objective', '의사가 확정한 Assessment', '의사가 확정한 Plan', '숫자·단위 Validation', '변경 이력 저장'].map((item) => <span key={item}><i>{approved ? '✓' : '○'}</i>{item}<b>{approved ? '확인' : '검토 필요'}</b></span>)}
           </div>
           <button className="final-approve" disabled={approved} onClick={onApprove}>{approved ? '최종 승인 완료' : '내용을 확인하고 최종 승인'} <b>✓</b></button>
           <small>승인자 · 승인시간 · 모델 버전 · Prompt 버전 · RAG Snapshot · Rule 버전이 Audit Log에 저장됩니다.</small>
@@ -585,15 +652,17 @@ export default function Home() {
   const [soapValues, setSoapValues] = useState<Record<string, string>>({ S: '', O: '', A: '', P: '' });
   const [chartText, setChartText] = useState('');
   const [chartOrganized, setChartOrganized] = useState(false);
+  const [audioFile, setAudioFile] = useState<File | null>(null);
   const [autonomicFile, setAutonomicFile] = useState<File | null>(null);
   const [hasPreviousAutonomic, setHasPreviousAutonomic] = useState<boolean | null>(null);
+  const [autonomicValues, setAutonomicValues] = useState<Record<string, string>>({});
 
   const flowSteps = encounterType === 'followup' ? followupVisitSteps : firstVisitSteps;
   const encounterLabel = encounterType === 'new' ? '초진' : '재진';
   const currentIndex = flowSteps.findIndex((step) => step.id === activeStep);
   const goHome = () => setActiveView('home');
   const openPatientDirectory = () => setActiveView('patients');
-  const startEncounter = (patient: PatientRecord | null = null) => { setSelectedPatient(patient); setEncounterType(patient ? 'followup' : 'new'); setApproved(false); setEmrCaptured(false); setSoapValues({ S: '', O: '', A: '', P: '' }); setChartText(''); setChartOrganized(false); setAutonomicFile(null); setHasPreviousAutonomic(null); setActiveStep('emr'); setEncounterStarted(true); setActiveView('encounter'); };
+  const startEncounter = (patient: PatientRecord | null = null) => { setSelectedPatient(patient); setEncounterType(patient ? 'followup' : 'new'); setApproved(false); setEmrCaptured(false); setSoapValues({ S: '', O: '', A: '', P: '' }); setChartText(''); setChartOrganized(false); setAudioFile(null); setAutonomicFile(null); setHasPreviousAutonomic(null); setAutonomicValues({}); setActiveStep('emr'); setEncounterStarted(true); setActiveView('encounter'); };
   const goNext = () => { if (currentIndex < flowSteps.length - 1) setActiveStep(flowSteps[currentIndex + 1].id); };
   const goPrevious = () => { if (currentIndex > 0) setActiveStep(flowSteps[currentIndex - 1].id); else goHome(); };
   const patientName = selectedPatient?.name ?? '새 환자';
@@ -640,9 +709,9 @@ export default function Home() {
             <div className="flow-content">
               {activeStep === 'emr' && <EmrStep stepNumber={currentIndex + 1} encounterType={encounterType} captured={emrCaptured} patient={selectedPatient} onCapture={() => setEmrCaptured(true)} />}
               {activeStep === 'tests' && <TestsStep stepNumber={currentIndex + 1} encounterType={encounterType} chartText={chartText} organized={chartOrganized} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} onChartTextChange={(value) => { setChartText(value); setChartOrganized(false); }} onOrganize={() => setChartOrganized(true)} onAutonomicFileChange={(file) => { setAutonomicFile(file); setHasPreviousAutonomic(null); }} onPreviousChange={setHasPreviousAutonomic} />}
-              {activeStep === 'audio' && <AudioStep stepNumber={currentIndex + 1} encounterType={encounterType} />}
+              {activeStep === 'audio' && <AudioStep stepNumber={currentIndex + 1} encounterType={encounterType} selectedFile={audioFile} onSelectedFileChange={setAudioFile} />}
               {activeStep === 'soap' && <SoapStep stepNumber={currentIndex + 1} values={soapValues} onChange={(letter, value) => setSoapValues({ ...soapValues, [letter]: value })} />}
-              {activeStep === 'final' && <FinalStep stepNumber={currentIndex + 1} approved={approved} patient={selectedPatient} soapValues={soapValues} chartText={chartText} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} onApprove={() => setApproved(true)} onNew={() => startEncounter()} />}
+              {activeStep === 'final' && <FinalStep stepNumber={currentIndex + 1} approved={approved} patient={selectedPatient} soapValues={soapValues} chartText={chartText} audioFile={audioFile} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} autonomicValues={autonomicValues} onSoapChange={(letter, value) => setSoapValues((current) => ({ ...current, [letter]: value }))} onChartTextChange={(value) => { setChartText(value); setChartOrganized(false); }} onAutonomicChange={(key, value) => setAutonomicValues((current) => ({ ...current, [key]: value }))} onApprove={() => setApproved(true)} onNew={() => startEncounter()} />}
             </div>
 
             <footer className="flow-footer-actions">
