@@ -643,6 +643,11 @@ button { cursor: pointer; }
 .capture-policy strong, .capture-policy small { display: block; }.capture-policy strong { color: #7b642f; font-size: 7.5px; }.capture-policy small { margin-top: 3px; color: #9a8b68; font-size: 6.5px; }
 
 .audio-input-panel { min-height: 390px; display: flex; flex-direction: column; }
+.audio-input-panel > header { min-height: 58px; display: flex; align-items: center; justify-content: space-between; padding: 0 15px; border-bottom: 1px solid #e6ebec; }
+.audio-input-panel > header h3 { margin: 0; color: #334f57; font-size: 13px; }
+.audio-input-panel > header > span { padding: 5px 7px; border-radius: 5px; background: #eef4f3; color: #657d81; font-size: 9px; }
+.audio-input-badges { display: flex; align-items: center; gap: 6px; }
+.audio-input-badges span { padding: 7px 9px; border: 1px solid #d5e3e1; border-radius: 7px; background: white; color: #47766f; font-size: 10px; font-weight: 750; }
 .live-recorder { min-height: 180px; display: grid; grid-template-columns: 66px 1fr auto; align-items: center; gap: 16px; padding: 25px; }
 .record-orb { width: 64px; height: 64px; display: grid; place-items: center; border: 1px solid #ecd4d4; border-radius: 50%; background: #fff5f4; }
 .record-orb i { width: 22px; height: 22px; border-radius: 50%; background: #d96464; }
@@ -658,6 +663,9 @@ button { cursor: pointer; }
 .flow-dropzone strong { font-size: 11px; }.flow-dropzone > span { margin: 6px 0 14px; color: #8b979b; font-size: 8px; }.flow-dropzone label input { position: absolute; width: 1px; height: 1px; opacity: 0; }.flow-dropzone label b { display: block; padding: 9px 15px; border-radius: 7px; background: #168477; color: white; font-size: 8px; cursor: pointer; }.flow-dropzone small { margin-top: 10px; color: #9aa4a7; font-size: 7px; }
 .flow-file-selected { display: grid; grid-template-columns: 55px 1fr 25px; align-items: center; gap: 12px; margin: 22px; padding: 16px; border: 1px solid #d8e5e3; border-radius: 10px; background: #f9fbfb; }
 .flow-file-selected > i { width: 53px; height: 53px; display: grid; place-items: center; border-radius: 11px; background: #e4f2ef; color: #2c7f75; font-size: 8px; font-style: normal; font-weight: 800; }.flow-file-selected strong, .flow-file-selected span, .flow-file-selected small { display: block; }.flow-file-selected strong { font-size: 10px; }.flow-file-selected span { margin-top: 4px; color: #74848a; font-size: 8px; }.flow-file-selected small { margin-top: 5px; color: #9aa4a7; font-size: 7px; }.flow-file-selected button { border: 0; background: transparent; color: #98a3a6; font-size: 18px; }
+.upload-audio-card .flow-dropzone { min-height: 330px; padding: 24px; text-align: center; }
+.upload-audio-card .flow-dropzone small { max-width: 390px; line-height: 1.55; }
+.upload-audio-card .flow-file-selected { margin-block: auto; }
 .recording-use-panel > div { padding: 8px 16px; }
 .recording-use-panel article { min-height: 80px; display: grid; grid-template-columns: 34px 1fr; align-items: center; gap: 11px; border-bottom: 1px solid #e9eeee; }
 .recording-use-panel article:last-child { border-bottom: 0; }
@@ -694,6 +702,9 @@ button { cursor: pointer; }
 .final-record-editor-head h3 { margin: 0; color: #263f48; font-size: 21px; }
 .final-record-editor-head > div > span { display: block; margin-top: 6px; color: #7b8d92; font-size: 12px; }
 .final-record-editor-head > b { padding: 7px 10px; border-radius: 7px; background: #eaf5f2; color: #2f776e; font-size: 10px; }
+.final-record-editor-actions { display: flex; align-items: center; gap: 8px; }
+.final-record-editor-actions > b { padding: 7px 10px; border-radius: 7px; background: #eaf5f2; color: #2f776e; font-size: 10px; }
+.final-record-editor-actions > button { height: 35px; padding: 0 12px; border: 0; border-radius: 8px; background: #168477; color: white; font-size: 11px; font-weight: 750; }
 .final-audio-source { min-height: 61px; display: grid; grid-template-columns: 38px 1fr auto; align-items: center; gap: 11px; margin: 16px 20px 0; padding: 11px 13px; border: 1px solid #dfe6e7; border-radius: 10px; background: #f8faf9; }
 .final-audio-source.connected { border-color: #cfe3df; background: #edf7f4; }
 .final-audio-source > i { width: 37px; height: 37px; display: grid; place-items: center; border-radius: 10px; background: #e4efed; color: #47766f; font-size: 9px; font-style: normal; font-weight: 800; }
@@ -719,6 +730,15 @@ button { cursor: pointer; }
 .final-test-editor { margin: 0 20px; }
 .final-test-editor > textarea { width: calc(100% - 28px); min-height: 130px; margin: 14px; padding: 12px 13px; resize: vertical; border: 1px solid #dce5e5; border-radius: 9px; background: #fbfcfc; color: #405961; font-size: 11px; line-height: 1.65; outline: none; }
 .final-record-editor textarea:disabled, .final-record-editor input:disabled { background: #f1f4f4; color: #68787d; cursor: not-allowed; }
+
+.report-modal-backdrop { position: fixed; inset: 0; display: grid; place-items: center; padding: 28px; background: rgba(17,35,43,.6); backdrop-filter: blur(5px); z-index: 100; }
+.report-modal { width: min(1040px, 100%); max-height: calc(100vh - 56px); display: flex; flex-direction: column; border-radius: 15px; background: #edf3f2; box-shadow: 0 24px 70px rgba(7,25,31,.28); overflow: hidden; }
+.report-modal > header { min-height: 82px; display: flex; align-items: center; justify-content: space-between; gap: 22px; padding: 15px 20px; border-bottom: 1px solid #d3dfdd; background: white; }
+.report-modal > header h3 { margin: 0; color: #243e47; font-size: 20px; }
+.report-modal > header > div:first-child > span { display: block; margin-top: 5px; color: #788b90; font-size: 12px; }
+.report-modal-scroll { min-height: 0; overflow: auto; }
+.report-modal .patient-report-paper { width: calc(100% - 32px); margin: 16px auto; }
+.report-actions > button.report-modal-close { width: 35px; padding: 0; border: 1px solid #d7e1e1; background: white; color: #65777d; font-size: 20px; box-shadow: none; }
 
 .patient-report-section { margin-bottom: 18px; border: 1px solid #d7e3e1; border-radius: 15px; background: #edf3f2; box-shadow: 0 8px 25px rgba(25,55,60,.055); overflow: hidden; scroll-margin-top: 18px; }
 .patient-report-section > header { min-height: 86px; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 17px 22px; border-bottom: 1px solid #d4e0de; background: white; }
@@ -754,6 +774,7 @@ button { cursor: pointer; }
 .report-clinical-grid strong { color: #334d55; font-size: 13px; }
 .report-clinical-grid p { margin: 7px 0 0; color: #667a80; font-size: 12px; line-height: 1.65; white-space: pre-wrap; }
 .report-result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+.report-result-grid.single { grid-template-columns: 1fr; }
 .report-result-grid > section { min-height: 184px; padding: 16px; border: 1px solid #dfe6e5; border-radius: 10px; background: #fff; }
 .report-result-grid header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid #e6ebea; }
 .report-result-grid header span, .report-result-grid header strong { display: block; }
@@ -1005,6 +1026,8 @@ button { cursor: pointer; }
   .record-test-history > div { grid-template-columns: 1fr; }
   .record-test-history > div article { border-right: 0; }
   .final-record-editor-head { align-items: flex-start; flex-direction: column; }
+  .final-record-editor-actions { width: 100%; flex-wrap: wrap; }
+  .final-record-editor-actions > button { margin-left: auto; }
   .final-audio-source { grid-template-columns: 38px 1fr; margin-inline: 12px; }
   .final-audio-source > b { grid-column: 2; }
   .final-chart-editor { margin-inline: 12px; }
@@ -1036,6 +1059,11 @@ button { cursor: pointer; }
   .comparison-schema > div { grid-template-columns: 1fr 1fr; gap: 7px; }
   .patient-report-section > header { align-items: flex-start; flex-direction: column; }
   .report-actions { width: 100%; justify-content: space-between; }
+  .report-modal-backdrop { padding: 0; }
+  .report-modal { width: 100%; height: 100vh; max-height: 100vh; border-radius: 0; }
+  .report-modal > header { align-items: flex-start; flex-direction: column; }
+  .report-modal .report-actions { flex-wrap: wrap; }
+  .report-modal .patient-report-paper { width: 100%; margin: 0; }
   .patient-report-paper { width: 100%; margin: 0; padding: 20px 15px; border: 0; border-radius: 0; box-shadow: none; }
   .report-document-head strong { font-size: 21px; }
   .report-patient-info { grid-template-columns: 1fr 1fr; }
@@ -1057,6 +1085,10 @@ button { cursor: pointer; }
   .patient-report-section { margin: 0 !important; border: 0 !important; background: white !important; box-shadow: none !important; }
   .patient-report-section > header { display: none !important; }
   .patient-report-paper { width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; border: 0 !important; box-shadow: none !important; }
+  .report-modal-backdrop { position: static !important; display: block !important; padding: 0 !important; background: white !important; backdrop-filter: none !important; }
+  .report-modal { width: 100% !important; max-height: none !important; display: block !important; border-radius: 0 !important; background: white !important; box-shadow: none !important; overflow: visible !important; }
+  .report-modal > header { display: none !important; }
+  .report-modal-scroll { overflow: visible !important; }
   .report-clinical-grid > section, .report-result-grid > section, .report-prescription, .report-overview { break-inside: avoid; }
 
   body.printing-patient-record .patient-directory { min-height: 0 !important; padding: 0 !important; background: white !important; }

@@ -330,39 +330,30 @@ function EmrStep({ stepNumber, encounterType, captured, patient, onCapture }: { 
 }
 
 function AudioStep({ stepNumber, encounterType, selectedFile, onSelectedFileChange }: { stepNumber: number; encounterType: EncounterType; selectedFile: File | null; onSelectedFileChange: (file: File | null) => void }) {
-  const [captureMode, setCaptureMode] = useState<'live' | 'upload'>('upload');
   const [recording, setRecording] = useState(false);
   const fileExtension = selectedFile?.name.split('.').pop()?.toUpperCase() || 'AUDIO';
 
   return (
     <div className="step-surface">
-      <header className="step-heading"><div><p className="eyebrow">STEP {stepNumber} · AUDIO INPUT</p><h2>진료 녹음 입력</h2><span>{encounterType === 'new' ? '진료 중 차트를 작성하기 어려운 경우 진료 대화를 녹음하고, 진료 후 녹음파일을 넣어 차트 초안을 만들 수 있습니다.' : '오늘 진료의 실시간 녹음 또는 스마트폰 녹음파일을 기존 환자기록과 함께 차트 근거로 사용합니다.'}</span></div><div className="capture-switch"><button className={captureMode === 'upload' ? 'active' : ''} onClick={() => setCaptureMode('upload')}>녹음파일 업로드</button><button className={captureMode === 'live' ? 'active' : ''} onClick={() => setCaptureMode('live')}>실시간 녹음</button></div></header>
+      <header className="step-heading"><div><p className="eyebrow">STEP {stepNumber} · AUDIO INPUT</p><h2>진료 녹음 입력</h2><span>{encounterType === 'new' ? '실시간으로 진료를 녹음하거나, 진료 후 스마트폰·녹음기의 파일을 바로 추가할 수 있습니다.' : '오늘 진료의 실시간 녹음과 녹음파일을 기존 환자기록과 함께 차트 근거로 사용할 수 있습니다.'}</span></div><div className="audio-input-badges"><span>실시간 녹음</span><span>녹음파일 업로드</span></div></header>
       <div className="audio-to-chart-route"><span><i>1</i>진료 녹음·파일</span><b>→</b><span><i>2</i>음성 내용 분석</span><b>→</b><span><i>3</i>차트·SOAP 초안</span><b>→</b><span><i>4</i>의사 수정·승인</span></div>
       <div className="audio-flow-layout">
-        <section className="audio-input-panel">
-          {captureMode === 'live' ? (
-            <>
-              <div className="live-recorder">
-                <span className={recording ? 'record-orb active' : 'record-orb'}><i /></span>
-                <div><p className="eyebrow">RECORDING TIME</p><strong>00 : 00 : 00</strong><small>{recording ? '진료 음성을 기록하고 있습니다' : '녹음 시작을 눌러 진료 기록을 시작하세요'}</small></div>
-                <button onClick={() => setRecording(!recording)}>{recording ? '녹음 중지' : '녹음 시작'}</button>
-              </div>
-              <div className="audio-wave" aria-hidden="true">{[18,34,22,48,29,56,31,40,21,51,37,26,45,20,33,49,25,38,17,30,42,27,50,22].map((height, index) => <i style={{ height: recording ? height : 3 }} key={index} />)}</div>
-            </>
-          ) : !selectedFile ? (
+        <section className="audio-input-panel live-audio-card">
+          <header><div><p className="eyebrow">LIVE RECORDING</p><h3>실시간 녹음</h3></div><span>{recording ? '녹음 중' : '대기'}</span></header>
+          <div className="live-recorder">
+            <span className={recording ? 'record-orb active' : 'record-orb'}><i /></span>
+            <div><p className="eyebrow">RECORDING TIME</p><strong>00 : 00 : 00</strong><small>{recording ? '진료 음성을 기록하고 있습니다' : '녹음 시작을 눌러 진료 기록을 시작하세요'}</small></div>
+            <button onClick={() => setRecording(!recording)}>{recording ? '녹음 중지' : '녹음 시작'}</button>
+          </div>
+          <div className="audio-wave" aria-hidden="true">{[18,34,22,48,29,56,31,40,21,51,37,26,45,20,33,49,25,38,17,30,42,27,50,22].map((height, index) => <i style={{ height: recording ? height : 3 }} key={index} />)}</div>
+        </section>
+        <section className="audio-input-panel upload-audio-card">
+          <header><div><p className="eyebrow">AUDIO FILE</p><h3>녹음파일 업로드</h3></div><span>{selectedFile ? '파일 연결됨' : '선택 대기'}</span></header>
+          {!selectedFile ? (
             <div className="flow-dropzone"><i /><strong>진료 후 녹음파일 넣기</strong><span>스마트폰·녹음기 파일 · M4A · MP3 · WAV · AAC</span><label><input type="file" accept=".m4a,.mp3,.wav,.aac,audio/*" onChange={(event) => onSelectedFileChange(event.target.files?.[0] ?? null)} /><b>녹음파일 선택</b></label><small>진료 중 차트를 작성하지 못한 경우에도 이 파일을 근거로 차트와 SOAP 초안을 만듭니다.</small></div>
           ) : (
             <div className="flow-file-selected"><i>{fileExtension}</i><div><strong>{selectedFile.name}</strong><span>{formatFileSize(selectedFile.size)} · {selectedFile.type || 'MIME type 확인 필요'}</span><small>이 파일은 차트·SOAP 초안과 최종 승인 기록의 근거로 연결됩니다.</small></div><button onClick={() => onSelectedFileChange(null)}>×</button></div>
           )}
-        </section>
-        <section className="recording-use-panel">
-          <header><div><p className="eyebrow">AUDIO TO CHART</p><h3>녹음파일 활용 방식</h3></div><span>{selectedFile ? '파일 연결됨' : '입력 안내'}</span></header>
-          <div>
-            <article><i>1</i><span><strong>진료에 집중</strong><small>문진과 진찰 중에는 환자 진료에 집중하고 대화를 녹음합니다.</small></span></article>
-            <article><i>2</i><span><strong>진료 후 파일 입력</strong><small>스마트폰 또는 녹음기의 원본 파일을 이 단계에서 추가합니다.</small></span></article>
-            <article><i>3</i><span><strong>최종 기록에 근거 연결</strong><small>분석된 내용은 차트와 SOAP 초안에 반영되고 의사가 최종 화면에서 수정합니다.</small></span></article>
-          </div>
-          <footer><i>i</i><span>음성 분석 과정은 별도 화면으로 노출하지 않고, 필요한 내용만 진료 차트와 SOAP 초안으로 정리합니다.</span></footer>
         </section>
       </div>
     </div>
@@ -511,12 +502,12 @@ function FinalStep({
   onApprove: () => void;
   onNew: () => void;
 }) {
+  const [showPreview, setShowPreview] = useState(false);
   const outputs = [
     ['환자 종합 진료 리포트', '증상·검사·의사소견·치료계획을 한 문서로 통합'],
     ['진료기록', '최종 승인된 SOAP와 의사 수정 이력'],
     ['처방 설명서', '확정 처방의 목적·복용법·주의사항'],
   ];
-  const chartLines = chartText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   const autonomicMetrics = [['HRV', 'hrv'], ['LF/HF', 'lfhf'], ['스트레스 지수', 'stress']];
   const reportText = (key: string, fallback: string) => soapValues[key]?.trim() || fallback;
   const autonomicSummary = autonomicFile
@@ -528,7 +519,7 @@ function FinalStep({
     : '자율신경검사 파일을 입력하면 검사 항목, 현재 결과, 이전 결과 및 변화 설명이 표시됩니다.';
   const editableAutonomicSummary = autonomicValues.interpretation?.trim() || autonomicSummary;
   const printReport = () => window.print();
-  const showReport = () => document.getElementById('patient-report')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const showReport = () => setShowPreview(true);
 
   return (
     <div className="step-surface final-step">
@@ -536,7 +527,7 @@ function FinalStep({
       <section className="final-record-editor">
         <header className="final-record-editor-head">
           <div><p className="eyebrow">DOCTOR FINAL EDIT</p><h3>최종 진료기록</h3><span>기존 환자기록과 같은 구조에서 모든 내용을 직접 수정한 뒤 승인합니다.</span></div>
-          <b>{approved ? '승인 완료 · 수정 잠금' : '의사 직접 수정 가능'}</b>
+          <div className="final-record-editor-actions"><b>{approved ? '승인 완료 · 수정 잠금' : '의사 직접 수정 가능'}</b><button onClick={showReport}>환자 안내서 미리보기</button></div>
         </header>
         <div className={audioFile ? 'final-audio-source connected' : 'final-audio-source'}>
           <i>음성</i><span><strong>{audioFile ? '진료 녹음파일이 기록 근거로 연결되었습니다' : '연결된 진료 녹음파일 없음'}</strong><small>{audioFile ? `${audioFile.name} · ${formatFileSize(audioFile.size)}` : '진료 녹음 입력 단계에서 파일을 추가하면 차트와 SOAP의 근거로 연결됩니다.'}</small></span><b>{audioFile ? '원본 연결' : '선택 입력'}</b>
@@ -576,12 +567,14 @@ function FinalStep({
           <textarea disabled={approved} value={chartText} onChange={(event) => onChartTextChange(event.target.value)} placeholder="검사자료 보완 단계에서 정리된 검사 결과가 표시됩니다. 이곳에서 의사가 최종 문장을 수정할 수 있습니다." />
         </section>
       </section>
-      <section className="patient-report-section" id="patient-report">
-        <header>
-          <div><p className="eyebrow">PATIENT REPORT PREVIEW</p><h3>환자 종합 진료 안내서</h3><span>진료 내용을 환자가 이해하기 쉬운 한 문서로 통합합니다.</span></div>
-          <div className="report-actions"><b>{approved ? '의사 승인 완료' : '승인 전 미리보기'}</b><button disabled={!approved} onClick={printReport}>PDF 저장 / 인쇄</button></div>
-        </header>
-        <article className={approved ? 'patient-report-paper approved' : 'patient-report-paper'}>
+      {showPreview && <div className="report-modal-backdrop" onMouseDown={() => setShowPreview(false)}>
+        <section className="report-modal" role="dialog" aria-modal="true" aria-label="환자 종합 진료 안내서 미리보기" onMouseDown={(event) => event.stopPropagation()}>
+          <header>
+            <div><p className="eyebrow">PATIENT REPORT PREVIEW</p><h3>환자 종합 진료 안내서</h3><span>진료 내용을 환자가 이해하기 쉬운 한 문서로 통합합니다.</span></div>
+            <div className="report-actions"><b>{approved ? '의사 승인 완료' : '승인 전 미리보기'}</b><button disabled={!approved} onClick={printReport}>PDF 저장 / 인쇄</button><button className="report-modal-close" onClick={() => setShowPreview(false)} aria-label="미리보기 닫기">×</button></div>
+          </header>
+          <div className="report-modal-scroll">
+          <article className={approved ? 'patient-report-paper approved' : 'patient-report-paper'}>
           <div className="report-document-head">
             <div><span>병원명</span><strong>환자 종합 진료 안내서</strong><small>Clinical Visit Summary</small></div>
             <b>{approved ? '의사 승인본' : '미리보기 · 승인 전'}</b>
@@ -600,11 +593,7 @@ function FinalStep({
             <section><i>A</i><div><strong>담당 의사 소견</strong><p>{reportText('A', '담당 의사가 최종 확인한 평가와 진단만 표시됩니다.')}</p></div></section>
             <section><i>P</i><div><strong>치료·관리 계획</strong><p>{reportText('P', '담당 의사가 확정한 처방, 검사 계획, 생활 안내와 경과관찰 계획이 표시됩니다.')}</p></div></section>
           </div>
-          <div className="report-result-grid">
-            <section>
-              <header><div><span>EXAMINATION</span><strong>검사 차트 요약</strong></div><b>{chartLines.length ? `${chartLines.length}개 항목` : '입력 대기'}</b></header>
-              {chartLines.length ? <ul>{chartLines.slice(0, 5).map((line, index) => <li key={`${line}-${index}`}><i>{index + 1}</i><span>{line}</span></li>)}</ul> : <p>검사 차트를 입력하면 검사명, 결과값, 단위, 기준범위와 판정 내용이 원문에 근거하여 표시됩니다.</p>}
-            </section>
+          <div className="report-result-grid single">
             <section>
               <header><div><span>AUTONOMIC TEST</span><strong>자율신경검사 설명</strong></div><b>{autonomicFile ? '검사파일 연결' : '입력 대기'}</b></header>
               <p>{editableAutonomicSummary}</p>
@@ -619,8 +608,10 @@ function FinalStep({
             <p>본 문서는 담당 의료진이 확인·승인한 진료정보를 환자가 이해하기 쉽게 정리한 안내서입니다. 증상이 변하거나 문의사항이 있으면 담당 의료진에게 확인해 주세요.</p>
             <div><span>담당의 서명</span><b>{approved ? '전자 승인 완료' : '승인 후 표시'}</b></div>
           </footer>
-        </article>
-      </section>
+          </article>
+          </div>
+        </section>
+      </div>}
       <div className="final-layout">
         <section className="approval-summary">
           <header><div><p className="eyebrow">APPROVAL SUMMARY</p><h3>승인 전 최종 확인</h3></div><i>{approved ? '✓' : '!'}</i></header>
