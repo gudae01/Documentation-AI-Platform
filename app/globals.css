@@ -596,15 +596,47 @@ button { cursor: pointer; }
 .autonomic-comparison-table > header, .autonomic-current-table > header { min-height: 30px; padding: 0 8px; border-radius: 7px; background: #f0f4f3; color: #718489; font-size: 9px; }
 .autonomic-comparison-table > div, .autonomic-current-table > div { min-height: 41px; padding: 0 8px; border-bottom: 1px solid #e9eeee; color: #5e7379; font-size: 10px; }
 .autonomic-comparison-table > div strong, .autonomic-current-table > div strong { color: #3d575e; font-size: 10px; }
-.autonomic-comparison-table > div b { color: #278175; font-size: 10px; }
+.autonomic-comparison-table > div b { color: #6d8085; font-size: 10px; }
+.autonomic-change.improved { color: #198274; }
+.autonomic-change.worsened { color: #cf4e4e; }
+.autonomic-change.neutral { color: #74868a; }
 .autonomic-current-table > div b { width: fit-content; padding: 4px 6px; border-radius: 5px; background: #eef4f3; color: #637c80; font-size: 9px; }
+.autonomic-change-legend { display: flex; align-items: center; justify-content: flex-end; gap: 12px; padding: 8px 14px 0; color: #7c8d91; font-size: 8px; }
+.autonomic-change-legend span { display: flex; align-items: center; gap: 5px; }
+.autonomic-change-legend i { width: 7px; height: 7px; border-radius: 50%; background: #839398; }
+.autonomic-change-legend i.improved { background: #198274; }
+.autonomic-change-legend i.worsened { background: #cf4e4e; }
 .autonomic-interpretation { margin: 10px 14px 14px; padding: 13px; border: 1px solid #d5e7e3; border-radius: 9px; background: #edf7f4; }
 .autonomic-interpretation strong { color: #306f66; font-size: 11px; }
 .autonomic-interpretation p { margin: 6px 0 0; color: #577770; font-size: 10px; line-height: 1.65; }
-.record-test-history { margin: 0 20px 22px; }
-.record-test-history > div { display: grid; grid-template-columns: repeat(2, 1fr); }
-.record-test-history > div article { border-right: 1px solid #e8eded; }
-.record-test-history > div article:nth-child(2n) { border-right: 0; }
+.autonomic-file-history { margin: 0 20px 22px; }
+.autonomic-file-history > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.autonomic-file-history > div > details { min-width: 0; border-right: 1px solid #e8eded; border-bottom: 1px solid #e8eded; }
+.autonomic-file-history > div > details:nth-child(2n) { border-right: 0; }
+.autonomic-file-history summary { min-height: 84px; position: relative; display: grid; grid-template-columns: 72px minmax(0, 1fr) 20px; align-items: center; gap: 10px; padding: 12px 14px; cursor: pointer; list-style: none; }
+.autonomic-file-history summary::-webkit-details-marker { display: none; }
+.autonomic-file-history summary time { color: #869599; font-size: 10px; }
+.autonomic-file-history summary strong, .autonomic-file-history summary span, .autonomic-file-history summary small { display: block; }
+.autonomic-file-history summary strong { color: #405960; font-size: 12px; }
+.autonomic-file-history summary span { margin-top: 4px; color: #73878c; font-size: 10px; line-height: 1.45; }
+.autonomic-file-history summary small { margin-top: 5px; overflow: hidden; color: #389084; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.autonomic-file-history summary > i { color: #4b8e86; font-size: 17px; font-style: normal; transition: transform .2s ease; }
+.autonomic-file-history details[open] summary > i { transform: rotate(180deg); }
+.autonomic-file-history-detail { position: relative; padding: 11px 13px 13px; border-top: 1px solid #e5eceb; background: #fafcfc; }
+.autonomic-file-history-meta { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 4px 9px; padding-bottom: 10px; }
+.autonomic-file-history-meta span { grid-row: 1 / 3; color: #7e8f93; font-size: 9px; }
+.autonomic-file-history-meta strong { overflow: hidden; color: #405b62; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.autonomic-file-history-meta em { color: #8a989c; font-size: 8px; font-style: normal; }
+.autonomic-file-history-table { border: 1px solid #e0e8e7; border-radius: 7px; overflow: hidden; }
+.autonomic-file-history-table > header, .autonomic-file-history-table > div { min-height: 31px; display: grid; grid-template-columns: 1fr .8fr .7fr; align-items: center; padding: 0 9px; }
+.autonomic-file-history-table > header { background: #eef3f2; color: #77898d; font-size: 8px; }
+.autonomic-file-history-table > div { border-top: 1px solid #e7eded; color: #60767b; font-size: 9px; }
+.autonomic-file-history-table > div strong { color: #405a61; }
+.autonomic-file-history-table > div b { width: fit-content; padding: 3px 5px; border-radius: 4px; background: #eaf3f1; color: #477a74; font-size: 8px; }
+.autonomic-file-history-detail > button { display: block; margin: 10px 0 0 auto; padding: 7px 9px; border: 1px solid #c9deda; border-radius: 6px; background: white; color: #367b72; font-size: 9px; font-weight: 750; }
+.autonomic-file-empty { min-height: 145px; display: flex !important; grid-column: 1 / -1; flex-direction: column; align-items: center; justify-content: center; color: #829196; text-align: center; }
+.autonomic-file-empty strong { color: #50686f; font-size: 12px; }
+.autonomic-file-empty span { margin-top: 6px; font-size: 10px; }
 
 .encounter-patient-bar { min-height: 68px; display: flex; align-items: center; gap: 11px; padding: 10px 26px; border-bottom: 1px solid #e0e6e7; background: #fbfcfc; }
 .encounter-patient-avatar { width: 39px; height: 39px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 11px; background: #e1f0ed; color: #2e776f; font-size: 8px; font-weight: 800; }
@@ -1110,9 +1142,10 @@ button { cursor: pointer; }
   .previous-record-list summary { grid-template-columns: 68px minmax(0, 1fr); }
   .previous-record-list summary > em { display: none; }
   .record-detail-grid { padding: 12px; }
-  .record-test-history { margin: 0 12px 18px; }
-  .record-test-history > div { grid-template-columns: 1fr; }
-  .record-test-history > div article { border-right: 0; }
+  .autonomic-file-history { margin: 0 12px 18px; }
+  .autonomic-file-history > div { grid-template-columns: 1fr; }
+  .autonomic-file-history > div > details { border-right: 0; }
+  .autonomic-file-history summary { grid-template-columns: 62px minmax(0, 1fr) 18px; padding-inline: 11px; }
   .final-record-editor-head { align-items: flex-start; flex-direction: column; }
   .final-record-editor-actions { width: 100%; flex-wrap: wrap; }
   .final-record-editor-actions > button { margin-left: auto; }
@@ -1219,8 +1252,12 @@ button { cursor: pointer; }
   body.printing-patient-record .previous-record-list details > dl > div { grid-template-columns: 58px 1fr; padding: 6px 0; }
   body.printing-patient-record .previous-record-list dt, body.printing-patient-record .previous-record-list dd { font-size: 8px; line-height: 1.4; }
   body.printing-patient-record .record-detail-grid { grid-template-columns: 1.05fr .95fr !important; gap: 10px; padding: 14px 0 0; }
-  body.printing-patient-record .record-test-history { margin: 12px 0 0; }
-  body.printing-patient-record .record-test-history > div { grid-template-columns: repeat(2, 1fr); }
+  body.printing-patient-record .autonomic-file-history { margin: 12px 0 0; }
+  body.printing-patient-record .autonomic-file-history > div { grid-template-columns: repeat(2, 1fr); }
+  body.printing-patient-record .autonomic-file-history summary { min-height: 62px; grid-template-columns: 60px 1fr; padding: 8px 10px; }
+  body.printing-patient-record .autonomic-file-history summary > i, body.printing-patient-record .autonomic-file-history-detail > button { display: none; }
+  body.printing-patient-record .autonomic-file-history-detail { padding: 8px 10px; }
+  body.printing-patient-record .autonomic-file-history-table > header, body.printing-patient-record .autonomic-file-history-table > div { min-height: 25px; }
   body.printing-patient-record .record-chart-card, body.printing-patient-record .record-detailed-card, body.printing-patient-record .course-summary-card, body.printing-patient-record .previous-records-card, body.printing-patient-record .past-soap-card, body.printing-patient-record .past-test-card, body.printing-patient-record .autonomic-record-card, body.printing-patient-record .clinical-detail-row, body.printing-patient-record .course-summary-list article, body.printing-patient-record .previous-record-list details, body.printing-patient-record .past-soap-card article, body.printing-patient-record .past-test-card article { break-inside: avoid; }
   body.printing-patient-record .past-soap-card > header, body.printing-patient-record .past-test-card > header { min-height: 50px; }
   body.printing-patient-record .past-soap-card article { min-height: 0; padding: 9px 0; }

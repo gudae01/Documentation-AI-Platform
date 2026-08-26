@@ -5,6 +5,15 @@ import { useEffect, useRef, useState, type TextareaHTMLAttributes } from 'react'
 type StepId = 'emr' | 'tests' | 'audio' | 'soap' | 'final';
 type EncounterType = 'new' | 'followup';
 type FlowStep = { id: StepId; label: string; description: string };
+type AutonomicFileRecord = {
+  id: string;
+  date: string;
+  fileName: string;
+  fileType: string;
+  summary: string;
+  metrics: [string, string, string][];
+  file?: File;
+};
 type PatientRecord = {
   id: string;
   name: string;
@@ -41,6 +50,7 @@ type PatientRecord = {
   }[];
   soap: Record<'S' | 'O' | 'A' | 'P', string>;
   tests: [string, string, string][];
+  autonomicFiles: AutonomicFileRecord[];
   autonomic: {
     date: string;
     current: [string, string, string][];
@@ -106,6 +116,10 @@ const patientRecords: PatientRecord[] = [
       P: '수면위생 교육, 카페인 섭취 조절. 4주 후 자율신경검사 재평가.',
     },
     tests: [['2026.08.12', '자율신경검사', 'LF/HF 2.41 · 스트레스 지수 높음'], ['2026.05.02', '혈액검사', 'CBC · 갑상선 기능 정상 범위']],
+    autonomicFiles: [
+      { id: 'ANS-20260812-01842', date: '2026.08.12', fileName: 'ANS_김민준_20260812.csv', fileType: '장비 Export · CSV', summary: '이전 검사보다 HRV가 증가하고 LF/HF 및 스트레스 지수가 감소함.', metrics: [['HRV', '32 ms', '낮음'], ['LF/HF', '2.41', '높음'], ['스트레스 지수', '78', '높음']] },
+      { id: 'ANS-20260502-01842', date: '2026.05.02', fileName: 'ANS_김민준_20260502.csv', fileType: '장비 Export · CSV', summary: '비교 기준이 된 이전 자율신경검사 원본 파일.', metrics: [['HRV', '28 ms', '낮음'], ['LF/HF', '2.88', '높음'], ['스트레스 지수', '84', '높음']] },
+    ],
     autonomic: {
       date: '2026.08.12',
       current: [['HRV', '32 ms', '낮음'], ['LF/HF', '2.41', '높음'], ['스트레스 지수', '78', '높음']],
@@ -146,6 +160,9 @@ const patientRecords: PatientRecord[] = [
       P: '두통 일지 작성, 수분 섭취와 스트레칭 안내. 증상 악화 시 조기 내원.',
     },
     tests: [['2026.08.05', '신경학적 진찰', '국소 신경학적 결손 없음'], ['2026.04.19', '뇌 MRI', '특이 병변 없음']],
+    autonomicFiles: [
+      { id: 'ANS-20260805-00671', date: '2026.08.05', fileName: 'ANS_이서연_20260805.csv', fileType: '장비 Export · CSV', summary: '첫 자율신경검사로 다음 검사부터 변화량을 비교할 기준 파일.', metrics: [['HRV', '41 ms', '정상'], ['LF/HF', '1.72', '경계'], ['스트레스 지수', '63', '경계']] },
+    ],
     autonomic: {
       date: '2026.08.05',
       current: [['HRV', '41 ms', '정상'], ['LF/HF', '1.72', '경계'], ['스트레스 지수', '63', '경계']],
@@ -185,6 +202,10 @@ const patientRecords: PatientRecord[] = [
       P: '현재 약 유지. 저염식과 유산소 운동 안내, 3개월 후 혈액검사.',
     },
     tests: [['2026.07.29', '지질검사', 'LDL-C 112 mg/dL'], ['2026.04.25', '신장기능검사', 'Cr 0.9 mg/dL · eGFR 정상']],
+    autonomicFiles: [
+      { id: 'ANS-20260729-03109', date: '2026.07.29', fileName: 'ANS_박지훈_20260729.csv', fileType: '장비 Export · CSV', summary: '이전보다 HRV가 증가하고 스트레스 지수가 감소해 전반적으로 호전됨.', metrics: [['HRV', '42 ms', '정상'], ['LF/HF', '1.68', '정상'], ['스트레스 지수', '58', '정상']] },
+      { id: 'ANS-20260425-03109', date: '2026.04.25', fileName: 'ANS_박지훈_20260425.csv', fileType: '장비 Export · CSV', summary: '2026년 7월 검사와 비교한 이전 자율신경검사 원본 파일.', metrics: [['HRV', '38 ms', '경계'], ['LF/HF', '1.95', '경계'], ['스트레스 지수', '67', '경계']] },
+    ],
     autonomic: {
       date: '2026.07.29',
       current: [['HRV', '42 ms', '정상'], ['LF/HF', '1.68', '정상'], ['스트레스 지수', '58', '정상']],
@@ -225,6 +246,9 @@ const patientRecords: PatientRecord[] = [
       P: '식사량 분할, 자극적 음식 제한. 6주 후 증상 변화 확인.',
     },
     tests: [['2026.07.18', '상부위장관 내시경', '특이소견 없음'], ['2026.06.30', '복부 초음파', '간담췌 특이소견 없음']],
+    autonomicFiles: [
+      { id: 'ANS-20260718-01426', date: '2026.07.18', fileName: 'ANS_최유진_20260718.csv', fileType: '장비 Export · CSV', summary: '첫 자율신경검사로 교감신경 우세와 높은 스트레스 지수가 확인됨.', metrics: [['HRV', '36 ms', '경계'], ['LF/HF', '2.06', '높음'], ['스트레스 지수', '71', '높음']] },
+    ],
     autonomic: {
       date: '2026.07.18',
       current: [['HRV', '36 ms', '경계'], ['LF/HF', '2.06', '높음'], ['스트레스 지수', '71', '높음']],
@@ -238,6 +262,29 @@ function formatFileSize(bytes: number) {
   const units = ['B', 'KB', 'MB', 'GB'];
   const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
   return `${(bytes / 1024 ** index).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
+}
+
+function getAutonomicChangeTone(metric: string, previousText: string, currentText: string) {
+  const numberFrom = (value: string) => Number.parseFloat(value.replace(/[^\d.-]/g, ''));
+  const previous = numberFrom(previousText);
+  const current = numberFrom(currentText);
+  if (!Number.isFinite(previous) || !Number.isFinite(current) || previous === current) return 'neutral';
+  if (metric === 'HRV') return current > previous ? 'improved' : 'worsened';
+  if (metric === 'LF/HF') {
+    const distanceFromReference = (value: number) => value < 0.5 ? 0.5 - value : value > 2 ? value - 2 : 0;
+    const previousDistance = distanceFromReference(previous);
+    const currentDistance = distanceFromReference(current);
+    if (currentDistance === previousDistance) return 'neutral';
+    return currentDistance < previousDistance ? 'improved' : 'worsened';
+  }
+  if (metric === '스트레스 지수') return current < previous ? 'improved' : 'worsened';
+  return 'neutral';
+}
+
+function describeAutonomicChange(tone: string) {
+  if (tone === 'improved') return '기준범위에 가까워진 변화';
+  if (tone === 'worsened') return '기준범위에서 멀어진 변화';
+  return '방향 판단이 필요한 변화';
 }
 
 function AutoResizeTextarea({ value, onChange, style, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
@@ -357,13 +404,20 @@ function HomeScreen({ onStart, onOpenPatients }: { onStart: () => void; onOpenPa
   );
 }
 
-function PatientDirectory({ onStartEncounter }: { onStartEncounter: (patient: PatientRecord) => void }) {
+function PatientDirectory({ onStartEncounter, sessionAutonomicFiles }: { onStartEncounter: (patient: PatientRecord) => void; sessionAutonomicFiles: Record<string, AutonomicFileRecord[]> }) {
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState(patientRecords[0].id);
   const normalizedQuery = query.trim().toLowerCase();
   const filteredPatients = patientRecords.filter((patient) => [patient.name, patient.id, patient.chiefComplaint, patient.department].some((value) => value.toLowerCase().includes(normalizedQuery)));
   const selectedPatient = patientRecords.find((patient) => patient.id === selectedId) ?? filteredPatients[0] ?? null;
+  const availableAutonomicFiles = selectedPatient ? [...(sessionAutonomicFiles[selectedPatient.id] ?? []), ...selectedPatient.autonomicFiles].sort((a, b) => b.date.localeCompare(a.date)) : [];
   const printDate = new Intl.DateTimeFormat('ko-KR').format(new Date());
+  const openUploadedFile = (record: AutonomicFileRecord) => {
+    if (!record.file) return;
+    const fileUrl = URL.createObjectURL(record.file);
+    window.open(fileUrl, '_blank', 'noopener,noreferrer');
+    window.setTimeout(() => URL.revokeObjectURL(fileUrl), 60_000);
+  };
   const printPatientRecord = () => {
     if (!selectedPatient) return;
     const previousTitle = document.title;
@@ -470,7 +524,10 @@ function PatientDirectory({ onStartEncounter }: { onStartEncounter: (patient: Pa
                 {selectedPatient.autonomic.comparison ? (
                   <div className="autonomic-comparison-table">
                     <header><span>지표</span><span>이전</span><span>현재</span><span>변화</span></header>
-                    {selectedPatient.autonomic.comparison.map(([metric, previous, current, change]) => <div key={metric}><strong>{metric}</strong><span>{previous}</span><span>{current}</span><b>{change}</b></div>)}
+                    {selectedPatient.autonomic.comparison.map(([metric, previous, current, change]) => {
+                      const tone = getAutonomicChangeTone(metric, previous, current);
+                      return <div key={metric}><strong>{metric}</strong><span>{previous}</span><span>{current}</span><b className={`autonomic-change ${tone}`} title={describeAutonomicChange(tone)}>{change}</b></div>;
+                    })}
                   </div>
                 ) : (
                   <div className="autonomic-current-table">
@@ -478,13 +535,23 @@ function PatientDirectory({ onStartEncounter }: { onStartEncounter: (patient: Pa
                     {selectedPatient.autonomic.current.map(([metric, value, status]) => <div key={metric}><strong>{metric}</strong><span>{value}</span><b>{status}</b></div>)}
                   </div>
                 )}
+                {selectedPatient.autonomic.comparison && <div className="autonomic-change-legend"><span><i className="improved" />기준범위에 가까워짐</span><span><i className="worsened" />기준범위에서 멀어짐</span></div>}
                 <div className="autonomic-interpretation"><strong>검사 해석</strong><p>{selectedPatient.autonomic.interpretation}</p></div>
               </section>
             </div>
-            <section className="past-test-card record-test-history">
-              <header><div><p className="eyebrow">TEST HISTORY</p><h2>전체 검사 이력</h2></div><b>{selectedPatient.tests.length}건</b></header>
-              <div>{selectedPatient.tests.map(([date, name, result]) => <article key={`${date}-${name}`}><time>{date}</time><div><strong>{name}</strong><span>{result}</span></div><button aria-label={`${name} 상세 보기`}>›</button></article>)}</div>
-              <footer><span>재진을 시작하면 이 자료가 이전자료 확인 단계에 연결됩니다.</span></footer>
+            <section className="past-test-card autonomic-file-history">
+              <header><div><p className="eyebrow">AUTONOMIC FILE HISTORY</p><h2>자율신경검사 이력</h2></div><b>업로드 파일 {availableAutonomicFiles.length}개</b></header>
+              {availableAutonomicFiles.length ? <div>{availableAutonomicFiles.map((record) => (
+                <details key={record.id} open>
+                  <summary><time>{record.date}</time><div><strong>자율신경검사</strong><span>{record.summary}</span><small>{record.fileName}</small></div><i>⌄</i></summary>
+                  <div className="autonomic-file-history-detail">
+                    <div className="autonomic-file-history-meta"><span>업로드 파일</span><strong>{record.fileName}</strong><em>{record.fileType}{record.file ? ` · ${formatFileSize(record.file.size)}` : ''}</em></div>
+                    <div className="autonomic-file-history-table"><header><span>지표</span><span>결과</span><span>판정</span></header>{record.metrics.map(([metric, value, status]) => <div key={metric}><strong>{metric}</strong><span>{value}</span><b>{status}</b></div>)}</div>
+                    {record.file && <button onClick={() => openUploadedFile(record)}>원본 파일 열기</button>}
+                  </div>
+                </details>
+              ))}</div> : <div className="autonomic-file-empty"><strong>업로드된 자율신경검사 파일이 없습니다</strong><span>진료 중 검사파일을 업로드하고 최종 승인하면 이곳에 표시됩니다.</span></div>}
+              <footer><span>업로드된 자율신경검사 파일과 파일에서 정리한 결과만 표시됩니다.</span></footer>
             </section>
             <footer className="patient-record-print-footer"><span>출력일 {printDate}</span><p>본 문서는 병원 내부에 저장된 환자 진료기록을 의료진 확인용으로 출력한 자료입니다.</p></footer>
           </article>
@@ -506,7 +573,7 @@ function EmrStep({ stepNumber, encounterType, captured, patient, onCapture }: { 
   return (
     <div className="step-surface">
       <header className="step-heading"><div><p className="eyebrow">STEP {stepNumber} · PATIENT INFO CAPTURE</p><h2>EMR 환자정보 캡처</h2><span>모든 새 진료는 환자의 EMR 기본정보를 캡처하고 확인하는 단계부터 시작합니다.</span></div><span className={captured ? 'step-status complete' : 'step-status'}>{captured ? '환자정보 확인' : '캡처 대기'}</span></header>
-      {patient && <div className="linked-patient-banner"><i>기록</i><span><strong>{patient.name} 환자의 기존 기록에서 재진을 시작했습니다</strong><small>최근 내원 {patient.lastVisit} · 과거 검사 {patient.tests.length}건이 다음 이전자료 확인 단계에 연결됩니다.</small></span><b>재진</b></div>}
+      {patient && <div className="linked-patient-banner"><i>기록</i><span><strong>{patient.name} 환자의 기존 기록에서 재진을 시작했습니다</strong><small>최근 내원 {patient.lastVisit} · 자율신경검사 파일 {patient.autonomicFiles.length}개가 이전자료 확인 단계에 연결됩니다.</small></span><b>재진</b></div>}
       <div className="emr-layout">
         <section className="emr-capture-zone">
           <div className="capture-window">
@@ -822,6 +889,7 @@ export default function Home() {
   const [autonomicFile, setAutonomicFile] = useState<File | null>(null);
   const [hasPreviousAutonomic, setHasPreviousAutonomic] = useState<boolean | null>(null);
   const [autonomicValues, setAutonomicValues] = useState<Record<string, string>>({});
+  const [sessionAutonomicFiles, setSessionAutonomicFiles] = useState<Record<string, AutonomicFileRecord[]>>({});
 
   const flowSteps = encounterType === 'followup' ? followupVisitSteps : firstVisitSteps;
   const encounterLabel = encounterType === 'new' ? '초진' : '재진';
@@ -831,6 +899,27 @@ export default function Home() {
   const startEncounter = (patient: PatientRecord | null = null) => { setSelectedPatient(patient); setEncounterType(patient ? 'followup' : 'new'); setApproved(false); setEmrCaptured(false); setSoapValues({ S: '', O: '', A: '', P: '' }); setChartText(''); setAudioFile(null); setAutonomicFile(null); setHasPreviousAutonomic(patient ? true : null); setAutonomicValues({}); setActiveStep('emr'); setEncounterStarted(true); setActiveView('encounter'); };
   const goNext = () => { if (currentIndex < flowSteps.length - 1) setActiveStep(flowSteps[currentIndex + 1].id); };
   const goPrevious = () => { if (currentIndex > 0) setActiveStep(flowSteps[currentIndex - 1].id); else goHome(); };
+  const approveEncounter = () => {
+    if (!approved && selectedPatient && autonomicFile) {
+      const now = new Date();
+      const uploadDate = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')}`;
+      const uploadedRecord: AutonomicFileRecord = {
+        id: `${selectedPatient.id}-${autonomicFile.name}-${autonomicFile.lastModified}`,
+        date: uploadDate,
+        fileName: autonomicFile.name,
+        fileType: autonomicFile.type || '장비 Export 파일',
+        summary: autonomicValues.interpretation?.trim() || '이번 진료에서 업로드한 자율신경검사 파일입니다. 상세 수치와 판정은 의료진 확인이 필요합니다.',
+        metrics: [
+          ['HRV', autonomicValues.hrvCurrent?.trim() || '분석 대기', autonomicValues.hrvStatus?.trim() || '확인 필요'],
+          ['LF/HF', autonomicValues.lfhfCurrent?.trim() || '분석 대기', autonomicValues.lfhfStatus?.trim() || '확인 필요'],
+          ['스트레스 지수', autonomicValues.stressCurrent?.trim() || '분석 대기', autonomicValues.stressStatus?.trim() || '확인 필요'],
+        ],
+        file: autonomicFile,
+      };
+      setSessionAutonomicFiles((current) => ({ ...current, [selectedPatient.id]: [uploadedRecord, ...(current[selectedPatient.id] ?? []).filter((record) => record.id !== uploadedRecord.id)] }));
+    }
+    setApproved(true);
+  };
   const patientName = selectedPatient?.name ?? '새 환자';
   const patientMeta = selectedPatient ? `${selectedPatient.gender} · ${selectedPatient.age}세 · ${selectedPatient.id}` : 'EMR 환자정보 캡처 대기';
 
@@ -858,7 +947,7 @@ export default function Home() {
         </header>
 
         {activeView === 'home' && <HomeScreen onStart={() => startEncounter()} onOpenPatients={openPatientDirectory} />}
-        {activeView === 'patients' && <PatientDirectory onStartEncounter={startEncounter} />}
+        {activeView === 'patients' && <PatientDirectory onStartEncounter={startEncounter} sessionAutonomicFiles={sessionAutonomicFiles} />}
         {activeView === 'encounter' && (
           <>
             <div className="encounter-patient-bar">
@@ -877,7 +966,7 @@ export default function Home() {
               {activeStep === 'tests' && <TestsStep stepNumber={currentIndex + 1} encounterType={encounterType} chartText={chartText} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} onChartTextChange={setChartText} onAutonomicFileChange={(file) => { setAutonomicFile(file); setHasPreviousAutonomic(file ? Boolean(selectedPatient) : selectedPatient ? true : null); }} onPreviousChange={setHasPreviousAutonomic} />}
               {activeStep === 'audio' && <AudioStep stepNumber={currentIndex + 1} encounterType={encounterType} selectedFile={audioFile} onSelectedFileChange={setAudioFile} />}
               {activeStep === 'soap' && <SoapStep stepNumber={currentIndex + 1} values={soapValues} onChange={(letter, value) => setSoapValues({ ...soapValues, [letter]: value })} />}
-              {activeStep === 'final' && <FinalStep stepNumber={currentIndex + 1} approved={approved} patient={selectedPatient} soapValues={soapValues} chartText={chartText} audioFile={audioFile} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} autonomicValues={autonomicValues} onSoapChange={(letter, value) => setSoapValues((current) => ({ ...current, [letter]: value }))} onChartTextChange={setChartText} onAutonomicChange={(key, value) => setAutonomicValues((current) => ({ ...current, [key]: value }))} onApprove={() => setApproved(true)} />}
+              {activeStep === 'final' && <FinalStep stepNumber={currentIndex + 1} approved={approved} patient={selectedPatient} soapValues={soapValues} chartText={chartText} audioFile={audioFile} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} autonomicValues={autonomicValues} onSoapChange={(letter, value) => setSoapValues((current) => ({ ...current, [letter]: value }))} onChartTextChange={setChartText} onAutonomicChange={(key, value) => setAutonomicValues((current) => ({ ...current, [key]: value }))} onApprove={approveEncounter} />}
             </div>
 
             <footer className="flow-footer-actions">
