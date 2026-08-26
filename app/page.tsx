@@ -290,6 +290,54 @@ function formatRecordingTime(totalSeconds: number) {
   return [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(' : ');
 }
 
+function formatPrintDate(date = new Date()) {
+  return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`;
+}
+
+const PRINT_BODY_CLASSES = ['printing-patient-record', 'printing-patient-guide'];
+
+function printDocument(bodyClass: string, title: string) {
+  const previousTitle = document.title;
+  const printMedia = window.matchMedia('print');
+  let cleaned = false;
+
+  const cleanup = () => {
+    if (cleaned) return;
+    cleaned = true;
+    PRINT_BODY_CLASSES.forEach((className) => document.body.classList.remove(className));
+    document.title = previousTitle;
+    window.removeEventListener('afterprint', cleanup);
+    if (typeof printMedia.removeEventListener === 'function') printMedia.removeEventListener('change', handlePrintMediaChange);
+    else printMedia.removeListener(handlePrintMediaChange);
+    window.clearTimeout(cleanupTimer);
+  };
+  const handlePrintMediaChange = (event: MediaQueryListEvent) => {
+    if (!event.matches) cleanup();
+  };
+
+  PRINT_BODY_CLASSES.forEach((className) => document.body.classList.remove(className));
+  document.body.classList.add(bodyClass);
+  document.title = title;
+  window.addEventListener('afterprint', cleanup);
+  if (typeof printMedia.addEventListener === 'function') printMedia.addEventListener('change', handlePrintMediaChange);
+  else printMedia.addListener(handlePrintMediaChange);
+
+  // iPadOS에서는 window.print()가 즉시 반환될 수 있어 afterprint까지 인쇄 상태를 유지합니다.
+  const cleanupTimer = window.setTimeout(cleanup, 120_000);
+  window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+    try {
+      if (typeof window.print !== 'function') {
+        cleanup();
+        return;
+      }
+      window.print();
+    } catch (error) {
+      cleanup();
+      throw error;
+    }
+  }));
+}
+
 function getCurrentDeviceLabel() {
   const isIPad = /iPad/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   if (isIPad) return 'iPad';
@@ -468,7 +516,7 @@ function PatientDirectory({ onStartEncounter, sessionAutonomicFiles }: { onStart
   const filteredPatients = patientRecords.filter((patient) => [patient.name, patient.id, patient.chiefComplaint, patient.department].some((value) => value.toLowerCase().includes(normalizedQuery)));
   const selectedPatient = patientRecords.find((patient) => patient.id === selectedId) ?? filteredPatients[0] ?? null;
   const availableAutonomicFiles = selectedPatient ? [...(sessionAutonomicFiles[selectedPatient.id] ?? []), ...selectedPatient.autonomicFiles].sort((a, b) => b.date.localeCompare(a.date)) : [];
-  const printDate = new Intl.DateTimeFormat('ko-KR').format(new Date());
+  const printDate = formatPrintDate();
   const openUploadedFile = (record: AutonomicFileRecord) => {
     if (!record.file) return;
     const fileUrl = URL.createObjectURL(record.file);
@@ -477,12 +525,7 @@ function PatientDirectory({ onStartEncounter, sessionAutonomicFiles }: { onStart
   };
   const printPatientRecord = () => {
     if (!selectedPatient) return;
-    const previousTitle = document.title;
-    document.title = `${selectedPatient.name}_${selectedPatient.id}_진료기록`;
-    document.body.classList.add('printing-patient-record');
-    window.print();
-    document.body.classList.remove('printing-patient-record');
-    document.title = previousTitle;
+    printDocument('printing-patient-record', `${selectedPatient.name}_${selectedPatient.id}_진료기록`);
   };
 
   return (
@@ -809,6 +852,7 @@ function FinalStep({
   onApprove: () => void;
 }) {
   const [showPreview, setShowPreview] = useState(false);
+  const printAfterOpeningRef = useRef(false);
   const autonomicMetrics = [['HRV', 'hrv'], ['LF/HF', 'lfhf'], ['스트레스 지수', 'stress']];
   const finalChartRows = organizeClinicalText(chartText).map((section) => ({ label: section.title, value: section.lines.join('\n') }));
   const updateChartRow = (rowIndex: number, value: string) => {
@@ -824,8 +868,24 @@ function FinalStep({
         : '검사파일 항목과 수치가 표시되며, 이전 검사 존재 여부 확인 후 비교 설명이 생성됩니다.'
     : '자율신경검사 파일을 입력하면 검사 항목, 현재 결과, 이전 결과 및 변화 설명이 표시됩니다.';
   const editableAutonomicSummary = autonomicValues.interpretation?.trim() || autonomicSummary;
-  const printReport = () => window.print();
-  const showReport = () => setShowPreview(true);
+  const reportDate = formatPrintDate();
+  const reportTitle = `${patient?.name ?? '환자'}_${patient?.id ?? '진료'}_종합진료안내서`;
+  const printReport = () => printDocument('printing-patient-guide', reportTitle);
+  const showReport = () => {
+    if (approved) printAfterOpeningRef.current = true;
+    setShowPreview(true);
+  };
+  const closeReport = () => {
+    printAfterOpeningRef.current = false;
+    setShowPreview(false);
+  };
+
+  useEffect(() => {
+    if (!approved || !showPreview || !printAfterOpeningRef.current) return;
+    printAfterOpeningRef.current = false;
+    const frame = window.requestAnimationFrame(() => printDocument('printing-patient-guide', reportTitle));
+    return () => window.cancelAnimationFrame(frame);
+  }, [approved, reportTitle, showPreview]);
 
   return (
     <div className="step-surface final-step">
@@ -833,7 +893,7 @@ function FinalStep({
       <section className="final-record-editor">
         <header className="final-record-editor-head">
           <div><p className="eyebrow">DOCTOR FINAL EDIT</p><h3>최종 진료기록</h3><span>기존 환자기록과 같은 구조에서 모든 내용을 직접 수정한 뒤 승인합니다.</span></div>
-          <div className="final-record-editor-actions"><b>{approved ? '승인 완료 · 수정 잠금' : '의사 직접 수정 가능'}</b><button onClick={showReport}>환자 안내서 미리보기</button></div>
+          <div className="final-record-editor-actions"><b>{approved ? '승인 완료 · 수정 잠금' : '의사 직접 수정 가능'}</b><button onClick={showReport}>{approved ? 'PDF 출력' : '환자 안내서 미리보기'}</button></div>
         </header>
         <div className={audioFile ? 'final-audio-source connected' : 'final-audio-source'}>
           <i>음성</i><span><strong>{audioFile ? '진료 녹음파일이 기록 근거로 연결되었습니다' : '연결된 진료 녹음파일 없음'}</strong><small>{audioFile ? `${audioFile.name} · ${formatFileSize(audioFile.size)}` : '진료 녹음 입력 단계에서 파일을 추가하면 차트와 SOAP의 근거로 연결됩니다.'}</small></span><b>{audioFile ? '원본 연결' : '선택 입력'}</b>
@@ -880,11 +940,11 @@ function FinalStep({
           ) : <div className="final-test-empty"><strong>정리된 검사 결과가 없습니다</strong><span>검사자료 보완 단계에서 내용을 입력하면 항목별 표로 표시됩니다.</span></div>}
         </section>
       </section>
-      {showPreview && <div className="report-modal-backdrop" onMouseDown={() => setShowPreview(false)}>
+      {showPreview && <div className="report-modal-backdrop" onMouseDown={closeReport}>
         <section className="report-modal" role="dialog" aria-modal="true" aria-label="환자 종합 진료 안내서 미리보기" onMouseDown={(event) => event.stopPropagation()}>
           <header>
             <div><p className="eyebrow">PATIENT REPORT PREVIEW</p><h3>환자 종합 진료 안내서</h3><span>진료 내용을 환자가 이해하기 쉬운 한 문서로 통합합니다.</span></div>
-            <div className="report-actions"><b>{approved ? '의사 승인 완료' : '승인 전 미리보기'}</b><button disabled={!approved} onClick={printReport}>PDF 저장 / 인쇄</button><button className="report-modal-close" onClick={() => setShowPreview(false)} aria-label="미리보기 닫기">×</button></div>
+            <div className="report-actions"><b>{approved ? '의사 승인 완료' : '승인 전 미리보기'}</b><button disabled={!approved} onClick={printReport}>PDF 출력</button><button className="report-modal-close" onClick={closeReport} aria-label="미리보기 닫기">×</button></div>
           </header>
           <div className="report-modal-scroll">
           <article className={approved ? 'patient-report-paper approved' : 'patient-report-paper'}>
@@ -893,7 +953,7 @@ function FinalStep({
             <b>{approved ? '의사 승인본' : '미리보기 · 승인 전'}</b>
           </div>
           <dl className="report-patient-info">
-            <div><dt>환자</dt><dd>{patient?.name ?? '캡처한 환자정보'}</dd></div><div><dt>환자등록번호</dt><dd>{patient?.id ?? '캡처 후 표시'}</dd></div><div><dt>진료일</dt><dd>오늘 진료일</dd></div><div><dt>담당의</dt><dd>담당의사</dd></div>
+            <div><dt>환자</dt><dd>{patient?.name ?? '캡처한 환자정보'}</dd></div><div><dt>환자등록번호</dt><dd>{patient?.id ?? '캡처 후 표시'}</dd></div><div><dt>진료일</dt><dd>{reportDate}</dd></div><div><dt>담당의</dt><dd>담당의사</dd></div>
           </dl>
           <section className="report-overview">
             <span>오늘의 진료 요약</span>
