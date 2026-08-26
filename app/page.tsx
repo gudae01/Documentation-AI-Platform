@@ -17,8 +17,19 @@ type PatientRecord = {
   allergies: string;
   department: string;
   diagnoses: string[];
+  chart: {
+    symptoms: string;
+    assessment: string;
+    plan: string;
+  };
   soap: Record<'S' | 'O' | 'A' | 'P', string>;
   tests: [string, string, string][];
+  autonomic: {
+    date: string;
+    current: [string, string, string][];
+    comparison?: [string, string, string, string][];
+    interpretation: string;
+  };
 };
 
 const firstVisitSteps: FlowStep[] = [
@@ -54,6 +65,11 @@ const patientRecords: PatientRecord[] = [
   {
     id: 'P-2024-01842', name: '김민준', gender: '남', age: 47, birthDate: '1979.03.18', lastVisit: '2026.08.12', visits: 8,
     chiefComplaint: '만성 피로와 수면장애', allergies: '페니실린', department: '가정의학과', diagnoses: ['자율신경 기능 이상', '수면장애'],
+    chart: {
+      symptoms: '최근 3개월 동안 잠들기까지 1시간 이상 걸리고, 자고 일어나도 피로가 풀리지 않는다고 설명함. 업무가 많은 날에는 두근거림과 목·어깨 긴장이 함께 심해짐.',
+      assessment: '위험 신호나 급성 신경학적 이상은 확인되지 않음. 수면장애와 지속적인 스트레스가 자율신경 불균형에 영향을 주는 것으로 판단함.',
+      plan: '수면위생과 카페인 섭취 조절을 우선 적용하고, 규칙적인 유산소 운동을 안내함. 4주 후 증상과 자율신경검사 변화를 재평가하기로 함.',
+    },
     soap: {
       S: '최근 3개월간 쉽게 잠들지 못하고 아침 피로가 지속됨. 업무 스트레스가 심한 날 증상이 악화됨.',
       O: '혈압 128/82 mmHg. 자율신경검사 LF/HF 2.41, 스트레스 지수 높음.',
@@ -61,10 +77,21 @@ const patientRecords: PatientRecord[] = [
       P: '수면위생 교육, 카페인 섭취 조절. 4주 후 자율신경검사 재평가.',
     },
     tests: [['2026.08.12', '자율신경검사', 'LF/HF 2.41 · 스트레스 지수 높음'], ['2026.05.02', '혈액검사', 'CBC · 갑상선 기능 정상 범위']],
+    autonomic: {
+      date: '2026.08.12',
+      current: [['HRV', '32 ms', '낮음'], ['LF/HF', '2.41', '높음'], ['스트레스 지수', '78', '높음']],
+      comparison: [['HRV', '28 ms', '32 ms', '+4 ms'], ['LF/HF', '2.88', '2.41', '-0.47'], ['스트레스 지수', '84', '78', '-6']],
+      interpretation: '이전 검사보다 HRV가 증가하고 LF/HF 및 스트레스 지수가 낮아져 전반적인 자율신경 균형은 호전되었습니다. 다만 스트레스 지수는 아직 높은 범위로 생활관리와 추적검사가 필요합니다.',
+    },
   },
   {
     id: 'P-2025-00671', name: '이서연', gender: '여', age: 34, birthDate: '1992.11.07', lastVisit: '2026.08.05', visits: 4,
     chiefComplaint: '두통과 어지럼', allergies: '없음', department: '신경과', diagnoses: ['긴장형 두통'],
+    chart: {
+      symptoms: '오후가 되면 양측 관자놀이가 조이는 두통이 주 3회 정도 나타나며, 장시간 화면을 본 날에 심해진다고 설명함. 구토, 시야 이상, 한쪽 마비 증상은 없음.',
+      assessment: '진찰에서 국소 신경학적 이상과 이차성 두통의 위험 징후는 확인되지 않아 긴장형 두통 가능성이 높은 것으로 판단함.',
+      plan: '두통 발생 시간과 유발 요인을 기록하도록 안내하고, 수분 섭취와 목·어깨 스트레칭을 권고함. 증상 빈도가 증가하거나 신경학적 증상이 동반되면 조기 내원하도록 설명함.',
+    },
     soap: {
       S: '오후에 양측 관자놀이가 조이는 두통이 주 3회 발생. 구토나 시야 이상은 없음.',
       O: '신경학적 진찰 특이소견 없음. 혈압 116/74 mmHg.',
@@ -72,10 +99,20 @@ const patientRecords: PatientRecord[] = [
       P: '두통 일지 작성, 수분 섭취와 스트레칭 안내. 증상 악화 시 조기 내원.',
     },
     tests: [['2026.08.05', '신경학적 진찰', '국소 신경학적 결손 없음'], ['2026.04.19', '뇌 MRI', '특이 병변 없음']],
+    autonomic: {
+      date: '2026.08.05',
+      current: [['HRV', '41 ms', '정상'], ['LF/HF', '1.72', '경계'], ['스트레스 지수', '63', '경계']],
+      interpretation: '첫 자율신경검사로 비교할 이전 데이터가 없습니다. 현재 HRV는 정상 범위이며 LF/HF와 스트레스 지수는 경계 범위이므로, 이번 결과를 기준 데이터로 저장하고 다음 검사부터 변화량을 비교합니다.',
+    },
   },
   {
     id: 'P-2023-03109', name: '박지훈', gender: '남', age: 58, birthDate: '1968.01.22', lastVisit: '2026.07.29', visits: 12,
     chiefComplaint: '혈압 추적 관찰', allergies: '설파계 약물', department: '내과', diagnoses: ['고혈압', '이상지질혈증'],
+    chart: {
+      symptoms: '혈압약과 지질저하제를 빠뜨리지 않고 복용 중이며 흉통, 호흡곤란, 두근거림이나 어지럼은 없다고 설명함. 주 4회 30분 걷기를 유지 중임.',
+      assessment: '진료실 혈압은 목표 범위에 가깝고 급성 심혈관 증상은 없음. LDL 콜레스테롤은 이전보다 감소했으나 지속적인 생활습관 관리가 필요하다고 판단함.',
+      plan: '현재 약제를 유지하고 저염식과 유산소 운동을 지속하도록 안내함. 3개월 후 혈압 기록과 지질·신장기능검사를 재확인하기로 함.',
+    },
     soap: {
       S: '복약은 규칙적으로 하고 있으며 흉통, 호흡곤란, 어지럼은 없음.',
       O: '혈압 134/86 mmHg. LDL-C 112 mg/dL.',
@@ -83,10 +120,21 @@ const patientRecords: PatientRecord[] = [
       P: '현재 약 유지. 저염식과 유산소 운동 안내, 3개월 후 혈액검사.',
     },
     tests: [['2026.07.29', '지질검사', 'LDL-C 112 mg/dL'], ['2026.04.25', '신장기능검사', 'Cr 0.9 mg/dL · eGFR 정상']],
+    autonomic: {
+      date: '2026.07.29',
+      current: [['HRV', '42 ms', '정상'], ['LF/HF', '1.68', '정상'], ['스트레스 지수', '58', '정상']],
+      comparison: [['HRV', '38 ms', '42 ms', '+4 ms'], ['LF/HF', '1.95', '1.68', '-0.27'], ['스트레스 지수', '67', '58', '-9']],
+      interpretation: '이전 검사와 비교해 HRV가 증가하고 스트레스 지수가 감소했습니다. 교감·부교감 균형도 정상 범위로 이동해 전반적인 자율신경 상태가 호전된 것으로 해석합니다.',
+    },
   },
   {
     id: 'P-2025-01426', name: '최유진', gender: '여', age: 42, birthDate: '1984.06.14', lastVisit: '2026.07.18', visits: 3,
     chiefComplaint: '소화불량과 복부 팽만', allergies: '없음', department: '소화기내과', diagnoses: ['기능성 소화불량'],
+    chart: {
+      symptoms: '식사 후 더부룩함과 조기 포만감이 반복되고 스트레스가 심한 날 복부 팽만이 증가한다고 설명함. 체중 감소, 반복 구토, 흑색변은 없음.',
+      assessment: '복부 진찰과 내시경에서 기질적 이상이 확인되지 않아 기능성 소화불량에 합당한 양상으로 판단함.',
+      plan: '한 번의 식사량을 줄여 나누어 먹고 자극적인 음식과 늦은 야식을 피하도록 안내함. 6주 후 증상 변화를 확인하기로 함.',
+    },
     soap: {
       S: '식후 더부룩함과 조기 포만감이 반복됨. 체중 감소나 흑색변은 없음.',
       O: '복부 진찰상 압통 없음. 상부위장관 내시경 특이소견 없음.',
@@ -94,6 +142,11 @@ const patientRecords: PatientRecord[] = [
       P: '식사량 분할, 자극적 음식 제한. 6주 후 증상 변화 확인.',
     },
     tests: [['2026.07.18', '상부위장관 내시경', '특이소견 없음'], ['2026.06.30', '복부 초음파', '간담췌 특이소견 없음']],
+    autonomic: {
+      date: '2026.07.18',
+      current: [['HRV', '36 ms', '경계'], ['LF/HF', '2.06', '높음'], ['스트레스 지수', '71', '높음']],
+      interpretation: '비교할 이전 자율신경검사 데이터가 없어 현재 결과만 표시합니다. 교감신경 우세와 높은 스트레스 지수가 확인되어 이번 결과를 기준 데이터로 저장하고 다음 검사에서 변화 방향을 비교합니다.',
+    },
   },
 ];
 
@@ -206,17 +259,41 @@ function PatientDirectory({ onStartEncounter }: { onStartEncounter: (patient: Pa
             <dl className="record-summary-strip">
               <div><dt>최근 내원</dt><dd>{selectedPatient.lastVisit}</dd></div><div><dt>주호소</dt><dd>{selectedPatient.chiefComplaint}</dd></div><div><dt>알레르기</dt><dd>{selectedPatient.allergies}</dd></div><div><dt>진단 이력</dt><dd>{selectedPatient.diagnoses.join(' · ')}</dd></div>
             </dl>
+            <section className="record-chart-card">
+              <header><div><p className="eyebrow">CLINICAL CHART</p><h2>진료 차트</h2></div><time>{selectedPatient.lastVisit}</time></header>
+              <div className="chart-narrative-grid">
+                <article><i>환자</i><div><strong>환자가 설명한 증상과 경과</strong><p>{selectedPatient.chart.symptoms}</p></div></article>
+                <article><i>판단</i><div><strong>의사의 판단</strong><p>{selectedPatient.chart.assessment}</p></div></article>
+                <article><i>계획</i><div><strong>치료·관리 계획</strong><p>{selectedPatient.chart.plan}</p></div></article>
+              </div>
+            </section>
             <div className="record-detail-grid">
               <section className="past-soap-card">
-                <header><div><p className="eyebrow">LATEST SOAP</p><h2>최근 진료기록</h2></div><time>{selectedPatient.lastVisit}</time></header>
+                <header><div><p className="eyebrow">LATEST SOAP</p><h2>최근 SOAP 기록</h2></div><time>{selectedPatient.lastVisit}</time></header>
                 <div>{(['S', 'O', 'A', 'P'] as const).map((letter) => <article key={letter}><i>{letter}</i><p>{selectedPatient.soap[letter]}</p></article>)}</div>
               </section>
-              <section className="past-test-card">
-                <header><div><p className="eyebrow">TEST HISTORY</p><h2>검사 이력</h2></div><b>{selectedPatient.tests.length}건</b></header>
-                <div>{selectedPatient.tests.map(([date, name, result]) => <article key={`${date}-${name}`}><time>{date}</time><div><strong>{name}</strong><span>{result}</span></div><button aria-label={`${name} 상세 보기`}>›</button></article>)}</div>
-                <footer><span>재진을 시작하면 이 자료가 이전자료 확인 단계에 연결됩니다.</span></footer>
+              <section className="autonomic-record-card">
+                <header><div><p className="eyebrow">AUTONOMIC TEST</p><h2>자율신경검사</h2></div><b>{selectedPatient.autonomic.comparison ? '이전 검사 비교' : '현재 검사만'}</b></header>
+                <div className="autonomic-record-meta"><span>검사일</span><strong>{selectedPatient.autonomic.date}</strong></div>
+                {selectedPatient.autonomic.comparison ? (
+                  <div className="autonomic-comparison-table">
+                    <header><span>지표</span><span>이전</span><span>현재</span><span>변화</span></header>
+                    {selectedPatient.autonomic.comparison.map(([metric, previous, current, change]) => <div key={metric}><strong>{metric}</strong><span>{previous}</span><span>{current}</span><b>{change}</b></div>)}
+                  </div>
+                ) : (
+                  <div className="autonomic-current-table">
+                    <header><span>지표</span><span>현재 결과</span><span>상태</span></header>
+                    {selectedPatient.autonomic.current.map(([metric, value, status]) => <div key={metric}><strong>{metric}</strong><span>{value}</span><b>{status}</b></div>)}
+                  </div>
+                )}
+                <div className="autonomic-interpretation"><strong>검사 해석</strong><p>{selectedPatient.autonomic.interpretation}</p></div>
               </section>
             </div>
+            <section className="past-test-card record-test-history">
+              <header><div><p className="eyebrow">TEST HISTORY</p><h2>전체 검사 이력</h2></div><b>{selectedPatient.tests.length}건</b></header>
+              <div>{selectedPatient.tests.map(([date, name, result]) => <article key={`${date}-${name}`}><time>{date}</time><div><strong>{name}</strong><span>{result}</span></div><button aria-label={`${name} 상세 보기`}>›</button></article>)}</div>
+              <footer><span>재진을 시작하면 이 자료가 이전자료 확인 단계에 연결됩니다.</span></footer>
+            </section>
             <footer className="patient-record-print-footer"><span>출력일 {printDate}</span><p>본 문서는 병원 내부에 저장된 환자 진료기록을 의료진 확인용으로 출력한 자료입니다.</p></footer>
           </article>
         )}
