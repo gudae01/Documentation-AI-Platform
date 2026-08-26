@@ -392,6 +392,72 @@ function describeAutonomicChange(tone: string) {
   return '방향 판단이 필요한 변화';
 }
 
+type PatientGuideData = {
+  approved: boolean;
+  patientName: string;
+  registrationNumber: string;
+  visitDate: string;
+  clinician: string;
+  soapValues: Record<string, string>;
+  autonomicSummary: string;
+  autonomicFileName?: string;
+};
+
+function PatientGuideDocument({ approved, patientName, registrationNumber, visitDate, clinician, soapValues, autonomicSummary, autonomicFileName }: PatientGuideData) {
+  const reportText = (key: string, fallback: string) => soapValues[key]?.trim() || fallback;
+  return (
+    <article className={approved ? 'patient-report-paper approved' : 'patient-report-paper'}>
+      <div className="report-document-head">
+        <div><span>병원명</span><strong>환자 종합 진료 안내서</strong><small>Clinical Visit Summary</small></div>
+        <b>{approved ? '의사 승인본' : '미리보기 · 승인 전'}</b>
+      </div>
+      <dl className="report-patient-info">
+        <div><dt>환자</dt><dd>{patientName}</dd></div><div><dt>환자등록번호</dt><dd>{registrationNumber}</dd></div><div><dt>진료일</dt><dd>{visitDate}</dd></div><div><dt>담당의</dt><dd>{clinician}</dd></div>
+      </dl>
+      <section className="report-overview">
+        <span>오늘의 진료 요약</span>
+        <h4>{reportText('A', '담당 의사가 확정한 평가와 진료 요약이 표시됩니다.')}</h4>
+        <p>{reportText('P', '의사가 확정한 치료계획, 처방, 생활관리 및 추후 검사 계획을 환자가 이해하기 쉬운 문장으로 표시합니다.')}</p>
+      </section>
+      <div className="report-clinical-grid">
+        <section><i>S</i><div><strong>주요 증상과 경과</strong><p>{reportText('S', '환자가 말한 주호소, 증상 양상, 발생 시점, 기간과 악화·완화 요인이 표시됩니다.')}</p></div></section>
+        <section><i>O</i><div><strong>진찰 및 검사 결과</strong><p>{reportText('O', '의사가 확인한 진찰 소견과 객관적인 검사 결과가 표시됩니다.')}</p></div></section>
+        <section><i>A</i><div><strong>담당 의사 소견</strong><p>{reportText('A', '담당 의사가 최종 확인한 평가와 진단만 표시됩니다.')}</p></div></section>
+        <section><i>P</i><div><strong>치료·관리 계획</strong><p>{reportText('P', '담당 의사가 확정한 처방, 검사 계획, 생활 안내와 경과관찰 계획이 표시됩니다.')}</p></div></section>
+      </div>
+      <div className="report-result-grid single">
+        <section>
+          <header><div><span>AUTONOMIC TEST</span><strong>자율신경검사 설명</strong></div><b>{autonomicFileName ? '검사파일 연결' : '입력 대기'}</b></header>
+          <p>{autonomicSummary}</p>
+          {autonomicFileName && <small>연결 파일 · {autonomicFileName}</small>}
+        </section>
+      </div>
+      <section className="report-prescription">
+        <div><span>PRESCRIPTION GUIDE</span><strong>처방 및 복용 안내</strong></div>
+        <p>{reportText('P', '의사가 최종 확정한 처방의 목적, 복용 방법, 주의사항과 환자가 알아야 할 내용이 표시됩니다.')}</p>
+      </section>
+      <footer className="report-document-footer">
+        <p>본 문서는 담당 의료진이 확인·승인한 진료정보를 환자가 이해하기 쉽게 정리한 안내서입니다. 증상이 변하거나 문의사항이 있으면 담당 의료진에게 확인해 주세요.</p>
+        <div><span>담당의 서명</span><b>{approved ? `${clinician} · 전자 승인 완료` : '승인 후 표시'}</b></div>
+      </footer>
+    </article>
+  );
+}
+
+function PatientGuideModal({ onClose, onPrint, ...guide }: PatientGuideData & { onClose: () => void; onPrint: () => void }) {
+  return (
+    <div className="report-modal-backdrop" onMouseDown={onClose}>
+      <section className="report-modal" role="dialog" aria-modal="true" aria-label="환자 종합 진료 안내서 미리보기" onMouseDown={(event) => event.stopPropagation()}>
+        <header>
+          <div><p className="eyebrow">PATIENT REPORT PREVIEW</p><h3>환자 종합 진료 안내서</h3><span>최종 승인 화면과 환자 기록에서 동일한 문서 양식을 사용합니다.</span></div>
+          <div className="report-actions"><b>{guide.approved ? '의사 승인 완료' : '승인 전 미리보기'}</b><button disabled={!guide.approved} onClick={onPrint}>PDF 출력</button><button className="report-modal-close" onClick={onClose} aria-label="미리보기 닫기">×</button></div>
+        </header>
+        <div className="report-modal-scroll"><PatientGuideDocument {...guide} /></div>
+      </section>
+    </div>
+  );
+}
+
 function AutoResizeTextarea({ value, onChange, style, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
@@ -512,11 +578,14 @@ function HomeScreen({ onStart, onOpenPatients }: { onStart: () => void; onOpenPa
 function PatientDirectory({ onStartEncounter, sessionAutonomicFiles }: { onStartEncounter: (patient: PatientRecord) => void; sessionAutonomicFiles: Record<string, AutonomicFileRecord[]> }) {
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState(patientRecords[0].id);
+  const [showPatientGuide, setShowPatientGuide] = useState(false);
+  const printAfterOpeningRef = useRef(false);
   const normalizedQuery = query.trim().toLowerCase();
   const filteredPatients = patientRecords.filter((patient) => [patient.name, patient.id, patient.chiefComplaint, patient.department].some((value) => value.toLowerCase().includes(normalizedQuery)));
   const selectedPatient = patientRecords.find((patient) => patient.id === selectedId) ?? filteredPatients[0] ?? null;
   const availableAutonomicFiles = selectedPatient ? [...(sessionAutonomicFiles[selectedPatient.id] ?? []), ...selectedPatient.autonomicFiles].sort((a, b) => b.date.localeCompare(a.date)) : [];
   const printDate = formatPrintDate();
+  const printTitle = selectedPatient ? `${selectedPatient.name}_${selectedPatient.id}_종합진료안내서` : '환자_종합진료안내서';
   const openUploadedFile = (record: AutonomicFileRecord) => {
     if (!record.file) return;
     const fileUrl = URL.createObjectURL(record.file);
@@ -525,8 +594,21 @@ function PatientDirectory({ onStartEncounter, sessionAutonomicFiles }: { onStart
   };
   const printPatientRecord = () => {
     if (!selectedPatient) return;
-    printDocument('printing-patient-record', `${selectedPatient.name}_${selectedPatient.id}_진료기록`);
+    printAfterOpeningRef.current = true;
+    setShowPatientGuide(true);
   };
+  const printPatientGuide = () => printDocument('printing-patient-guide', printTitle);
+  const closePatientGuide = () => {
+    printAfterOpeningRef.current = false;
+    setShowPatientGuide(false);
+  };
+
+  useEffect(() => {
+    if (!showPatientGuide || !selectedPatient || !printAfterOpeningRef.current) return;
+    printAfterOpeningRef.current = false;
+    const frame = window.requestAnimationFrame(() => printDocument('printing-patient-guide', printTitle));
+    return () => window.cancelAnimationFrame(frame);
+  }, [printTitle, selectedPatient, showPatientGuide]);
 
   return (
     <section className="patient-directory">
@@ -556,7 +638,7 @@ function PatientDirectory({ onStartEncounter, sessionAutonomicFiles }: { onStart
               <div className="record-patient-avatar">{selectedPatient.name.slice(-1)}</div>
               <div><p><strong>{selectedPatient.name}</strong><span>{selectedPatient.gender} · {selectedPatient.age}세 · {selectedPatient.birthDate}</span></p><small>{selectedPatient.id} · {selectedPatient.department} · 총 {selectedPatient.visits}회 내원</small></div>
               <div className="record-detail-actions">
-                <button className="record-pdf-button" onClick={printPatientRecord}>PDF 저장 / 인쇄</button>
+                <button className="record-pdf-button" onClick={printPatientRecord}>PDF 출력</button>
                 <button className="record-start-button" onClick={() => onStartEncounter(selectedPatient)}>이 환자로 재진 시작 <b>→</b></button>
               </div>
             </header>
@@ -657,6 +739,18 @@ function PatientDirectory({ onStartEncounter, sessionAutonomicFiles }: { onStart
           </article>
         )}
       </div>
+      {showPatientGuide && selectedPatient && <PatientGuideModal
+        approved
+        patientName={selectedPatient.name}
+        registrationNumber={selectedPatient.id}
+        visitDate={selectedPatient.lastVisit}
+        clinician={selectedPatient.clinician}
+        soapValues={selectedPatient.soap}
+        autonomicSummary={selectedPatient.autonomic.interpretation}
+        autonomicFileName={availableAutonomicFiles[0]?.fileName}
+        onClose={closePatientGuide}
+        onPrint={printPatientGuide}
+      />}
     </section>
   );
 }
@@ -859,7 +953,6 @@ function FinalStep({
     const updated = finalChartRows.map((row, index) => index === rowIndex ? { ...row, value } : row);
     onChartTextChange(updated.map((row) => `${row.label}:\n${row.value}`).join('\n\n'));
   };
-  const reportText = (key: string, fallback: string) => soapValues[key]?.trim() || fallback;
   const autonomicSummary = autonomicFile
     ? hasPrevious === true
       ? '현재 검사와 이전 검사의 지표별 변화량·변화 방향·의료진 설명이 표시됩니다.'
@@ -940,51 +1033,18 @@ function FinalStep({
           ) : <div className="final-test-empty"><strong>정리된 검사 결과가 없습니다</strong><span>검사자료 보완 단계에서 내용을 입력하면 항목별 표로 표시됩니다.</span></div>}
         </section>
       </section>
-      {showPreview && <div className="report-modal-backdrop" onMouseDown={closeReport}>
-        <section className="report-modal" role="dialog" aria-modal="true" aria-label="환자 종합 진료 안내서 미리보기" onMouseDown={(event) => event.stopPropagation()}>
-          <header>
-            <div><p className="eyebrow">PATIENT REPORT PREVIEW</p><h3>환자 종합 진료 안내서</h3><span>진료 내용을 환자가 이해하기 쉬운 한 문서로 통합합니다.</span></div>
-            <div className="report-actions"><b>{approved ? '의사 승인 완료' : '승인 전 미리보기'}</b><button disabled={!approved} onClick={printReport}>PDF 출력</button><button className="report-modal-close" onClick={closeReport} aria-label="미리보기 닫기">×</button></div>
-          </header>
-          <div className="report-modal-scroll">
-          <article className={approved ? 'patient-report-paper approved' : 'patient-report-paper'}>
-          <div className="report-document-head">
-            <div><span>병원명</span><strong>환자 종합 진료 안내서</strong><small>Clinical Visit Summary</small></div>
-            <b>{approved ? '의사 승인본' : '미리보기 · 승인 전'}</b>
-          </div>
-          <dl className="report-patient-info">
-            <div><dt>환자</dt><dd>{patient?.name ?? '캡처한 환자정보'}</dd></div><div><dt>환자등록번호</dt><dd>{patient?.id ?? '캡처 후 표시'}</dd></div><div><dt>진료일</dt><dd>{reportDate}</dd></div><div><dt>담당의</dt><dd>담당의사</dd></div>
-          </dl>
-          <section className="report-overview">
-            <span>오늘의 진료 요약</span>
-            <h4>{reportText('A', '담당 의사가 확정한 평가와 진료 요약이 표시됩니다.')}</h4>
-            <p>{reportText('P', '의사가 확정한 치료계획, 처방, 생활관리 및 추후 검사 계획을 환자가 이해하기 쉬운 문장으로 표시합니다.')}</p>
-          </section>
-          <div className="report-clinical-grid">
-            <section><i>S</i><div><strong>주요 증상과 경과</strong><p>{reportText('S', '환자가 말한 주호소, 증상 양상, 발생 시점, 기간과 악화·완화 요인이 표시됩니다.')}</p></div></section>
-            <section><i>O</i><div><strong>진찰 및 검사 결과</strong><p>{reportText('O', '의사가 확인한 진찰 소견과 객관적인 검사 결과가 표시됩니다.')}</p></div></section>
-            <section><i>A</i><div><strong>담당 의사 소견</strong><p>{reportText('A', '담당 의사가 최종 확인한 평가와 진단만 표시됩니다.')}</p></div></section>
-            <section><i>P</i><div><strong>치료·관리 계획</strong><p>{reportText('P', '담당 의사가 확정한 처방, 검사 계획, 생활 안내와 경과관찰 계획이 표시됩니다.')}</p></div></section>
-          </div>
-          <div className="report-result-grid single">
-            <section>
-              <header><div><span>AUTONOMIC TEST</span><strong>자율신경검사 설명</strong></div><b>{autonomicFile ? '검사파일 연결' : '입력 대기'}</b></header>
-              <p>{editableAutonomicSummary}</p>
-              {autonomicFile && <small>연결 파일 · {autonomicFile.name}</small>}
-            </section>
-          </div>
-          <section className="report-prescription">
-            <div><span>PRESCRIPTION GUIDE</span><strong>처방 및 복용 안내</strong></div>
-            <p>의사가 최종 확정한 처방의 목적, 복용 방법, 주의사항과 환자가 알아야 할 내용이 표시됩니다.</p>
-          </section>
-          <footer className="report-document-footer">
-            <p>본 문서는 담당 의료진이 확인·승인한 진료정보를 환자가 이해하기 쉽게 정리한 안내서입니다. 증상이 변하거나 문의사항이 있으면 담당 의료진에게 확인해 주세요.</p>
-            <div><span>담당의 서명</span><b>{approved ? '전자 승인 완료' : '승인 후 표시'}</b></div>
-          </footer>
-          </article>
-          </div>
-        </section>
-      </div>}
+      {showPreview && <PatientGuideModal
+        approved={approved}
+        patientName={patient?.name ?? '캡처한 환자정보'}
+        registrationNumber={patient?.id ?? '캡처 후 표시'}
+        visitDate={reportDate}
+        clinician="담당의사"
+        soapValues={soapValues}
+        autonomicSummary={editableAutonomicSummary}
+        autonomicFileName={autonomicFile?.name}
+        onClose={closeReport}
+        onPrint={printReport}
+      />}
       <div className="final-approval-only">
         <button disabled={approved} onClick={onApprove}>{approved ? '최종 승인 완료' : '내용을 확인하고 최종 승인'} <b>✓</b></button>
       </div>
