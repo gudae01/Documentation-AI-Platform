@@ -421,6 +421,14 @@ button { cursor: pointer; }
 .persistent-recording > button { height: 32px; padding: 0 10px; border: 1px solid #d7e1e1; border-radius: 8px; background: #f7f9f9; color: #536970; font-size: 11px; font-weight: 750; white-space: nowrap; cursor: pointer; touch-action: manipulation; }
 .persistent-recording.active > button { border-color: #edcccc; background: #fff6f6; color: #b13f3f; }
 @keyframes recording-pulse { 0%, 100% { transform: scale(.8); opacity: .65; } 50% { transform: scale(1.2); opacity: 1; box-shadow: 0 0 0 5px rgba(207,71,71,.12); } }
+.deferred-draft-widget { position: fixed; top: 11px; right: 18px; z-index: 29; max-width: calc(100vw - 16px); height: 50px; display: grid; grid-template-columns: 12px 34px minmax(120px, 1fr) auto; align-items: center; gap: 8px; padding: 6px 7px; border: 1px solid #cfe0dd; border-radius: 12px; background: white; box-shadow: 0 5px 16px rgba(34,63,68,.11); cursor: grab; touch-action: none; user-select: none; }
+.deferred-draft-widget.with-recording { top: 70px; }
+.deferred-draft-widget:active { cursor: grabbing; }
+.deferred-draft-widget > i { width: 33px; height: 33px; display: grid; place-items: center; border-radius: 9px; background: #e5f3f0; color: #26796f; font-size: 9px; font-style: normal; font-weight: 850; }
+.deferred-draft-widget strong, .deferred-draft-widget small { display: block; white-space: nowrap; }
+.deferred-draft-widget strong { color: #355b5d; font-size: 12px; }
+.deferred-draft-widget small { margin-top: 3px; color: #829095; font-size: 10px; }
+.deferred-draft-widget > button { height: 32px; padding: 0 10px; border: 1px solid #bcd8d3; border-radius: 8px; background: #edf7f5; color: #28786f; font-size: 11px; font-weight: 750; white-space: nowrap; cursor: pointer; touch-action: manipulation; }
 
 .agent-home { min-height: calc(100vh - 70px); padding: 45px 46px 35px; background: radial-gradient(circle at 78% 19%, rgba(194,229,222,.32), transparent 27%), #f3f6f6; }
 .agent-hero { min-height: 320px; display: grid; grid-template-columns: 1.05fr .95fr; align-items: center; gap: 35px; max-width: 1160px; margin: 0 auto 27px; }
@@ -1190,6 +1198,11 @@ button { cursor: pointer; }
   .persistent-recording > i { width: 27px; height: 27px; }
   .persistent-recording small { display: none; }
   .persistent-recording > button { height: 30px; padding-inline: 8px; font-size: 10px; }
+  .deferred-draft-widget { height: 44px; grid-template-columns: 10px 28px minmax(80px, 1fr) auto; gap: 6px; padding: 5px; }
+  .deferred-draft-widget.with-recording { top: 62px; }
+  .deferred-draft-widget > i { width: 27px; height: 27px; font-size: 8px; }
+  .deferred-draft-widget small { display: none; }
+  .deferred-draft-widget > button { height: 30px; padding-inline: 8px; font-size: 10px; }
   .active-patient-mini > b, .topbar-idle { display: none; }
   .agent-home { padding: 25px 14px 82px; }
   .agent-hero { min-height: auto; grid-template-columns: 1fr; }
@@ -1298,7 +1311,7 @@ button { cursor: pointer; }
 @media print {
   @page { size: A4; margin: 12mm; }
   body { background: white !important; }
-  .flow-rail, .flow-topbar, .encounter-patient-bar, .flow-progress, .step-heading, .final-record-editor, .final-layout, .flow-footer-actions { display: none !important; }
+  .flow-rail, .flow-topbar, .encounter-patient-bar, .flow-progress, .step-heading, .final-record-editor, .final-layout, .flow-footer-actions, .deferred-draft-widget, .draft-resume-backdrop { display: none !important; }
   .flow-app, .flow-workspace { display: block !important; min-height: 0 !important; }
   .flow-content { min-height: 0 !important; padding: 0 !important; }
   .step-surface { max-width: none !important; }

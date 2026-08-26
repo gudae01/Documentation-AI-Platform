@@ -952,8 +952,11 @@ export default function Home() {
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [recordingPosition, setRecordingPosition] = useState<{ x: number; y: number } | null>(null);
   const [draftPrompt, setDraftPrompt] = useState<EncounterDraft | null>(() => typeof window === 'undefined' ? null : readEncounterDraft());
+  const [deferredDraft, setDeferredDraft] = useState<EncounterDraft | null>(null);
+  const [deferredDraftPosition, setDeferredDraftPosition] = useState<{ x: number; y: number } | null>(null);
   const [draftSaveState, setDraftSaveState] = useState<'idle' | 'saved' | 'error'>('idle');
   const recordingWidgetRef = useRef<HTMLDivElement>(null);
+  const deferredDraftWidgetRef = useRef<HTMLDivElement>(null);
 
   const flowSteps = encounterType === 'followup' ? followupVisitSteps : firstVisitSteps;
   const encounterLabel = encounterType === 'new' ? '초진' : '재진';
@@ -994,6 +997,26 @@ export default function Home() {
     return () => window.removeEventListener('resize', keepRecordingWidgetInView);
   }, [recordingStarted, recording]);
 
+  useEffect(() => {
+    if (!deferredDraft) return;
+    const keepDeferredDraftInView = () => {
+      const widget = deferredDraftWidgetRef.current;
+      if (!widget) return;
+      const bounds = widget.getBoundingClientRect();
+      setDeferredDraftPosition((position) => {
+        if (!position) return position;
+        const margin = 8;
+        return {
+          x: Math.min(Math.max(margin, position.x), Math.max(margin, window.innerWidth - bounds.width - margin)),
+          y: Math.min(Math.max(margin, position.y), Math.max(margin, window.innerHeight - bounds.height - margin)),
+        };
+      });
+    };
+    window.addEventListener('resize', keepDeferredDraftInView);
+    keepDeferredDraftInView();
+    return () => window.removeEventListener('resize', keepDeferredDraftInView);
+  }, [deferredDraft]);
+
   const toggleRecording = () => {
     setRecordingStarted(true);
     setRecording((current) => !current);
@@ -1010,6 +1033,34 @@ export default function Home() {
       if (dragEvent.pointerId !== pointerId) return;
       const margin = 8;
       setRecordingPosition({
+        x: Math.min(Math.max(margin, dragEvent.clientX - offset.x), Math.max(margin, window.innerWidth - bounds.width - margin)),
+        y: Math.min(Math.max(margin, dragEvent.clientY - offset.y), Math.max(margin, window.innerHeight - bounds.height - margin)),
+      });
+      dragEvent.preventDefault();
+    };
+    const stopDragging = (dragEvent: PointerEvent) => {
+      if (dragEvent.pointerId !== pointerId) return;
+      window.removeEventListener('pointermove', moveWidget);
+      window.removeEventListener('pointerup', stopDragging);
+      window.removeEventListener('pointercancel', stopDragging);
+    };
+    window.addEventListener('pointermove', moveWidget, { passive: false });
+    window.addEventListener('pointerup', stopDragging);
+    window.addEventListener('pointercancel', stopDragging);
+    event.preventDefault();
+  };
+  const startDeferredDraftDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if ((event.target as HTMLElement).closest('button')) return;
+    const widget = deferredDraftWidgetRef.current;
+    if (!widget) return;
+    const bounds = widget.getBoundingClientRect();
+    const offset = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+    const pointerId = event.pointerId;
+    setDeferredDraftPosition({ x: bounds.left, y: bounds.top });
+    const moveWidget = (dragEvent: PointerEvent) => {
+      if (dragEvent.pointerId !== pointerId) return;
+      const margin = 8;
+      setDeferredDraftPosition({
         x: Math.min(Math.max(margin, dragEvent.clientX - offset.x), Math.max(margin, window.innerWidth - bounds.width - margin)),
         y: Math.min(Math.max(margin, dragEvent.clientY - offset.y), Math.max(margin, window.innerHeight - bounds.height - margin)),
       });
@@ -1073,6 +1124,8 @@ export default function Home() {
       window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
       setRecording(false);
       setDraftPrompt(null);
+      setDeferredDraft(null);
+      setDeferredDraftPosition(null);
       setDraftSaveState('saved');
     } catch {
       setDraftSaveState('error');
@@ -1100,6 +1153,8 @@ export default function Home() {
     setEncounterStarted(true);
     setActiveView('encounter');
     setDraftPrompt(null);
+    setDeferredDraft(null);
+    setDeferredDraftPosition(null);
     setDraftSaveState('idle');
     resetScroll();
   };
@@ -1125,6 +1180,8 @@ export default function Home() {
     setApproved(true);
     window.localStorage.removeItem(DRAFT_STORAGE_KEY);
     setDraftPrompt(null);
+    setDeferredDraft(null);
+    setDeferredDraftPosition(null);
   };
   const patientName = selectedPatient?.name ?? '새 환자';
   const patientMeta = selectedPatient ? `${selectedPatient.gender} · ${selectedPatient.age}세 · ${selectedPatient.id}` : 'EMR 환자정보 캡처 대기';
@@ -1203,6 +1260,22 @@ export default function Home() {
         )}
       </section>
 
+      {deferredDraft && (
+        <div
+          ref={deferredDraftWidgetRef}
+          className={recordingStarted ? 'deferred-draft-widget with-recording' : 'deferred-draft-widget'}
+          role="status"
+          title="드래그하여 화면 안에서 이동"
+          style={deferredDraftPosition ? { left: deferredDraftPosition.x, top: deferredDraftPosition.y, right: 'auto' } : undefined}
+          onPointerDown={startDeferredDraftDrag}
+        >
+          <span className="recording-drag-handle" aria-hidden="true">⠿</span>
+          <i>임시</i>
+          <div><strong>임시 저장 작업</strong><small>{deferredDraft.patientName} · {getDraftStepLabel(deferredDraft)}</small></div>
+          <button onClick={() => restoreEncounterDraft(deferredDraft)}>이어쓰기</button>
+        </div>
+      )}
+
       {draftPrompt && (
         <div className="draft-resume-backdrop">
           <section className="draft-resume-dialog" role="dialog" aria-modal="true" aria-labelledby="draft-resume-title">
@@ -1216,7 +1289,7 @@ export default function Home() {
             {(draftPrompt.audioFileName || draftPrompt.autonomicFileName) && <p className="draft-file-notice">첨부 파일은 보안을 위해 브라우저에 저장하지 않습니다. 이어서 작성한 뒤 필요한 파일을 다시 선택해 주세요.</p>}
             <div className="draft-account-plan"><i>K</i><span><strong>카카오 로그인은 한 곳에서</strong><small>정식 연동 시 하나의 로그인 화면에서 인증하고, 같은 계정의 iPad와 데스크탑에서 임시저장을 동기화하도록 연결합니다.</small></span></div>
             <p className="draft-local-limit">현재 GitHub Pages 시제품은 이 브라우저에만 임시 저장됩니다. 실제 기기 간 공유에는 카카오 로그인과 서버 저장소 연결이 필요합니다.</p>
-            <footer><button onClick={() => setDraftPrompt(null)}>나중에</button><button onClick={() => restoreEncounterDraft(draftPrompt)}>확인하고 이어서 작성 <b>→</b></button></footer>
+            <footer><button onClick={() => { setDeferredDraft(draftPrompt); setDeferredDraftPosition(null); setDraftPrompt(null); }}>나중에</button><button onClick={() => restoreEncounterDraft(draftPrompt)}>확인하고 이어서 작성 <b>→</b></button></footer>
           </section>
         </div>
       )}
