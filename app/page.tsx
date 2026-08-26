@@ -335,7 +335,7 @@ function AudioStep({ stepNumber, encounterType, selectedFile, onSelectedFileChan
 
   return (
     <div className="step-surface">
-      <header className="step-heading"><div><p className="eyebrow">STEP {stepNumber} · AUDIO INPUT</p><h2>진료 녹음 입력</h2><span>{encounterType === 'new' ? '실시간으로 진료를 녹음하거나, 진료 후 스마트폰·녹음기의 파일을 바로 추가할 수 있습니다.' : '오늘 진료의 실시간 녹음과 녹음파일을 기존 환자기록과 함께 차트 근거로 사용할 수 있습니다.'}</span></div><div className="audio-input-badges"><span>실시간 녹음</span><span>녹음파일 업로드</span></div></header>
+      <header className="step-heading"><div><p className="eyebrow">STEP {stepNumber} · AUDIO INPUT</p><h2>진료 녹음 입력</h2><span>{encounterType === 'new' ? '실시간으로 진료를 녹음하거나, 진료 후 스마트폰·녹음기의 파일을 바로 추가할 수 있습니다.' : '오늘 진료의 실시간 녹음과 녹음파일을 기존 환자기록과 함께 차트 근거로 사용할 수 있습니다.'}</span></div></header>
       <div className="audio-to-chart-route"><span><i>1</i>진료 녹음·파일</span><b>→</b><span><i>2</i>음성 내용 분석</span><b>→</b><span><i>3</i>차트·SOAP 초안</span><b>→</b><span><i>4</i>의사 수정·승인</span></div>
       <div className="audio-flow-layout">
         <section className="audio-input-panel live-audio-card">
@@ -485,7 +485,6 @@ function FinalStep({
   onChartTextChange,
   onAutonomicChange,
   onApprove,
-  onNew,
 }: {
   stepNumber: number;
   approved: boolean;
@@ -500,14 +499,8 @@ function FinalStep({
   onChartTextChange: (value: string) => void;
   onAutonomicChange: (key: string, value: string) => void;
   onApprove: () => void;
-  onNew: () => void;
 }) {
   const [showPreview, setShowPreview] = useState(false);
-  const outputs = [
-    ['환자 종합 진료 리포트', '증상·검사·의사소견·치료계획을 한 문서로 통합'],
-    ['진료기록', '최종 승인된 SOAP와 의사 수정 이력'],
-    ['처방 설명서', '확정 처방의 목적·복용법·주의사항'],
-  ];
   const autonomicMetrics = [['HRV', 'hrv'], ['LF/HF', 'lfhf'], ['스트레스 지수', 'stress']];
   const reportText = (key: string, fallback: string) => soapValues[key]?.trim() || fallback;
   const autonomicSummary = autonomicFile
@@ -612,21 +605,8 @@ function FinalStep({
           </div>
         </section>
       </div>}
-      <div className="final-layout">
-        <section className="approval-summary">
-          <header><div><p className="eyebrow">APPROVAL SUMMARY</p><h3>승인 전 최종 확인</h3></div><i>{approved ? '✓' : '!'}</i></header>
-          <div className="approval-checks">
-            {['환자 기본정보', '진료 녹음 원본 연결', 'SOAP Subjective', 'SOAP Objective', '의사가 확정한 Assessment', '의사가 확정한 Plan', '숫자·단위 Validation', '변경 이력 저장'].map((item) => <span key={item}><i>{approved ? '✓' : '○'}</i>{item}<b>{approved ? '확인' : '검토 필요'}</b></span>)}
-          </div>
-          <button className="final-approve" disabled={approved} onClick={onApprove}>{approved ? '최종 승인 완료' : '내용을 확인하고 최종 승인'} <b>✓</b></button>
-          <small>승인자 · 승인시간 · 모델 버전 · Prompt 버전 · RAG Snapshot · Rule 버전이 Audit Log에 저장됩니다.</small>
-        </section>
-        <aside className="output-documents">
-          <header><p className="eyebrow">FINAL OUTPUT</p><h3>승인 후 생성 문서</h3></header>
-          {outputs.map(([title, description], index) => <article key={title}><i>{index + 1}</i><div><strong>{title}</strong><span>{description}</span></div><b>{approved ? 'PDF 가능' : '승인 후'}</b></article>)}
-          <button onClick={showReport}>종합 리포트 보기 ↑</button>
-          {approved && <button onClick={onNew}>새 진료 시작 →</button>}
-        </aside>
+      <div className="final-approval-only">
+        <button disabled={approved} onClick={onApprove}>{approved ? '최종 승인 완료' : '내용을 확인하고 최종 승인'} <b>✓</b></button>
       </div>
     </div>
   );
@@ -702,7 +682,7 @@ export default function Home() {
               {activeStep === 'tests' && <TestsStep stepNumber={currentIndex + 1} encounterType={encounterType} chartText={chartText} organized={chartOrganized} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} onChartTextChange={(value) => { setChartText(value); setChartOrganized(false); }} onOrganize={() => setChartOrganized(true)} onAutonomicFileChange={(file) => { setAutonomicFile(file); setHasPreviousAutonomic(null); }} onPreviousChange={setHasPreviousAutonomic} />}
               {activeStep === 'audio' && <AudioStep stepNumber={currentIndex + 1} encounterType={encounterType} selectedFile={audioFile} onSelectedFileChange={setAudioFile} />}
               {activeStep === 'soap' && <SoapStep stepNumber={currentIndex + 1} values={soapValues} onChange={(letter, value) => setSoapValues({ ...soapValues, [letter]: value })} />}
-              {activeStep === 'final' && <FinalStep stepNumber={currentIndex + 1} approved={approved} patient={selectedPatient} soapValues={soapValues} chartText={chartText} audioFile={audioFile} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} autonomicValues={autonomicValues} onSoapChange={(letter, value) => setSoapValues((current) => ({ ...current, [letter]: value }))} onChartTextChange={(value) => { setChartText(value); setChartOrganized(false); }} onAutonomicChange={(key, value) => setAutonomicValues((current) => ({ ...current, [key]: value }))} onApprove={() => setApproved(true)} onNew={() => startEncounter()} />}
+              {activeStep === 'final' && <FinalStep stepNumber={currentIndex + 1} approved={approved} patient={selectedPatient} soapValues={soapValues} chartText={chartText} audioFile={audioFile} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} autonomicValues={autonomicValues} onSoapChange={(letter, value) => setSoapValues((current) => ({ ...current, [letter]: value }))} onChartTextChange={(value) => { setChartText(value); setChartOrganized(false); }} onAutonomicChange={(key, value) => setAutonomicValues((current) => ({ ...current, [key]: value }))} onApprove={() => setApproved(true)} />}
             </div>
 
             <footer className="flow-footer-actions">
