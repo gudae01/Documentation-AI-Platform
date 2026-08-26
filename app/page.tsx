@@ -1124,8 +1124,7 @@ export default function Home() {
       window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
       setRecording(false);
       setDraftPrompt(null);
-      setDeferredDraft(null);
-      setDeferredDraftPosition(null);
+      setDeferredDraft(draft);
       setDraftSaveState('saved');
     } catch {
       setDraftSaveState('error');
@@ -1263,7 +1262,7 @@ export default function Home() {
       {deferredDraft && (
         <div
           ref={deferredDraftWidgetRef}
-          className={recordingStarted ? 'deferred-draft-widget with-recording' : 'deferred-draft-widget'}
+          className={`${recordingStarted ? 'deferred-draft-widget with-recording' : 'deferred-draft-widget'}${draftSaveState === 'saved' ? ' saved' : ''}`}
           role="status"
           title="드래그하여 화면 안에서 이동"
           style={deferredDraftPosition ? { left: deferredDraftPosition.x, top: deferredDraftPosition.y, right: 'auto' } : undefined}
@@ -1271,7 +1270,7 @@ export default function Home() {
         >
           <span className="recording-drag-handle" aria-hidden="true">⠿</span>
           <i>임시</i>
-          <div><strong>임시 저장 작업</strong><small>{deferredDraft.patientName} · {getDraftStepLabel(deferredDraft)}</small></div>
+          <div><strong>임시 저장 작업</strong><small>{draftSaveState === 'saved' ? `방금 저장됨 · ${deferredDraft.patientName}` : `${deferredDraft.patientName} · ${getDraftStepLabel(deferredDraft)}`}</small></div>
           <button onClick={() => restoreEncounterDraft(deferredDraft)}>이어쓰기</button>
         </div>
       )}

@@ -423,6 +423,7 @@ button { cursor: pointer; }
 @keyframes recording-pulse { 0%, 100% { transform: scale(.8); opacity: .65; } 50% { transform: scale(1.2); opacity: 1; box-shadow: 0 0 0 5px rgba(207,71,71,.12); } }
 .deferred-draft-widget { position: fixed; top: 11px; right: 18px; z-index: 29; max-width: calc(100vw - 16px); height: 50px; display: grid; grid-template-columns: 12px 34px minmax(120px, 1fr) auto; align-items: center; gap: 8px; padding: 6px 7px; border: 1px solid #cfe0dd; border-radius: 12px; background: white; box-shadow: 0 5px 16px rgba(34,63,68,.11); cursor: grab; touch-action: none; user-select: none; }
 .deferred-draft-widget.with-recording { top: 70px; }
+.deferred-draft-widget.saved { border-color: #6eb6aa; box-shadow: 0 0 0 4px rgba(43,143,130,.11), 0 5px 16px rgba(34,63,68,.11); }
 .deferred-draft-widget:active { cursor: grabbing; }
 .deferred-draft-widget > i { width: 33px; height: 33px; display: grid; place-items: center; border-radius: 9px; background: #e5f3f0; color: #26796f; font-size: 9px; font-style: normal; font-weight: 850; }
 .deferred-draft-widget strong, .deferred-draft-widget small { display: block; white-space: nowrap; }
