@@ -151,6 +151,47 @@ function formatFileSize(bytes: number) {
   return `${(bytes / 1024 ** index).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
 }
 
+function organizeClinicalText(text: string) {
+  const aliases: Record<string, string> = {
+    '주소': '주호소', '주 증상': '주호소', '과거 병력': '과거력', '기왕력': '과거력',
+    '복용 약': '복용약', '투약': '복용약', '처방약': '복용약', '의사소견': '의사 소견',
+  };
+  const sections: { title: string; lines: string[] }[] = [];
+  let currentSection: { title: string; lines: string[] } | null = null;
+  const getSection = (rawTitle: string) => {
+    const cleanedTitle = rawTitle.trim();
+    const title = aliases[cleanedTitle] ?? cleanedTitle;
+    const existing = sections.find((section) => section.title === title);
+    if (existing) return existing;
+    const section = { title, lines: [] as string[] };
+    sections.push(section);
+    return section;
+  };
+
+  text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).forEach((line) => {
+    const headingOnly = line.match(/^([^:]{1,40}):\s*$/);
+    if (headingOnly) {
+      currentSection = getSection(headingOnly[1]);
+      return;
+    }
+    const inlineField = line.match(/^([^:]{1,40}):\s*(.+)$/);
+    if (inlineField) {
+      currentSection = getSection(inlineField[1]);
+      currentSection.lines.push(inlineField[2].replace(/^[-•]\s*/, ''));
+      return;
+    }
+    if (!currentSection) {
+      const inferredTitle = /mmHg|bpm|혈압|맥박|체온|혈당|Hb|WBC|Glucose/i.test(line)
+        ? '검사 및 활력징후'
+        : /mg|복용|투약|약물|처방/i.test(line) ? '복용약' : '기타 진료 정보';
+      currentSection = getSection(inferredTitle);
+    }
+    currentSection.lines.push(line.replace(/^[-•]\s*/, ''));
+  });
+
+  return sections.filter((section) => section.lines.length > 0);
+}
+
 function HomeScreen({ onStart, onOpenPatients }: { onStart: () => void; onOpenPatients: () => void }) {
   return (
     <section className="agent-home">
@@ -364,36 +405,23 @@ function TestsStep({
   stepNumber,
   encounterType,
   chartText,
-  organized,
   autonomicFile,
   hasPrevious,
   onChartTextChange,
-  onOrganize,
   onAutonomicFileChange,
   onPreviousChange,
 }: {
   stepNumber: number;
   encounterType: EncounterType | null;
   chartText: string;
-  organized: boolean;
   autonomicFile: File | null;
   hasPrevious: boolean | null;
   onChartTextChange: (value: string) => void;
-  onOrganize: () => void;
   onAutonomicFileChange: (file: File | null) => void;
   onPreviousChange: (value: boolean | null) => void;
 }) {
-  const chartLines = chartText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  const organizedSections: { title: string; lines: string[] }[] = [];
-  chartLines.forEach((line) => {
-    const heading = line.match(/^(.{1,30}?):$/);
-    if (heading) {
-      organizedSections.push({ title: heading[1], lines: [] });
-      return;
-    }
-    if (!organizedSections.length) organizedSections.push({ title: '검사 및 진료 요약', lines: [] });
-    organizedSections[organizedSections.length - 1].lines.push(line.replace(/^[-•]\s*/, ''));
-  });
+  const organizedSections = organizeClinicalText(chartText);
+  const organized = organizedSections.length > 0;
   const isFirstVisit = encounterType !== 'followup';
 
   return (
@@ -405,7 +433,7 @@ function TestsStep({
           <header><div><p className="eyebrow">COPY & PASTE</p><h3>{isFirstVisit ? '진료 중·진료 후 시행한 검사 결과' : '환자 상태 관련 이전 검사 차트'}</h3></div><span>{isFirstVisit ? '자료가 있을 때만' : 'EMR에서 복사'}</span></header>
           <div className="chart-paste-body">
             <label><strong>{isFirstVisit ? '검사 결과가 있으면 원문 붙여넣기' : '검사 차트 원문 붙여넣기'}</strong><span>{isFirstVisit ? '이번 진료에서 확인된 검사명, 결과값, 단위와 판정 내용을 추가합니다.' : 'EMR 차트의 검사명, 결과값, 단위, 판정 내용을 그대로 붙여넣습니다.'}</span><textarea value={chartText} onChange={(event) => onChartTextChange(event.target.value)} placeholder={isFirstVisit ? '초진 검사 결과가 있을 때 이곳에 붙여넣으세요.\n검사가 없다면 입력하지 않고 다음 단계로 이동합니다.' : '이전 검사 차트 내용을 이곳에 붙여넣으세요.\n검사명 · 결과값 · 단위 · Reference Range · 판정 등이 포함됩니다.'} /></label>
-            <div className="chart-input-actions"><small>{isFirstVisit ? '검사자료가 없어도 녹음 기반 진료차트는 작성할 수 있습니다.' : '입력한 숫자와 단위는 원문 그대로 보존합니다.'}</small><button disabled={!chartText.trim()} onClick={onOrganize}>보기 쉽게 정리하기 →</button></div>
+            <div className="chart-input-actions"><small>{isFirstVisit ? '검사자료가 없어도 녹음 기반 진료차트는 작성할 수 있습니다.' : '입력한 숫자와 단위는 원문 그대로 보존합니다.'}</small><span className={organized ? 'auto-organize-status complete' : 'auto-organize-status'}>{organized ? '자동 정리 완료 ✓' : '입력 시 자동 정리'}</span></div>
           </div>
         </section>
 
@@ -502,15 +530,10 @@ function FinalStep({
 }) {
   const [showPreview, setShowPreview] = useState(false);
   const autonomicMetrics = [['HRV', 'hrv'], ['LF/HF', 'lfhf'], ['스트레스 지수', 'stress']];
-  const finalChartRows = chartText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line, index) => {
-    const separatorIndex = line.indexOf(':');
-    return separatorIndex > 0
-      ? { label: line.slice(0, separatorIndex).trim(), value: line.slice(separatorIndex + 1).trim(), hasLabel: true }
-      : { label: `항목 ${index + 1}`, value: line, hasLabel: false };
-  });
+  const finalChartRows = organizeClinicalText(chartText).map((section) => ({ label: section.title, value: section.lines.join('\n') }));
   const updateChartRow = (rowIndex: number, value: string) => {
     const updated = finalChartRows.map((row, index) => index === rowIndex ? { ...row, value } : row);
-    onChartTextChange(updated.map((row) => row.hasLabel ? `${row.label}: ${row.value}` : row.value).join('\n'));
+    onChartTextChange(updated.map((row) => `${row.label}:\n${row.value}`).join('\n\n'));
   };
   const reportText = (key: string, fallback: string) => soapValues[key]?.trim() || fallback;
   const autonomicSummary = autonomicFile
@@ -639,7 +662,6 @@ export default function Home() {
   const [approved, setApproved] = useState(false);
   const [soapValues, setSoapValues] = useState<Record<string, string>>({ S: '', O: '', A: '', P: '' });
   const [chartText, setChartText] = useState('');
-  const [chartOrganized, setChartOrganized] = useState(false);
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [autonomicFile, setAutonomicFile] = useState<File | null>(null);
   const [hasPreviousAutonomic, setHasPreviousAutonomic] = useState<boolean | null>(null);
@@ -650,7 +672,7 @@ export default function Home() {
   const currentIndex = flowSteps.findIndex((step) => step.id === activeStep);
   const goHome = () => setActiveView('home');
   const openPatientDirectory = () => setActiveView('patients');
-  const startEncounter = (patient: PatientRecord | null = null) => { setSelectedPatient(patient); setEncounterType(patient ? 'followup' : 'new'); setApproved(false); setEmrCaptured(false); setSoapValues({ S: '', O: '', A: '', P: '' }); setChartText(''); setChartOrganized(false); setAudioFile(null); setAutonomicFile(null); setHasPreviousAutonomic(null); setAutonomicValues({}); setActiveStep('emr'); setEncounterStarted(true); setActiveView('encounter'); };
+  const startEncounter = (patient: PatientRecord | null = null) => { setSelectedPatient(patient); setEncounterType(patient ? 'followup' : 'new'); setApproved(false); setEmrCaptured(false); setSoapValues({ S: '', O: '', A: '', P: '' }); setChartText(''); setAudioFile(null); setAutonomicFile(null); setHasPreviousAutonomic(patient ? true : null); setAutonomicValues({}); setActiveStep('emr'); setEncounterStarted(true); setActiveView('encounter'); };
   const goNext = () => { if (currentIndex < flowSteps.length - 1) setActiveStep(flowSteps[currentIndex + 1].id); };
   const goPrevious = () => { if (currentIndex > 0) setActiveStep(flowSteps[currentIndex - 1].id); else goHome(); };
   const patientName = selectedPatient?.name ?? '새 환자';
@@ -696,10 +718,10 @@ export default function Home() {
 
             <div className="flow-content">
               {activeStep === 'emr' && <EmrStep stepNumber={currentIndex + 1} encounterType={encounterType} captured={emrCaptured} patient={selectedPatient} onCapture={() => setEmrCaptured(true)} />}
-              {activeStep === 'tests' && <TestsStep stepNumber={currentIndex + 1} encounterType={encounterType} chartText={chartText} organized={chartOrganized} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} onChartTextChange={(value) => { setChartText(value); setChartOrganized(false); }} onOrganize={() => setChartOrganized(true)} onAutonomicFileChange={(file) => { setAutonomicFile(file); setHasPreviousAutonomic(null); }} onPreviousChange={setHasPreviousAutonomic} />}
+              {activeStep === 'tests' && <TestsStep stepNumber={currentIndex + 1} encounterType={encounterType} chartText={chartText} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} onChartTextChange={setChartText} onAutonomicFileChange={(file) => { setAutonomicFile(file); setHasPreviousAutonomic(file ? Boolean(selectedPatient) : selectedPatient ? true : null); }} onPreviousChange={setHasPreviousAutonomic} />}
               {activeStep === 'audio' && <AudioStep stepNumber={currentIndex + 1} encounterType={encounterType} selectedFile={audioFile} onSelectedFileChange={setAudioFile} />}
               {activeStep === 'soap' && <SoapStep stepNumber={currentIndex + 1} values={soapValues} onChange={(letter, value) => setSoapValues({ ...soapValues, [letter]: value })} />}
-              {activeStep === 'final' && <FinalStep stepNumber={currentIndex + 1} approved={approved} patient={selectedPatient} soapValues={soapValues} chartText={chartText} audioFile={audioFile} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} autonomicValues={autonomicValues} onSoapChange={(letter, value) => setSoapValues((current) => ({ ...current, [letter]: value }))} onChartTextChange={(value) => { setChartText(value); setChartOrganized(false); }} onAutonomicChange={(key, value) => setAutonomicValues((current) => ({ ...current, [key]: value }))} onApprove={() => setApproved(true)} />}
+              {activeStep === 'final' && <FinalStep stepNumber={currentIndex + 1} approved={approved} patient={selectedPatient} soapValues={soapValues} chartText={chartText} audioFile={audioFile} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} autonomicValues={autonomicValues} onSoapChange={(letter, value) => setSoapValues((current) => ({ ...current, [letter]: value }))} onChartTextChange={setChartText} onAutonomicChange={(key, value) => setAutonomicValues((current) => ({ ...current, [key]: value }))} onApprove={() => setApproved(true)} />}
             </div>
 
             <footer className="flow-footer-actions">

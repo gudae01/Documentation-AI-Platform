@@ -844,6 +844,8 @@ button { cursor: pointer; }
 .chart-input-actions small { color: #839196; font-size: 11px; }
 .chart-input-actions button { padding: 10px 13px; border: 0; border-radius: 8px; background: #168477; color: white; font-size: 12px; font-weight: 750; }
 .chart-input-actions button:disabled { background: #a9bab8; cursor: not-allowed; }
+.auto-organize-status { padding: 8px 10px; border: 1px solid #dce5e5; border-radius: 7px; background: #f5f8f8; color: #7b8d91; font-size: 10px; font-weight: 750; white-space: nowrap; }
+.auto-organize-status.complete { border-color: #cde3df; background: #eaf6f3; color: #2c796f; }
 .organized-empty { min-height: 326px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px; color: #8f9ca0; text-align: center; }
 .organized-empty > i { width: 42px; height: 47px; margin-bottom: 13px; border: 1.5px solid #b0bdc0; border-radius: 7px; box-shadow: inset 0 9px #edf2f2; }
 .organized-empty strong { color: #516870; font-size: 14px; }
