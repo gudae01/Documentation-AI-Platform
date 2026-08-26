@@ -502,6 +502,16 @@ function FinalStep({
 }) {
   const [showPreview, setShowPreview] = useState(false);
   const autonomicMetrics = [['HRV', 'hrv'], ['LF/HF', 'lfhf'], ['스트레스 지수', 'stress']];
+  const finalChartRows = chartText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line, index) => {
+    const separatorIndex = line.indexOf(':');
+    return separatorIndex > 0
+      ? { label: line.slice(0, separatorIndex).trim(), value: line.slice(separatorIndex + 1).trim(), hasLabel: true }
+      : { label: `항목 ${index + 1}`, value: line, hasLabel: false };
+  });
+  const updateChartRow = (rowIndex: number, value: string) => {
+    const updated = finalChartRows.map((row, index) => index === rowIndex ? { ...row, value } : row);
+    onChartTextChange(updated.map((row) => row.hasLabel ? `${row.label}: ${row.value}` : row.value).join('\n'));
+  };
   const reportText = (key: string, fallback: string) => soapValues[key]?.trim() || fallback;
   const autonomicSummary = autonomicFile
     ? hasPrevious === true
@@ -557,7 +567,14 @@ function FinalStep({
         </div>
         <section className="past-test-card final-test-editor">
           <header><div><p className="eyebrow">EXAMINATION</p><h2>정리된 검사 결과</h2></div><b>직접 편집</b></header>
-          <textarea disabled={approved} value={chartText} onChange={(event) => onChartTextChange(event.target.value)} placeholder="검사자료 보완 단계에서 정리된 검사 결과가 표시됩니다. 이곳에서 의사가 최종 문장을 수정할 수 있습니다." />
+          {finalChartRows.length ? (
+            <div className="final-test-table-wrap">
+              <table className="final-test-table">
+                <thead><tr><th>항목</th><th>정리된 내용</th><th>상태</th></tr></thead>
+                <tbody>{finalChartRows.map((row, index) => <tr key={`${row.label}-${index}`}><th scope="row">{row.label}</th><td><textarea disabled={approved} value={row.value} onChange={(event) => updateChartRow(index, event.target.value)} aria-label={`${row.label} 내용 수정`} /></td><td><span>{approved ? '승인됨' : '수정 가능'}</span></td></tr>)}</tbody>
+              </table>
+            </div>
+          ) : <div className="final-test-empty"><strong>정리된 검사 결과가 없습니다</strong><span>검사자료 보완 단계에서 내용을 입력하면 항목별 표로 표시됩니다.</span></div>}
         </section>
       </section>
       {showPreview && <div className="report-modal-backdrop" onMouseDown={() => setShowPreview(false)}>

@@ -732,7 +732,22 @@ button { cursor: pointer; }
 .final-autonomic-interpretation strong { display: block; margin-bottom: 6px; color: #396e67; font-size: 11px; }
 .final-autonomic-interpretation textarea { width: 100%; min-height: 102px; padding: 10px; resize: vertical; border: 1px solid #d5e5e2; border-radius: 8px; background: #eef7f4; color: #4e706a; font-size: 10px; line-height: 1.6; outline: none; }
 .final-test-editor { margin: 0 20px; }
-.final-test-editor > textarea { width: calc(100% - 28px); min-height: 130px; margin: 14px; padding: 12px 13px; resize: vertical; border: 1px solid #dce5e5; border-radius: 9px; background: #fbfcfc; color: #405961; font-size: 11px; line-height: 1.65; outline: none; }
+.final-test-table-wrap { margin: 14px; border: 1px solid #dce5e5; border-radius: 9px; overflow-x: auto; }
+.final-test-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.final-test-table thead { background: #eef3f2; }
+.final-test-table th, .final-test-table td { padding: 10px 12px; border-right: 1px solid #e1e8e8; border-bottom: 1px solid #e1e8e8; text-align: left; vertical-align: middle; }
+.final-test-table tr:last-child th, .final-test-table tr:last-child td { border-bottom: 0; }
+.final-test-table th:last-child, .final-test-table td:last-child { border-right: 0; }
+.final-test-table thead th { color: #657a7f; font-size: 10px; font-weight: 800; }
+.final-test-table thead th:first-child { width: 190px; }
+.final-test-table thead th:last-child { width: 90px; }
+.final-test-table tbody th { background: #f8faf9; color: #3f5961; font-size: 11px; }
+.final-test-table textarea { width: 100%; min-height: 42px; padding: 8px 9px; resize: vertical; border: 1px solid transparent; border-radius: 7px; background: transparent; color: #435d64; font-size: 11px; line-height: 1.55; outline: none; }
+.final-test-table textarea:hover { border-color: #dce5e5; background: white; }
+.final-test-table td > span { display: inline-block; padding: 5px 7px; border-radius: 6px; background: #eaf5f2; color: #34776f; font-size: 9px; font-weight: 750; white-space: nowrap; }
+.final-test-empty { min-height: 150px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #839297; text-align: center; }
+.final-test-empty strong { color: #526970; font-size: 13px; }
+.final-test-empty span { margin-top: 6px; font-size: 10px; }
 .final-record-editor textarea:disabled, .final-record-editor input:disabled { background: #f1f4f4; color: #68787d; cursor: not-allowed; }
 
 .report-modal-backdrop { position: fixed; inset: 0; display: grid; place-items: center; padding: 28px; background: rgba(17,35,43,.6); backdrop-filter: blur(5px); z-index: 100; }
@@ -1036,6 +1051,7 @@ button { cursor: pointer; }
   .final-audio-source > b { grid-column: 2; }
   .final-chart-editor { margin-inline: 12px; }
   .final-test-editor { margin: 0 12px; }
+  .final-test-table { min-width: 620px; }
   .encounter-patient-bar { padding-inline: 14px; }
   .encounter-patient-bar > div:nth-child(2) { min-width: 0; }
   .encounter-patient-bar > button { display: none; }
