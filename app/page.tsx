@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState, type TextareaHTMLAttributes } from 'react';
 
 type StepId = 'emr' | 'tests' | 'audio' | 'soap' | 'final';
 type EncounterType = 'new' | 'followup';
@@ -149,6 +149,32 @@ function formatFileSize(bytes: number) {
   const units = ['B', 'KB', 'MB', 'GB'];
   const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
   return `${(bytes / 1024 ** index).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
+}
+
+function AutoResizeTextarea({ value, onChange, style, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const element = textareaRef.current;
+    if (!element) return;
+    element.style.height = 'auto';
+    element.style.height = `${element.scrollHeight}px`;
+  }, [value]);
+  useEffect(() => {
+    const resizeOnWindowChange = () => {
+      const element = textareaRef.current;
+      if (!element) return;
+      element.style.height = 'auto';
+      element.style.height = `${element.scrollHeight}px`;
+    };
+    window.addEventListener('resize', resizeOnWindowChange);
+    return () => window.removeEventListener('resize', resizeOnWindowChange);
+  }, []);
+
+  return <textarea {...props} ref={textareaRef} rows={1} value={value} style={{ ...style, height: 'auto' }} onChange={(event) => {
+    onChange?.(event);
+    const element = event.currentTarget;
+    requestAnimationFrame(() => { element.style.height = 'auto'; element.style.height = `${element.scrollHeight}px`; });
+  }} />;
 }
 
 function organizeClinicalText(text: string) {
@@ -432,7 +458,7 @@ function TestsStep({
         <section className="chart-paste-card">
           <header><div><p className="eyebrow">COPY & PASTE</p><h3>{isFirstVisit ? '진료 중·진료 후 시행한 검사 결과' : '환자 상태 관련 이전 검사 차트'}</h3></div><span>{isFirstVisit ? '자료가 있을 때만' : 'EMR에서 복사'}</span></header>
           <div className="chart-paste-body">
-            <label><strong>{isFirstVisit ? '검사 결과가 있으면 원문 붙여넣기' : '검사 차트 원문 붙여넣기'}</strong><span>{isFirstVisit ? '이번 진료에서 확인된 검사명, 결과값, 단위와 판정 내용을 추가합니다.' : 'EMR 차트의 검사명, 결과값, 단위, 판정 내용을 그대로 붙여넣습니다.'}</span><textarea value={chartText} onChange={(event) => onChartTextChange(event.target.value)} placeholder={isFirstVisit ? '초진 검사 결과가 있을 때 이곳에 붙여넣으세요.\n검사가 없다면 입력하지 않고 다음 단계로 이동합니다.' : '이전 검사 차트 내용을 이곳에 붙여넣으세요.\n검사명 · 결과값 · 단위 · Reference Range · 판정 등이 포함됩니다.'} /></label>
+            <label><strong>{isFirstVisit ? '검사 결과가 있으면 원문 붙여넣기' : '검사 차트 원문 붙여넣기'}</strong><span>{isFirstVisit ? '이번 진료에서 확인된 검사명, 결과값, 단위와 판정 내용을 추가합니다.' : 'EMR 차트의 검사명, 결과값, 단위, 판정 내용을 그대로 붙여넣습니다.'}</span><AutoResizeTextarea value={chartText} onChange={(event) => onChartTextChange(event.target.value)} placeholder={isFirstVisit ? '초진 검사 결과가 있을 때 이곳에 붙여넣으세요.\n검사가 없다면 입력하지 않고 다음 단계로 이동합니다.' : '이전 검사 차트 내용을 이곳에 붙여넣으세요.\n검사명 · 결과값 · 단위 · Reference Range · 판정 등이 포함됩니다.'} /></label>
             <div className="chart-input-actions"><small>{isFirstVisit ? '검사자료가 없어도 녹음 기반 진료차트는 작성할 수 있습니다.' : '입력한 숫자와 단위는 원문 그대로 보존합니다.'}</small><span className={organized ? 'auto-organize-status complete' : 'auto-organize-status'}>{organized ? '자동 정리 완료 ✓' : '입력 시 자동 정리'}</span></div>
           </div>
         </section>
@@ -443,7 +469,6 @@ function TestsStep({
             <div className="organized-empty"><i /><strong>{isFirstVisit ? '추가할 검사자료가 없다면 건너뛰세요' : '검사 차트를 붙여넣어 주세요'}</strong><span>{isFirstVisit ? '다음 단계에서 진료 녹음을 근거로 SOAP 차트 초안을 작성합니다.' : '검사 항목별 카드로 분리하여 의료진이 빠르게 읽을 수 있게 표시합니다.'}</span></div>
           ) : (
             <div className="organized-text-result">
-              <div className="organized-text-intro"><i>✓</i><span><strong>의료진이 읽기 쉬운 문장으로 정리했습니다</strong><small>수치와 단위는 원문을 유지하고 항목별 내용을 하나의 설명으로 묶었습니다.</small></span></div>
               <div className="organized-text-sections">
                 {organizedSections.map((section, index) => (
                   <section key={`${section.title}-${index}`}>
@@ -486,7 +511,7 @@ function SoapStep({ stepNumber, values, onChange }: { stepNumber: number; values
         <section className="soap-editor-card">
           <header><div><p className="eyebrow">STRUCTURED SOAP</p><h3>의사 수정본</h3></div><span>직접 편집 가능</span></header>
           <div className="flow-soap-fields">
-            {soapDefinitions.map(([letter, label, placeholder]) => <label key={letter}><i className={`soap-${letter.toLowerCase()}`}>{letter}</i><span><strong>{label}</strong><textarea value={values[letter]} onChange={(event) => onChange(letter, event.target.value)} placeholder={placeholder} /></span></label>)}
+            {soapDefinitions.map(([letter, label, placeholder]) => <label key={letter}><i className={`soap-${letter.toLowerCase()}`}>{letter}</i><span><strong>{label}</strong><AutoResizeTextarea value={values[letter]} onChange={(event) => onChange(letter, event.target.value)} placeholder={placeholder} /></span></label>)}
           </div>
         </section>
         <aside className="evidence-panel">
@@ -561,15 +586,15 @@ function FinalStep({
         <section className="record-chart-card final-chart-editor">
           <header><div><p className="eyebrow">CLINICAL CHART</p><h2>진료 차트</h2></div><span>직접 편집</span></header>
           <div className="chart-narrative-grid">
-            <article><i>환자</i><label><strong>환자가 설명한 증상과 경과</strong><textarea disabled={approved} value={soapValues.S} onChange={(event) => onSoapChange('S', event.target.value)} placeholder="환자의 주호소, 증상 양상, 기간과 악화·완화 요인을 입력하세요." /></label></article>
-            <article><i>판단</i><label><strong>의사의 판단</strong><textarea disabled={approved} value={soapValues.A} onChange={(event) => onSoapChange('A', event.target.value)} placeholder="진찰과 검사에 근거한 의사의 평가를 입력하세요." /></label></article>
-            <article><i>계획</i><label><strong>치료·관리 계획</strong><textarea disabled={approved} value={soapValues.P} onChange={(event) => onSoapChange('P', event.target.value)} placeholder="처방, 검사, 생활관리와 경과관찰 계획을 입력하세요." /></label></article>
+            <article><i>환자</i><label><strong>환자가 설명한 증상과 경과</strong><AutoResizeTextarea disabled={approved} value={soapValues.S} onChange={(event) => onSoapChange('S', event.target.value)} placeholder="환자의 주호소, 증상 양상, 기간과 악화·완화 요인을 입력하세요." /></label></article>
+            <article><i>판단</i><label><strong>의사의 판단</strong><AutoResizeTextarea disabled={approved} value={soapValues.A} onChange={(event) => onSoapChange('A', event.target.value)} placeholder="진찰과 검사에 근거한 의사의 평가를 입력하세요." /></label></article>
+            <article><i>계획</i><label><strong>치료·관리 계획</strong><AutoResizeTextarea disabled={approved} value={soapValues.P} onChange={(event) => onSoapChange('P', event.target.value)} placeholder="처방, 검사, 생활관리와 경과관찰 계획을 입력하세요." /></label></article>
           </div>
         </section>
         <div className="record-detail-grid final-review-grid">
           <section className="past-soap-card final-soap-editor">
             <header><div><p className="eyebrow">LATEST SOAP</p><h2>SOAP 기록</h2></div><b>직접 편집</b></header>
-            <div>{soapDefinitions.map(([letter, label, placeholder]) => <article key={letter}><i>{letter}</i><label><strong>{label}</strong><textarea disabled={approved} value={soapValues[letter]} onChange={(event) => onSoapChange(letter, event.target.value)} placeholder={placeholder} /></label></article>)}</div>
+            <div>{soapDefinitions.map(([letter, label, placeholder]) => <article key={letter}><i>{letter}</i><label><strong>{label}</strong><AutoResizeTextarea disabled={approved} value={soapValues[letter]} onChange={(event) => onSoapChange(letter, event.target.value)} placeholder={placeholder} /></label></article>)}</div>
           </section>
           <section className="autonomic-record-card final-autonomic-editor">
             <header><div><p className="eyebrow">AUTONOMIC TEST</p><h2>자율신경검사</h2></div><b>{hasPrevious === true ? '이전 검사 비교' : '현재 검사만'}</b></header>
@@ -585,7 +610,7 @@ function FinalStep({
                 {autonomicMetrics.map(([metric, key]) => <div key={key}><strong>{metric}</strong><input disabled={approved} value={autonomicValues[`${key}Current`] ?? ''} onChange={(event) => onAutonomicChange(`${key}Current`, event.target.value)} placeholder="현재값" /><input disabled={approved} value={autonomicValues[`${key}Status`] ?? ''} onChange={(event) => onAutonomicChange(`${key}Status`, event.target.value)} placeholder="정상·경계·높음" /></div>)}
               </div>
             )}
-            <label className="final-autonomic-interpretation"><strong>검사 해석</strong><textarea disabled={approved} value={autonomicValues.interpretation ?? ''} onChange={(event) => onAutonomicChange('interpretation', event.target.value)} placeholder={autonomicSummary} /></label>
+            <label className="final-autonomic-interpretation"><strong>검사 해석</strong><AutoResizeTextarea disabled={approved} value={autonomicValues.interpretation ?? ''} onChange={(event) => onAutonomicChange('interpretation', event.target.value)} placeholder={autonomicSummary} /></label>
           </section>
         </div>
         <section className="past-test-card final-test-editor">
@@ -594,7 +619,7 @@ function FinalStep({
             <div className="final-test-table-wrap">
               <table className="final-test-table">
                 <thead><tr><th>항목</th><th>정리된 내용</th><th>상태</th></tr></thead>
-                <tbody>{finalChartRows.map((row, index) => <tr key={`${row.label}-${index}`}><th scope="row">{row.label}</th><td><textarea disabled={approved} value={row.value} onChange={(event) => updateChartRow(index, event.target.value)} aria-label={`${row.label} 내용 수정`} /></td><td><span>{approved ? '승인됨' : '수정 가능'}</span></td></tr>)}</tbody>
+                <tbody>{finalChartRows.map((row, index) => <tr key={`${row.label}-${index}`}><th scope="row">{row.label}</th><td><AutoResizeTextarea disabled={approved} value={row.value} onChange={(event) => updateChartRow(index, event.target.value)} aria-label={`${row.label} 내용 수정`} /></td><td><span>{approved ? '승인됨' : '수정 가능'}</span></td></tr>)}</tbody>
               </table>
             </div>
           ) : <div className="final-test-empty"><strong>정리된 검사 결과가 없습니다</strong><span>검사자료 보완 단계에서 내용을 입력하면 항목별 표로 표시됩니다.</span></div>}
