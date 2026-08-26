@@ -1322,6 +1322,9 @@ button { cursor: pointer; }
   .flow-rail, .flow-topbar, .encounter-patient-bar, .flow-progress, .step-heading, .final-record-editor, .final-layout, .flow-footer-actions, .final-approval-only, .deferred-draft-widget, .draft-resume-backdrop { display: none !important; }
   .flow-app, .flow-workspace, .flow-content, .step-surface { width: 100% !important; max-width: none !important; min-width: 0 !important; min-height: 0 !important; display: block !important; margin: 0 !important; padding: 0 !important; overflow: visible !important; }
 
+  /* 환자 기록에서 안내서를 출력해도 뒤쪽 기록 화면은 인쇄 문서에 포함하지 않습니다. */
+  body.printing-patient-guide .patient-directory { width: 100% !important; min-height: 0 !important; padding: 0 !important; background: white !important; }
+  body.printing-patient-guide .patient-directory > :not(.report-modal-backdrop) { display: none !important; }
   body.printing-patient-guide .report-modal-backdrop { position: static !important; inset: auto !important; display: block !important; padding: 0 !important; background: white !important; backdrop-filter: none !important; }
   body.printing-patient-guide .report-modal { width: 100% !important; max-width: none !important; height: auto !important; max-height: none !important; display: block !important; border: 0 !important; border-radius: 0 !important; background: white !important; box-shadow: none !important; overflow: visible !important; }
   body.printing-patient-guide .report-modal > header { display: none !important; }
