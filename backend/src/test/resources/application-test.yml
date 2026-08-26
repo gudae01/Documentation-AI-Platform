@@ -1,0 +1,17 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:mediflow-test;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: create-drop
+  h2:
+    console:
+      enabled: false
+
+app:
+  frontend-url: http://localhost:5173
+  cors-allowed-origins: http://localhost:5173

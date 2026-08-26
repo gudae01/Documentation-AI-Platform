@@ -35,3 +35,11 @@ next-env.d.ts
 /pages-dist/
 /outputs/
 /work/
+
+# Spring Boot / Gradle backend
+/backend/.gradle/
+/backend/build/
+/backend/data/
+*.h2.db
+*.mv.db
+*.trace.db
