@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type TextareaHTMLAttributes } from 'react';
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type TextareaHTMLAttributes } from 'react';
 
 type StepId = 'emr' | 'tests' | 'audio' | 'soap' | 'final';
 type EncounterType = 'new' | 'followup';
@@ -899,6 +899,8 @@ export default function Home() {
   const [recording, setRecording] = useState(false);
   const [recordingStarted, setRecordingStarted] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [recordingPosition, setRecordingPosition] = useState<{ x: number; y: number } | null>(null);
+  const recordingWidgetRef = useRef<HTMLDivElement>(null);
 
   const flowSteps = encounterType === 'followup' ? followupVisitSteps : firstVisitSteps;
   const encounterLabel = encounterType === 'new' ? '초진' : '재진';
@@ -912,9 +914,57 @@ export default function Home() {
     return () => window.clearInterval(timer);
   }, [recording]);
 
+  useEffect(() => {
+    if (!recordingStarted) return;
+    const keepRecordingWidgetInView = () => {
+      const widget = recordingWidgetRef.current;
+      if (!widget) return;
+      const bounds = widget.getBoundingClientRect();
+      setRecordingPosition((position) => {
+        if (!position) return position;
+        const margin = 8;
+        return {
+          x: Math.min(Math.max(margin, position.x), Math.max(margin, window.innerWidth - bounds.width - margin)),
+          y: Math.min(Math.max(margin, position.y), Math.max(margin, window.innerHeight - bounds.height - margin)),
+        };
+      });
+    };
+    window.addEventListener('resize', keepRecordingWidgetInView);
+    keepRecordingWidgetInView();
+    return () => window.removeEventListener('resize', keepRecordingWidgetInView);
+  }, [recordingStarted, recording]);
+
   const toggleRecording = () => {
     setRecordingStarted(true);
     setRecording((current) => !current);
+  };
+  const startRecordingDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if ((event.target as HTMLElement).closest('button')) return;
+    const widget = recordingWidgetRef.current;
+    if (!widget) return;
+    const bounds = widget.getBoundingClientRect();
+    const offset = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+    const pointerId = event.pointerId;
+    setRecordingPosition({ x: bounds.left, y: bounds.top });
+    const moveWidget = (dragEvent: PointerEvent) => {
+      if (dragEvent.pointerId !== pointerId) return;
+      const margin = 8;
+      setRecordingPosition({
+        x: Math.min(Math.max(margin, dragEvent.clientX - offset.x), Math.max(margin, window.innerWidth - bounds.width - margin)),
+        y: Math.min(Math.max(margin, dragEvent.clientY - offset.y), Math.max(margin, window.innerHeight - bounds.height - margin)),
+      });
+      dragEvent.preventDefault();
+    };
+    const stopDragging = (dragEvent: PointerEvent) => {
+      if (dragEvent.pointerId !== pointerId) return;
+      window.removeEventListener('pointermove', moveWidget);
+      window.removeEventListener('pointerup', stopDragging);
+      window.removeEventListener('pointercancel', stopDragging);
+    };
+    window.addEventListener('pointermove', moveWidget, { passive: false });
+    window.addEventListener('pointerup', stopDragging);
+    window.addEventListener('pointercancel', stopDragging);
+    event.preventDefault();
   };
   const startEncounter = (patient: PatientRecord | null = null) => {
     const isFollowup = Boolean(patient);
@@ -931,6 +981,7 @@ export default function Home() {
     setRecording(false);
     setRecordingStarted(false);
     setRecordingSeconds(0);
+    setRecordingPosition(null);
     setActiveStep(isFollowup ? 'tests' : 'emr');
     setEncounterStarted(true);
     setActiveView('encounter');
@@ -986,7 +1037,16 @@ export default function Home() {
           <div className={recordingStarted ? 'flow-topbar-context has-recording' : 'flow-topbar-context'}>
             {activeView === 'encounter' ? <div className="active-patient-mini"><i>환자</i><span><strong>{patientName}</strong><small>{patientMeta}</small></span><b>{encounterLabel}</b></div> : <div className="topbar-idle"><i>✓</i><span>{activeView === 'patients' ? '기존 환자 기록 · 병원 내부 조회' : '환자 데이터 외부 전송 없음'}</span></div>}
             {recordingStarted && (
-              <div className={recording ? 'persistent-recording active' : 'persistent-recording paused'} role="status" aria-live="polite">
+              <div
+                ref={recordingWidgetRef}
+                className={recording ? 'persistent-recording active' : 'persistent-recording paused'}
+                role="status"
+                aria-live="polite"
+                title="드래그하여 화면 안에서 이동"
+                style={recordingPosition ? { left: recordingPosition.x, top: recordingPosition.y, right: 'auto' } : undefined}
+                onPointerDown={startRecordingDrag}
+              >
+                <span className="recording-drag-handle" aria-hidden="true">⠿</span>
                 <i><span /></i>
                 <div><strong>{recording ? '녹음 중' : '녹음 일시정지'}</strong><small>{formatRecordingTime(recordingSeconds)} · {patientName}</small></div>
                 <button onClick={toggleRecording} aria-label={recording ? '녹음 일시정지' : '녹음 다시 시작'}>{recording ? '중지' : '다시 시작'}</button>
