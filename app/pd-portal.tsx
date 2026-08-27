@@ -72,7 +72,7 @@ export function PublicQuestionnaire({ token }: { token: string }) {
   if (done) return <Centered title="문진 제출 완료" text="담당 의료진에게 안전하게 전달했습니다. 이 링크는 다시 사용할 수 없습니다." />;
   if (!loaded) return <Centered title="보안 링크 확인 중" text="잠시만 기다려 주세요." />;
 
-  return <main className="public-page">
+  return <main className="public-page pd-scope">
     <header className="public-header"><b>MEDIFLOW</b><span>파킨슨병 사전 문진</span></header>
     <form className="card questionnaire-form" onSubmit={submit}>
       <div className="notice">환자 표현은 임의로 고치거나 추론하지 않고 전달합니다. 주민등록번호 뒷자리는 입력하지 마세요.</div>
@@ -173,7 +173,7 @@ function ClinicianApp() {
   const openWorkspace = (nextTab: Tab) => { setTab(nextTab); setView('workspace'); window.scrollTo(0, 0); };
   const logout = () => pdApi.logout().then(() => location.reload());
   if (view === 'home') return <PortalHome name={name} onOpen={openWorkspace} onLogout={logout} />;
-  return <div className="shell">
+  return <div className="shell pd-scope">
     <aside><b className="logo">M</b>
       <NavButton active={false} onClick={() => setView('home')}>홈</NavButton>
       <NavButton active={tab === 'links'} onClick={() => setTab('links')}>문진 링크</NavButton>
@@ -187,7 +187,7 @@ function ClinicianApp() {
 }
 
 export function LoginGate() {
-  return <main className="login-gate">
+  return <main className="login-gate pd-scope">
     <header className="portal-header"><div className="portal-brand"><i>M</i><span><b>MEDIFLOW</b><small>Clinical Documentation</small></span></div></header>
     <section className="login-card">
       <p className="eyebrow">CLINICIAN ACCESS</p>
@@ -207,7 +207,7 @@ function PortalHome({ name, onOpen, onLogout }: {
     { tab: 'questionnaires', label: '제출 문진 검토', description: '환자 설명과 문진 확인' },
     { tab: 'admissions', label: '입원 결과 작성', description: 'EMR 연결·검토·승인' },
   ];
-  return <div className="portal-home-shell">
+  return <div className="portal-home-shell pd-scope">
     <header className="portal-header">
       <div className="portal-brand"><i>M</i><span><b>MEDIFLOW</b><small>Clinical Documentation</small></span></div>
       <div className="user-session"><span>{name}</span><button onClick={onLogout}>로그아웃</button></div>
@@ -456,7 +456,7 @@ function TriState(props: Omit<Parameters<typeof SelectField>[0], 'options'>) {
   return <SelectField {...props} options={[['없음', '없음 (-)'], ['있음', '있음 (+)'], ['모름', '모름 (UK)']]} />;
 }
 function Section({ title, description, children }: { title: string; description: string; children: ReactNode }) {
-  return <section className="workspace-section"><h2>{title}</h2><p className="description">{description}</p>{children}</section>;
+  return <section className="workspace-section pd-scope"><h2>{title}</h2><p className="description">{description}</p>{children}</section>;
 }
 function NavButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
   return <button className={active ? 'active' : ''} onClick={onClick}>{children}</button>;
@@ -472,7 +472,7 @@ function JsonView({ value }: { value: string }) {
   return <pre>{formatted}</pre>;
 }
 function Centered({ title, text, action }: { title: string; text: string; action?: ReactNode }) {
-  return <main className="centered"><div className="card"><h1>{title}</h1><p>{text}</p>{action}</div></main>;
+  return <main className="centered pd-scope"><div className="card"><h1>{title}</h1><p>{text}</p>{action}</div></main>;
 }
 function saveBlob(blob: Blob, fileName: string) {
   const url = URL.createObjectURL(blob); const anchor = document.createElement('a');

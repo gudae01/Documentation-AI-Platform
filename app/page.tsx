@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type TextareaHTMLAttributes } from 'react';
 import './pd-portal.css';
 import { pdApi, type AuthResponse, type Questionnaire } from './pd-api';
-import { Admissions, Links, LoginGate, PublicQuestionnaire } from './pd-portal';
+import { Links, LoginGate, PublicQuestionnaire } from './pd-portal';
 
 type StepId = 'emr' | 'tests' | 'audio' | 'soap' | 'final';
 type EncounterType = 'new' | 'followup';
@@ -433,18 +433,16 @@ function organizeClinicalText(text: string) {
   return sections.filter((section) => section.lines.length > 0);
 }
 
-function HomeScreen({ onSendQuestionnaire, onOpenPatients, onOpenAdmissions }: {
+function HomeScreen({ onSendQuestionnaire, onOpenPatients }: {
   onSendQuestionnaire: () => void;
   onOpenPatients: () => void;
-  onOpenAdmissions: () => void;
 }) {
   const journey = [
     ['문진 링크', '1회용 보안 링크 전송'],
     ['환자 작성', '방문 전 사전 문진'],
     ['제출 확인', '기존 환자기록에서 검토'],
-    ['의료진 검토', '환자 설명 원문 확인'],
-    ['입원 기록', 'EMR 및 검사 연결'],
-    ['결과 보고서', '검토·승인·PDF'],
+    ['진료 기록', '환자 설명·검사자료 확인'],
+    ['최종 승인', '진료 결과 검토·PDF'],
   ];
   return (
     <section className="agent-home">
@@ -452,7 +450,7 @@ function HomeScreen({ onSendQuestionnaire, onOpenPatients, onOpenAdmissions }: {
         <div className="agent-copy">
           <p className="eyebrow">ONE PATIENT · ONE ENCOUNTER</p>
           <h1>한 명의 환자,<br />하나의 진료 흐름</h1>
-          <p>환자가 방문 전에 작성한 사전 문진을 시작점으로, 제출된 환자 기록과 입원 결과를 한 흐름에서 관리합니다.</p>
+          <p>환자가 방문 전에 작성한 사전 문진을 시작점으로, 기존 환자 기록과 진료·승인 과정을 한 흐름에서 관리합니다.</p>
           <div className="home-primary-actions">
             <button className="hero-start" onClick={onSendQuestionnaire}><i>＋</i><span><strong>사전 문진 보내기</strong><small>1회용 보안 링크 생성</small></span><b>→</b></button>
             <button className="patient-history-start" onClick={onOpenPatients}><i>기록</i><span><strong>제출 문진 확인</strong><small>기존 환자 기록 화면에서 검토</small></span><b>→</b></button>
@@ -460,15 +458,15 @@ function HomeScreen({ onSendQuestionnaire, onOpenPatients, onOpenAdmissions }: {
         </div>
         <div className="agent-orbit" aria-hidden="true">
           <div className="orbit-center"><i>M</i><strong>Clinical<br />Agent</strong></div>
-          {['링크', '작성', '제출', '검토', '입원', '결과'].map((label, index) => <span className={`orbit-item orbit-${index}`} key={label}>{label}</span>)}
+          {['링크', '작성', '제출', '기록', '진료', '승인'].map((label, index) => <span className={`orbit-item orbit-${index}`} key={label}>{label}</span>)}
         </div>
       </div>
 
       <div className="journey-board">
-        <header><div><p className="eyebrow">CLINICAL DOCUMENT JOURNEY</p><h2>사전 문진부터 입원 결과까지</h2></div><span>새 진료 생성 없이 제출된 사전 문진에서 시작</span></header>
+        <header><div><p className="eyebrow">CLINICAL DOCUMENT JOURNEY</p><h2>사전 문진부터 진료 승인까지</h2></div><span>제출된 사전 문진 환자 기록에서 진료 시작</span></header>
         <div className="journey-steps">
           {journey.map(([label, description], index) => (
-            <button key={label} onClick={index < 2 ? onSendQuestionnaire : index < 4 ? onOpenPatients : onOpenAdmissions}>
+            <button key={label} onClick={index < 2 ? onSendQuestionnaire : onOpenPatients}>
               <i>{index + 1}</i>
               <span><strong>{label}</strong><small>{description}</small></span>
               {index < journey.length - 1 && <b>→</b>}
@@ -487,8 +485,8 @@ function HomeScreen({ onSendQuestionnaire, onOpenPatients, onOpenAdmissions }: {
           <div><strong>환자 설명 원문 보존</strong><p>환자가 작성한 내용을 임의로 추론하거나 바꾸지 않고 의료진 검토 화면에 표시합니다.</p></div>
         </section>
         <section className="active-encounter-card">
-          <div><p className="eyebrow">ADMISSION REPORT</p><strong>입원 결과를 한곳에서</strong><span>검토한 사전 문진과 입원 EMR을 연결해 결과 보고서를 관리합니다.</span></div>
-          <button onClick={onOpenAdmissions}>입원 결과 보기 →</button>
+          <div><p className="eyebrow">PATIENT RECORDS</p><strong>제출 문진에서 진료까지</strong><span>환자가 작성한 문진을 기존 환자 기록에서 확인하고 진료 화면으로 이어갑니다.</span></div>
+          <button onClick={onOpenPatients}>환자기록 보기 →</button>
         </section>
       </div>
     </section>
@@ -1011,7 +1009,7 @@ function FinalStep({
 }
 
 function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout: () => Promise<void> }) {
-  const [activeView, setActiveView] = useState<'home' | 'links' | 'patients' | 'admissions' | 'encounter'>('home');
+  const [activeView, setActiveView] = useState<'home' | 'links' | 'patients' | 'encounter'>('home');
   const [activeStep, setActiveStep] = useState<StepId>('emr');
   const [encounterType, setEncounterType] = useState<EncounterType>('new');
   const [selectedPatient, setSelectedPatient] = useState<PatientRecord | null>(null);
@@ -1073,7 +1071,6 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
   const goHome = () => { setActiveView('home'); resetScroll(); };
   const openQuestionnaireLinks = () => { setActiveView('links'); resetScroll(); };
   const openPatientDirectory = () => { setActiveView('patients'); resetScroll(); };
-  const openAdmissions = () => { setActiveView('admissions'); resetScroll(); };
   const startQuestionnaireEncounter = (patient: PatientRecord) => {
     setSelectedPatient(patient);
     setEncounterType('followup');
@@ -1326,7 +1323,6 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
         <button className={activeView === 'home' ? 'flow-home-button active' : 'flow-home-button'} onClick={goHome}><i /><span>홈</span></button>
         <button className={activeView === 'links' ? 'patient-records-button active' : 'patient-records-button'} onClick={openQuestionnaireLinks}><i>링크</i><span>문진 전송</span></button>
         <button className={activeView === 'patients' ? 'patient-records-button active' : 'patient-records-button'} onClick={openPatientDirectory}><i>기록</i><span>제출 문진</span></button>
-        <button className={activeView === 'admissions' ? 'patient-records-button active' : 'patient-records-button'} onClick={openAdmissions}><i>입원</i><span>입원 결과</span></button>
         <div className="flow-rail-line" />
         {encounterStarted && <nav className={`flow-step-count-${flowSteps.length}`} aria-label="진료 진행 단계">
           {flowSteps.map((step, index) => (
@@ -1341,7 +1337,7 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
         <header className={recordingStarted ? 'flow-topbar has-recording' : 'flow-topbar'}>
           <div><div className="product-name">MEDIFLOW <span>파킨슨병 임상 문서 관리</span></div><div className="local-badge"><i /> 의료진 인증 · H2 암호화 저장</div></div>
           <div className={recordingStarted ? 'flow-topbar-context has-recording' : 'flow-topbar-context'}>
-            {activeView === 'encounter' ? <div className="active-patient-mini"><i>환자</i><span><strong>{patientName}</strong><small>{patientMeta}</small></span><b>{encounterLabel}</b></div> : <div className="topbar-idle"><i>✓</i><span>{activeView === 'patients' ? '제출 문진 · 환자 기록 조회' : activeView === 'links' ? '1회용 사전 문진 링크 전송' : activeView === 'admissions' ? '입원 결과 기록 관리' : '환자 데이터 보호 적용'}</span></div>}
+            {activeView === 'encounter' ? <div className="active-patient-mini"><i>환자</i><span><strong>{patientName}</strong><small>{patientMeta}</small></span><b>{encounterLabel}</b></div> : <div className="topbar-idle"><i>✓</i><span>{activeView === 'patients' ? '제출 문진 · 환자 기록 조회' : activeView === 'links' ? '1회용 사전 문진 링크 전송' : '환자 데이터 보호 적용'}</span></div>}
             <div className="legacy-session"><span>{nickname}</span><button onClick={() => void onLogout()}>로그아웃</button></div>
             {recordingStarted && (
               <div
@@ -1362,10 +1358,9 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
           </div>
         </header>
 
-        {activeView === 'home' && <HomeScreen onSendQuestionnaire={openQuestionnaireLinks} onOpenPatients={openPatientDirectory} onOpenAdmissions={openAdmissions} />}
-        {activeView === 'links' && <div className="pd-module-view"><Links /></div>}
+        {activeView === 'home' && <HomeScreen onSendQuestionnaire={openQuestionnaireLinks} onOpenPatients={openPatientDirectory} />}
+        {activeView === 'links' && <div className="pd-module-view pd-scope"><Links /></div>}
         {activeView === 'patients' && <PatientDirectory records={patientRecords} loading={questionnairesLoading} error={questionnairesError} onReload={() => void loadQuestionnaires()} onReview={reviewQuestionnaire} onStartEncounter={startQuestionnaireEncounter} sessionAutonomicFiles={sessionAutonomicFiles} />}
-        {activeView === 'admissions' && <div className="pd-module-view"><Admissions /></div>}
         {activeView === 'encounter' && (
           <>
             <div className="encounter-patient-bar">
