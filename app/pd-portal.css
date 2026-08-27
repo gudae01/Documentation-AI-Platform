@@ -16,6 +16,7 @@ input, select, textarea {
   width: 100%; border: 1px solid #ccd9d7; border-radius: 8px; padding: 10px; background: white;
 }
 textarea { resize: vertical; line-height: 1.55; }
+.questionnaire-form textarea.auto-grow-textarea { height: auto; min-height: 82px; overflow: hidden !important; resize: none !important; }
 button:disabled { cursor: not-allowed; opacity: .5; }
 .card { background: white; border: 1px solid var(--line); border-radius: 12px; padding: 22px; box-shadow: 0 5px 20px rgba(25,63,60,.05); }
 .primary { width: auto; border: 0; border-radius: 8px; padding: 10px 16px; background: var(--teal); color: white; font-weight: 700; }

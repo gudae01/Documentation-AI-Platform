@@ -328,7 +328,7 @@ function PatientGuideDocument({ approved, patientName, registrationNumber, visit
         <p>{reportText('P', '의사가 확정한 치료계획, 처방, 생활관리 및 검사 계획을 환자가 이해하기 쉬운 문장으로 표시합니다.')}</p>
       </section>
       <div className="report-clinical-grid">
-        <section><i>S</i><div><strong>주요 증상과 경과</strong><p>{reportText('S', '환자가 말한 주호소, 증상 양상, 발생 시점, 기간과 악화·완화 요인이 표시됩니다.')}</p></div></section>
+        <section><i>S</i><div><strong>환자 설명</strong><p>{reportText('S', '환자가 직접 작성하거나 설명한 주호소, 증상 양상, 발생 시점, 기간과 악화·완화 요인이 표시됩니다.')}</p></div></section>
         <section><i>O</i><div><strong>진찰 및 검사 결과</strong><p>{reportText('O', '의사가 확인한 진찰 소견과 객관적인 검사 결과가 표시됩니다.')}</p></div></section>
         <section><i>A</i><div><strong>담당 의사 소견</strong><p>{reportText('A', '담당 의사가 최종 확인한 평가와 진단만 표시됩니다.')}</p></div></section>
         <section><i>P</i><div><strong>치료·관리 계획</strong><p>{reportText('P', '담당 의사가 확정한 처방, 검사 계획, 생활 안내와 경과관찰 계획이 표시됩니다.')}</p></div></section>
@@ -495,12 +495,13 @@ function HomeScreen({ onSendQuestionnaire, onOpenPatients, onOpenAdmissions }: {
   );
 }
 
-function PatientDirectory({ records, loading, error, onReload, onReview, sessionAutonomicFiles }: {
+function PatientDirectory({ records, loading, error, onReload, onReview, onStartEncounter, sessionAutonomicFiles }: {
   records: PatientRecord[];
   loading: boolean;
   error: string;
   onReload: () => void;
   onReview: (id: string, chart: string, version: number) => Promise<void>;
+  onStartEncounter: (patient: PatientRecord) => void;
   sessionAutonomicFiles: Record<string, AutonomicFileRecord[]>;
 }) {
   const [query, setQuery] = useState('');
@@ -581,6 +582,7 @@ function PatientDirectory({ records, loading, error, onReload, onReview, session
               <div className="record-patient-avatar">{selectedPatient.name.slice(-1)}</div>
               <div><p><strong>{selectedPatient.name}</strong><span>{selectedPatient.gender} · 생년월일 {selectedPatient.birthDate}</span></p><small>{selectedPatient.id} · {selectedPatient.department} · 제출 문진</small></div>
               <div className="record-detail-actions">
+                <button className="record-start-encounter-button" onClick={() => onStartEncounter(selectedPatient)}>문진 기반 진료 시작 <b>→</b></button>
                 <button className="record-confirm-button" onClick={confirmQuestionnaire} disabled={selectedPatient.questionnaireStatus === 'REVIEWED' || reviewingId === selectedPatient.questionnaireId}>{selectedPatient.questionnaireStatus === 'REVIEWED' ? '문진 확인 완료' : reviewingId === selectedPatient.questionnaireId ? '저장 중…' : '문진 확인 완료'}</button>
                 <button className="record-pdf-button" onClick={printPatientRecord} disabled={selectedPatient.questionnaireStatus !== 'REVIEWED'}>{selectedPatient.questionnaireStatus === 'REVIEWED' ? 'PDF 출력' : '검토 후 PDF'}</button>
               </div>
@@ -739,7 +741,7 @@ function AudioStep({ stepNumber, encounterType, selectedFile, recording, recordi
   return (
     <div className="step-surface">
       <header className="step-heading"><div><p className="eyebrow">STEP {stepNumber} · AUDIO INPUT</p><h2>진료 녹음 입력</h2><span>{encounterType === 'new' ? '실시간으로 진료를 녹음하거나, 진료 후 스마트폰·녹음기의 파일을 바로 추가할 수 있습니다.' : '오늘 진료의 실시간 녹음과 녹음파일을 기존 환자기록과 함께 차트 근거로 사용할 수 있습니다.'}</span></div></header>
-      <div className="audio-to-chart-route"><span><i>1</i>진료 녹음·파일</span><b>→</b><span><i>2</i>음성 내용 분석</span><b>→</b><span><i>3</i>차트·SOAP 초안</span><b>→</b><span><i>4</i>의사 수정·승인</span></div>
+      <div className="audio-to-chart-route"><span><i>1</i>진료 녹음·파일</span><b>→</b><span><i>2</i>환자 설명 확인</span><b>→</b><span><i>3</i>의료진 차트 작성</span><b>→</b><span><i>4</i>최종 검토·승인</span></div>
       <div className="audio-flow-layout">
         <section className="audio-input-panel live-audio-card">
           <header><div><p className="eyebrow">LIVE RECORDING</p><h3>실시간 녹음</h3></div><span>{recordingStatus}</span></header>
@@ -842,7 +844,7 @@ function TestsStep({
 function SoapStep({ stepNumber, values, onChange }: { stepNumber: number; values: Record<string, string>; onChange: (letter: string, value: string) => void }) {
   return (
     <div className="step-surface">
-      <header className="step-heading"><div><p className="eyebrow">STEP {stepNumber} · DOCTOR REVIEW</p><h2>녹음 기반 진료차트 초안 검토</h2><span>진료 녹음 내용을 중심으로 검사자료를 보완하여 AI가 작성한 SOAP 차트를 의사가 직접 확인·수정합니다.</span></div><span className="step-status">차트 생성 대기</span></header>
+      <header className="step-heading"><div><p className="eyebrow">STEP {stepNumber} · DOCTOR REVIEW</p><h2>진료차트 작성·검토</h2><span>환자 문진과 진료 녹음, 검사자료를 참고하여 의료진이 SOAP 차트를 직접 작성·수정합니다.</span></div><span className="step-status">의료진 작성</span></header>
       <div className="soap-flow-layout">
         <section className="soap-editor-card">
           <header><div><p className="eyebrow">STRUCTURED SOAP</p><h3>의사 수정본</h3></div><span>직접 편집 가능</span></header>
@@ -853,7 +855,7 @@ function SoapStep({ stepNumber, values, onChange }: { stepNumber: number; values
         <aside className="evidence-panel">
           <header><div><p className="eyebrow">GROUNDING</p><h3>입력 근거</h3></div><span>원본 연결</span></header>
           <div className="evidence-empty"><i /><strong>SOAP 문장을 선택하세요</strong><span>선택한 문장의 녹음 구간, 문진 또는 검사 원본이 여기에 표시됩니다.</span></div>
-          <div className="evidence-rules"><strong>생성 제한 규칙</strong>{['입력에 없는 정보 생성 금지', '새로운 확정 진단 생성 금지', '의사가 말하지 않은 처방 금지', '숫자와 단위 변경 금지'].map((rule) => <span key={rule}><i>✓</i>{rule}</span>)}</div>
+          <div className="evidence-rules"><strong>기록 원칙</strong>{['입력에 없는 정보 임의 기재 금지', '의료진 확인 없는 확정 진단 기재 금지', '의사가 말하지 않은 처방 기재 금지', '숫자와 단위 임의 변경 금지'].map((rule) => <span key={rule}><i>✓</i>{rule}</span>)}</div>
         </aside>
       </div>
     </div>
@@ -1053,13 +1055,37 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
   };
 
   const flowSteps = encounterType === 'followup' ? followupVisitSteps : firstVisitSteps;
-  const encounterLabel = encounterType === 'new' ? '초진' : '재진';
+  const encounterLabel = selectedPatient?.questionnaireId ? '문진 기반 진료' : encounterType === 'new' ? '초진' : '재진';
   const currentIndex = flowSteps.findIndex((step) => step.id === activeStep);
   const resetScroll = () => window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: 'auto' }));
   const goHome = () => { setActiveView('home'); resetScroll(); };
   const openQuestionnaireLinks = () => { setActiveView('links'); resetScroll(); };
   const openPatientDirectory = () => { setActiveView('patients'); resetScroll(); };
   const openAdmissions = () => { setActiveView('admissions'); resetScroll(); };
+  const startQuestionnaireEncounter = (patient: PatientRecord) => {
+    setSelectedPatient(patient);
+    setEncounterType('followup');
+    setApproved(false);
+    setEmrCaptured(true);
+    setSoapValues({ ...patient.soap });
+    setChartText(patient.questionnaireChart);
+    setAudioFile(null);
+    setAutonomicFile(null);
+    setHasPreviousAutonomic(patient.autonomicFiles.length ? true : null);
+    setAutonomicValues({});
+    setRecording(false);
+    setRecordingStarted(false);
+    setRecordingSeconds(0);
+    setRecordingPosition(null);
+    setActiveStep('tests');
+    setEncounterStarted(true);
+    setActiveView('encounter');
+    setDraftPrompt(null);
+    setDeferredDraft(null);
+    setDeferredDraftPosition(null);
+    setDraftSaveState('idle');
+    resetScroll();
+  };
 
   useEffect(() => {
     if (draftSaveState === 'idle') return;
@@ -1305,7 +1331,7 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
 
         {activeView === 'home' && <HomeScreen onSendQuestionnaire={openQuestionnaireLinks} onOpenPatients={openPatientDirectory} onOpenAdmissions={openAdmissions} />}
         {activeView === 'links' && <div className="pd-module-view"><Links /></div>}
-        {activeView === 'patients' && <PatientDirectory records={patientRecords} loading={questionnairesLoading} error={questionnairesError} onReload={() => void loadQuestionnaires()} onReview={reviewQuestionnaire} sessionAutonomicFiles={sessionAutonomicFiles} />}
+        {activeView === 'patients' && <PatientDirectory records={patientRecords} loading={questionnairesLoading} error={questionnairesError} onReload={() => void loadQuestionnaires()} onReview={reviewQuestionnaire} onStartEncounter={startQuestionnaireEncounter} sessionAutonomicFiles={sessionAutonomicFiles} />}
         {activeView === 'admissions' && <div className="pd-module-view"><Admissions /></div>}
         {activeView === 'encounter' && (
           <>

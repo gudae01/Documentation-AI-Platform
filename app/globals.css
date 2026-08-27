@@ -517,6 +517,9 @@ button { cursor: pointer; }
 .record-detail-head small { display: block; margin-top: 6px; }
 .record-detail-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .record-detail-actions > button { min-height: 39px; padding: 0 13px; border-radius: 9px; font-size: 14px; font-weight: 750; }
+.record-start-encounter-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid #147c72; background: #178d81; color: white; }
+.record-start-encounter-button:hover { background: #11766d; }
+.record-start-encounter-button b { font-size: 16px; }
 .record-pdf-button { border: 1px solid #c9dcda; background: white; color: #39756e; }
 .record-pdf-button:hover { background: #eff7f5; }
 .record-start-button { border: 0; background: #168477; color: white; box-shadow: 0 6px 14px rgba(22,132,119,.16); }

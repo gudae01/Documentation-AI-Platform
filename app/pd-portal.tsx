@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   pdApi, type Admission, type AdmissionAttachment, type ClinicalTestBundle, type Invite, type Questionnaire,
@@ -434,7 +434,14 @@ function Field({ label, name, value, update, required, ...props }: {
 function TextField({ label, name, value, update, required }: {
   label: string; name: string; value: string; update: (name: string, value: string) => void; required?: boolean;
 }) {
-  return <label>{label}<textarea name={name} rows={3} maxLength={2000} value={value} required={required}
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = '0px';
+    textarea.style.height = `${textarea.scrollHeight}px`;
+  }, [value]);
+  return <label>{label}<textarea ref={textareaRef} className="auto-grow-textarea" name={name} rows={3} maxLength={2000} value={value} required={required}
     onChange={(event) => update(name, event.target.value)} /></label>;
 }
 function SelectField({ label, name, value, update, options, required }: {
