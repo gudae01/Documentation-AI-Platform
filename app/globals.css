@@ -1416,24 +1416,15 @@ button { cursor: pointer; }
 .pd-module-view { min-height: calc(100vh - 70px); background: #f4f7f7; }
 .pd-module-view .workspace-section { max-width: 1320px; }
 .pd-module-view textarea,
-.questionnaire-review-card textarea,
 .questionnaire-form textarea { resize: vertical !important; overflow: auto !important; }
 .record-load-message { max-width: 1540px; display: flex; align-items: center; gap: 10px; margin: -14px auto 16px; padding: 12px 16px; border: 1px solid #dce5e5; border-radius: 10px; background: white; color: #61747a; font-size: 12px; }
 .record-load-message span { flex: 1; }
 .record-load-message button { margin-left: auto; padding: 7px 10px; border: 1px solid #cfdedd; border-radius: 7px; background: #edf7f5; color: #28796f; }
-.questionnaire-review-card { margin-bottom: 14px; padding: 18px; border: 1px solid #dce6e5; border-radius: 13px; background: white; }
-.questionnaire-review-card > header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 13px; }
-.questionnaire-review-card h2 { margin: 0; font-size: 18px; }
-.questionnaire-review-card > header > b { padding: 5px 8px; border-radius: 6px; background: #fff5df; color: #9b6a19; font-size: 10px; }
-.questionnaire-review-card > header > b.reviewed { background: #e8f6f1; color: #217466; }
-.questionnaire-review-card label { display: grid; gap: 7px; color: #66787d; font-size: 11px; }
-.questionnaire-review-card textarea { width: 100%; min-height: 220px; padding: 13px; border: 1px solid #d5e0df; border-radius: 9px; background: #fbfcfc; color: #243941; line-height: 1.65; }
-.questionnaire-review-card > footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 11px; color: #839196; font-size: 10px; }
-.questionnaire-review-card > footer button { padding: 9px 13px; border: 0; border-radius: 8px; background: #167f73; color: white; font-size: 12px; font-weight: 750; }
-.questionnaire-review-card > footer button:disabled { opacity: .5; }
+.record-confirm-button { border: 1px solid #bcdad4; background: #e9f6f3; color: #21766d; }
+.record-confirm-button:disabled { border-color: #d8e4e2; background: #f1f5f4; color: #758987; }
+.record-action-error { margin: 0 19px 13px; padding: 9px 12px; border: 1px solid #f0cdca; border-radius: 8px; background: #fff4f3; color: #a43d36; font-size: 11px; }
 
 @media (max-width: 760px) {
   .legacy-session span { display: none; }
   .record-load-message { margin-inline: 14px; }
-  .questionnaire-review-card > footer { align-items: stretch; flex-direction: column; }
 }

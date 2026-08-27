@@ -166,8 +166,8 @@ function questionnaireToPatientRecord(questionnaire: Questionnaire): PatientReco
     diagnoses: ['사전 문진'],
     chart: {
       symptoms: patientExplanation,
-      assessment: reviewed ? questionnaire.chart : '의료진 검토 내용 없음',
-      plan: reviewed ? '검토 완료' : '의료진 검토 내용 없음',
+      assessment: '의료진 판단 기록 없음',
+      plan: '치료·관리 계획 기록 없음',
     },
     clinicalDetails: [
       { label: '진료·입원 예정일', value: questionnaire.plannedDate },
@@ -177,7 +177,7 @@ function questionnaireToPatientRecord(questionnaire: Questionnaire): PatientReco
     approvedAt: reviewed ? dateLabel(questionnaire.reviewedAt) : '미검토',
     courseSummary: [],
     previousRecords: [],
-    soap: { S: patientExplanation, O: '', A: reviewed ? questionnaire.chart : '', P: '' },
+    soap: { S: patientExplanation, O: '', A: '', P: '' },
     tests: [],
     autonomicFiles: [],
     autonomic: { date: '', current: [], interpretation: '등록된 검사 기록이 없습니다.' },
@@ -495,35 +495,6 @@ function HomeScreen({ onSendQuestionnaire, onOpenPatients, onOpenAdmissions }: {
   );
 }
 
-function QuestionnaireReviewEditor({ patient, onReview }: {
-  patient: PatientRecord;
-  onReview: (id: string, chart: string, version: number) => Promise<void>;
-}) {
-  const [reviewText, setReviewText] = useState(patient.questionnaireChart);
-  const [reviewSaving, setReviewSaving] = useState(false);
-  const [reviewError, setReviewError] = useState('');
-  const saveReview = async () => {
-    if (!reviewText.trim()) return;
-    setReviewSaving(true);
-    setReviewError('');
-    try {
-      await onReview(patient.questionnaireId, reviewText.trim(), patient.questionnaireVersion);
-    } catch (reason) {
-      setReviewError(reason instanceof Error ? reason.message : '문진 검토 내용을 저장하지 못했습니다.');
-    } finally {
-      setReviewSaving(false);
-    }
-  };
-  return (
-    <section className="questionnaire-review-card">
-      <header><div><p className="eyebrow">QUESTIONNAIRE REVIEW</p><h2>사전 문진 검토</h2></div><b className={patient.questionnaireStatus === 'REVIEWED' ? 'reviewed' : ''}>{patient.questionnaireStatus === 'REVIEWED' ? '검토 완료' : '검토 필요'}</b></header>
-      <label><span>환자 설명을 확인하고 의료진 검토 문안을 저장합니다.</span><textarea rows={12} value={reviewText} onChange={(event) => setReviewText(event.target.value)} disabled={reviewSaving} /></label>
-      {reviewError && <p className="error">{reviewError}</p>}
-      <footer><span>환자 원문은 변경되지 않고 검토 문안만 별도로 저장됩니다.</span><button onClick={saveReview} disabled={reviewSaving || !reviewText.trim()}>{reviewSaving ? '저장 중…' : '검토 저장'}</button></footer>
-    </section>
-  );
-}
-
 function PatientDirectory({ records, loading, error, onReload, onReview, sessionAutonomicFiles }: {
   records: PatientRecord[];
   loading: boolean;
@@ -534,6 +505,8 @@ function PatientDirectory({ records, loading, error, onReload, onReview, session
 }) {
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState('');
+  const [reviewingId, setReviewingId] = useState('');
+  const [reviewActionError, setReviewActionError] = useState('');
   const [showPatientGuide, setShowPatientGuide] = useState(false);
   const printAfterOpeningRef = useRef(false);
   const normalizedQuery = query.trim().toLowerCase();
@@ -557,6 +530,18 @@ function PatientDirectory({ records, loading, error, onReload, onReview, session
   const closePatientGuide = () => {
     printAfterOpeningRef.current = false;
     setShowPatientGuide(false);
+  };
+  const confirmQuestionnaire = async () => {
+    if (!selectedPatient || selectedPatient.questionnaireStatus === 'REVIEWED') return;
+    setReviewingId(selectedPatient.questionnaireId);
+    setReviewActionError('');
+    try {
+      await onReview(selectedPatient.questionnaireId, selectedPatient.questionnaireChart, selectedPatient.questionnaireVersion);
+    } catch (reason) {
+      setReviewActionError(reason instanceof Error ? reason.message : '문진 확인 상태를 저장하지 못했습니다.');
+    } finally {
+      setReviewingId('');
+    }
   };
 
   useEffect(() => {
@@ -596,13 +581,14 @@ function PatientDirectory({ records, loading, error, onReload, onReview, session
               <div className="record-patient-avatar">{selectedPatient.name.slice(-1)}</div>
               <div><p><strong>{selectedPatient.name}</strong><span>{selectedPatient.gender} · 생년월일 {selectedPatient.birthDate}</span></p><small>{selectedPatient.id} · {selectedPatient.department} · 제출 문진</small></div>
               <div className="record-detail-actions">
+                <button className="record-confirm-button" onClick={confirmQuestionnaire} disabled={selectedPatient.questionnaireStatus === 'REVIEWED' || reviewingId === selectedPatient.questionnaireId}>{selectedPatient.questionnaireStatus === 'REVIEWED' ? '문진 확인 완료' : reviewingId === selectedPatient.questionnaireId ? '저장 중…' : '문진 확인 완료'}</button>
                 <button className="record-pdf-button" onClick={printPatientRecord} disabled={selectedPatient.questionnaireStatus !== 'REVIEWED'}>{selectedPatient.questionnaireStatus === 'REVIEWED' ? 'PDF 출력' : '검토 후 PDF'}</button>
               </div>
             </header>
+            {reviewActionError && <div className="record-action-error">{reviewActionError}</div>}
             <dl className="record-summary-strip">
               <div><dt>최근 내원</dt><dd>{selectedPatient.lastVisit}</dd></div><div><dt>주호소</dt><dd>{selectedPatient.chiefComplaint}</dd></div><div><dt>알레르기</dt><dd>{selectedPatient.allergies}</dd></div><div><dt>진단 이력</dt><dd>{selectedPatient.diagnoses.join(' · ')}</dd></div>
             </dl>
-            <QuestionnaireReviewEditor key={selectedPatient.questionnaireId} patient={selectedPatient} onReview={onReview} />
             <section className="record-chart-card">
               <header><div><p className="eyebrow">QUESTIONNAIRE SUMMARY</p><h2>제출 문진 요약</h2></div><span><b>제출</b><time>{selectedPatient.lastVisit}</time></span></header>
               <div className="chart-narrative-grid">
