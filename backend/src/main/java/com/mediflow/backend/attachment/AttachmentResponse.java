@@ -11,7 +11,7 @@ public record AttachmentResponse(
         long size,
         Instant createdAt
 ) {
-    static AttachmentResponse from(EncounterAttachment attachment) {
+    public static AttachmentResponse from(EncounterAttachment attachment) {
         return new AttachmentResponse(attachment.getId(), attachment.getType(), attachment.getOriginalFileName(),
                 attachment.getContentType(), attachment.getSize(), attachment.getCreatedAt());
     }

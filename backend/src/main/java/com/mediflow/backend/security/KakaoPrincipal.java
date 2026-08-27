@@ -1,6 +1,7 @@
 package com.mediflow.backend.security;
 
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 
 import java.io.Serial;
@@ -32,7 +33,7 @@ public final class KakaoPrincipal implements OAuth2User, Serializable {
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of();
+        return List.of(new SimpleGrantedAuthority("ROLE_CLINICIAN"));
     }
 
     @Override

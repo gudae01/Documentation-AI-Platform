@@ -11,7 +11,20 @@ spring:
   h2:
     console:
       enabled: false
+  security:
+    oauth2:
+      client:
+        registration:
+          kakao:
+            client-id: test-kakao-client
+            client-secret: test-kakao-secret
 
 app:
   frontend-url: http://localhost:5173
   cors-allowed-origins: http://localhost:5173
+  data-encryption-key: test-only-secret-key-at-least-24-characters
+  questionnaire:
+    public-url: http://localhost:5173
+    delivery:
+      webhook-url:
+      webhook-token:

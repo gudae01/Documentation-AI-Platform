@@ -27,6 +27,7 @@ yarn-error.log*
 
 # local environment
 .env*
+!backend/.env.production.example
 
 # deployment and generated files
 .vercel
@@ -35,6 +36,7 @@ next-env.d.ts
 /pages-dist/
 /outputs/
 /work/
+*.tsbuildinfo
 
 # Spring Boot / Gradle backend
 /backend/.gradle/

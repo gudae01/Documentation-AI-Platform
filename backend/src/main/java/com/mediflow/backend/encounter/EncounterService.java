@@ -87,7 +87,7 @@ public class EncounterService {
                 encounter.getSymptoms(), encounter.getAssessment(), encounter.getPlan(),
                 encounter.getSoapSubjective(), encounter.getSoapObjective(), encounter.getSoapAssessment(),
                 encounter.getSoapPlan(), encounter.getExaminationText(), encounter.getAutonomicInterpretation(),
-                request.clinician(), Instant.now(), encounter.getId()
+                encounter.getAutonomicTestJson(), request.clinician(), Instant.now(), encounter.getId()
         );
         medicalRecordRepository.save(record);
         encounter.getPatient().registerApprovedVisit(LocalDate.now(), encounter.getChiefComplaint());

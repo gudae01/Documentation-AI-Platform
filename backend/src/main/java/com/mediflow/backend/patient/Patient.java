@@ -72,7 +72,22 @@ public class Patient {
         this.chiefComplaint = chiefComplaint;
         this.allergies = allergies;
         this.department = department;
-        this.diagnoses = new ArrayList<>(diagnoses);
+        this.diagnoses = new ArrayList<>(diagnoses == null ? List.of() : diagnoses);
+    }
+
+    public void updateDetails(String name, String gender, LocalDate birthDate, String phone, String address,
+                              String chiefComplaint, String allergies, String department,
+                              List<String> diagnoses) {
+        this.name = name;
+        this.gender = gender;
+        this.birthDate = birthDate;
+        this.phone = phone;
+        this.address = address;
+        this.chiefComplaint = chiefComplaint;
+        this.allergies = allergies;
+        this.department = department;
+        this.diagnoses.clear();
+        this.diagnoses.addAll(diagnoses == null ? List.of() : diagnoses);
     }
 
     public void registerApprovedVisit(LocalDate visitDate, String latestChiefComplaint) {

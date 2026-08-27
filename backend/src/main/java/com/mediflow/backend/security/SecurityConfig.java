@@ -3,6 +3,7 @@ package com.mediflow.backend.security;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -20,6 +21,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.util.Arrays;
 
 @Configuration
+@EnableMethodSecurity
 public class SecurityConfig {
 
     private final KakaoOAuth2UserService kakaoOAuth2UserService;
@@ -47,7 +49,7 @@ public class SecurityConfig {
                         .csrfTokenRepository(csrfRepository)
                         .ignoringRequestMatchers("/h2-console/**"))
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/", "/error", "/api/auth/**", "/oauth2/**", "/login/**", "/h2-console/**")
+                        .requestMatchers("/", "/error", "/api/auth/**", "/api/public/questionnaires/**", "/oauth2/**", "/login/**", "/h2-console/**")
                         .permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(exceptions -> exceptions
@@ -68,7 +70,12 @@ public class SecurityConfig {
                                 .maxSessionsPreventsLogin(false)
                                 .expiredSessionStrategy(event ->
                                         event.getResponse().sendError(401, "다른 기기에서 로그인되어 세션이 종료되었습니다."))))
-                .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()));
+                .headers(headers -> headers
+                        .frameOptions(frame -> frame.sameOrigin())
+                        .httpStrictTransportSecurity(hsts -> hsts.includeSubDomains(true).preload(true))
+                        .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'none'; frame-ancestors 'self'"))
+                        .referrerPolicy(referrer -> referrer.policy(org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER))
+                        .permissionsPolicyHeader(policy -> policy.policy("camera=(), geolocation=(), microphone=()")));
 
         return http.build();
     }

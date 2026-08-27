@@ -13,9 +13,9 @@ public class AuthController {
     @GetMapping("/me")
     public AuthResponse me(Authentication authentication) {
         if (authentication == null || !(authentication.getPrincipal() instanceof KakaoPrincipal principal)) {
-            return new AuthResponse(false, null, null);
+            return new AuthResponse(false, null);
         }
-        return new AuthResponse(true, principal.getName(), principal.getNickname());
+        return new AuthResponse(true, principal.getNickname());
     }
 
     @GetMapping("/csrf")
@@ -23,7 +23,7 @@ public class AuthController {
         return new CsrfResponse(token.getHeaderName(), token.getParameterName(), token.getToken());
     }
 
-    public record AuthResponse(boolean authenticated, String kakaoId, String nickname) {
+    public record AuthResponse(boolean authenticated, String nickname) {
     }
 
     public record CsrfResponse(String headerName, String parameterName, String token) {

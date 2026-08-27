@@ -66,6 +66,9 @@ public class MedicalRecord {
     @Lob
     private String autonomicInterpretation;
 
+    @Lob
+    private String autonomicTestJson;
+
     @Column(nullable = false, length = 80)
     private String clinician;
 
@@ -81,7 +84,7 @@ public class MedicalRecord {
     public MedicalRecord(Patient patient, LocalDate visitDate, EncounterType visitType, String chiefComplaint,
                          String symptoms, String assessment, String plan, String soapSubjective,
                          String soapObjective, String soapAssessment, String soapPlan, String examinationText,
-                         String autonomicInterpretation, String clinician, Instant approvedAt,
+                         String autonomicInterpretation, String autonomicTestJson, String clinician, Instant approvedAt,
                          UUID sourceEncounterId) {
         this.patient = patient;
         this.visitDate = visitDate;
@@ -96,6 +99,7 @@ public class MedicalRecord {
         this.soapPlan = soapPlan;
         this.examinationText = examinationText;
         this.autonomicInterpretation = autonomicInterpretation;
+        this.autonomicTestJson = autonomicTestJson;
         this.clinician = clinician;
         this.approvedAt = approvedAt;
         this.sourceEncounterId = sourceEncounterId;
@@ -155,6 +159,10 @@ public class MedicalRecord {
 
     public String getAutonomicInterpretation() {
         return autonomicInterpretation;
+    }
+
+    public String getAutonomicTestJson() {
+        return autonomicTestJson;
     }
 
     public String getClinician() {

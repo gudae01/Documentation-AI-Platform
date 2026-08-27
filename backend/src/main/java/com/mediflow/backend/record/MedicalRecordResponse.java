@@ -5,6 +5,9 @@ import com.mediflow.backend.encounter.EncounterType;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
+import java.util.List;
+import java.util.Map;
+import com.mediflow.backend.attachment.AttachmentResponse;
 
 public record MedicalRecordResponse(
         UUID id,
@@ -16,7 +19,9 @@ public record MedicalRecordResponse(
         String plan,
         SoapResponse soap,
         String examinationText,
+        Map<String, Object> autonomicTest,
         String autonomicInterpretation,
+        List<AttachmentResponse> attachments,
         String clinician,
         Instant approvedAt,
         UUID sourceEncounterId
@@ -24,7 +29,8 @@ public record MedicalRecordResponse(
     public record SoapResponse(String subjective, String objective, String assessment, String plan) {
     }
 
-    public static MedicalRecordResponse from(MedicalRecord record) {
+    public static MedicalRecordResponse from(MedicalRecord record, Map<String, Object> autonomicTest,
+                                             List<AttachmentResponse> attachments) {
         return new MedicalRecordResponse(
                 record.getId(),
                 record.getVisitDate(),
@@ -35,7 +41,9 @@ public record MedicalRecordResponse(
                 record.getPlan(),
                 new SoapResponse(record.getSoapSubjective(), record.getSoapObjective(), record.getSoapAssessment(), record.getSoapPlan()),
                 record.getExaminationText(),
+                autonomicTest,
                 record.getAutonomicInterpretation(),
+                attachments,
                 record.getClinician(),
                 record.getApprovedAt(),
                 record.getSourceEncounterId()
