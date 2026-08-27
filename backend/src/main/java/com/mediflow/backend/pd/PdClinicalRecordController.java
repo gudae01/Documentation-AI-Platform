@@ -27,10 +27,13 @@ import java.util.UUID;
 public class PdClinicalRecordController {
     private final PdClinicalRecordService service;
     private final AuditService audit;
+    private final QuestionnaireChangePublisher changePublisher;
 
-    public PdClinicalRecordController(PdClinicalRecordService service, AuditService audit) {
+    public PdClinicalRecordController(PdClinicalRecordService service, AuditService audit,
+                                      QuestionnaireChangePublisher changePublisher) {
         this.service = service;
         this.audit = audit;
+        this.changePublisher = changePublisher;
     }
 
     @PutMapping("/questionnaires/{questionnaireId}/clinical-record")
@@ -42,6 +45,7 @@ public class PdClinicalRecordController {
                 ? principal.getNickname() : "의료진";
         PdClinicalRecord saved = service.approve(questionnaireId, request, clinician);
         audit.record(authentication, servletRequest, "APPROVE", "PD_CLINICAL_RECORD", saved.getId());
+        changePublisher.publish(questionnaireId);
         return response(saved);
     }
 

@@ -26,4 +26,17 @@ class QuestionnaireSecurityIntegrationTest {
         assertThatThrownBy(() -> service.submit(token, json.readTree("{\"name\":\"홍길동\",\"birth6\":\"800101\",\"sex\":\"M\",\"plannedDate\":\"2026-09-01\"}")))
                 .isInstanceOf(IllegalStateException.class);
     }
+
+    @Test
+    void repeatedReviewReturnsAlreadyReviewedSubmissionInsteadOfVersionConflict() throws Exception {
+        var created = service.create("01099998888", "SMS", LocalDate.of(2026, 9, 2), 24, "doctor");
+        String token = created.link().substring(created.link().indexOf("questionnaireToken=") + 19);
+        var submitted = service.submit(token, json.readTree("{\"name\":\"김환자\",\"birth6\":\"700101\",\"sex\":\"F\",\"plannedDate\":\"2026-09-02\",\"chiefComplaint\":\"보행 불편\"}"));
+
+        var first = service.review(submitted.getId(), "환자 설명 확인", submitted.getVersion());
+        var repeated = service.review(submitted.getId(), "환자 설명 확인", 0);
+
+        assertThat(first.getStatus()).isEqualTo("REVIEWED");
+        assertThat(repeated.getId()).isEqualTo(first.getId());
+    }
 }

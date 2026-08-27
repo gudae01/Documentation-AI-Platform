@@ -484,6 +484,8 @@ button { cursor: pointer; }
 .directory-heading h1 { margin: 0; color: #17333b; font-size: 34px; letter-spacing: -.04em; }
 .directory-heading > div > span { display: block; margin-top: 8px; color: #7a8b90; font-size: 14px; }
 .directory-heading > b { flex: 0 0 auto; padding: 8px 11px; border: 1px solid #d4e4e1; border-radius: 8px; background: #eaf5f2; color: #33796f; font-size: 13px; white-space: nowrap; }
+.live-sync-dot { width: 7px; height: 7px; display: inline-block; margin-right: 7px; border-radius: 50%; background: #1e9b86; box-shadow: 0 0 0 4px rgba(30,155,134,.12); animation: live-sync-pulse 1.8s ease-in-out infinite; }
+@keyframes live-sync-pulse { 50% { opacity: .45; transform: scale(.82); } }
 .patient-directory-layout { max-width: 1320px; min-height: 660px; display: grid; grid-template-columns: 330px minmax(0, 1fr); margin: 0 auto; border: 1px solid #dce5e6; border-radius: 15px; background: white; box-shadow: 0 8px 25px rgba(25,55,60,.055); overflow: hidden; }
 .patient-record-list { border-right: 1px solid #e0e7e7; background: #f9fbfb; }
 .directory-search { height: 46px; display: flex; align-items: center; gap: 10px; margin: 16px; padding: 0 12px; border: 1px solid #cfdbdc; border-radius: 9px; background: white; }

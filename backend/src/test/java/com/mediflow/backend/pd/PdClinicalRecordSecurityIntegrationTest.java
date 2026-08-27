@@ -3,7 +3,10 @@ package com.mediflow.backend.pd;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
 
@@ -12,8 +15,14 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
+@AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Transactional
 class PdClinicalRecordSecurityIntegrationTest {
@@ -21,6 +30,7 @@ class PdClinicalRecordSecurityIntegrationTest {
     @Autowired PdClinicalRecordService clinicalRecords;
     @Autowired PdClinicalRecordRepository repository;
     @Autowired ObjectMapper json;
+    @Autowired MockMvc mockMvc;
 
     @Test
     void encryptsApprovedRecordAndReturnsSameRecordForRetry() throws Exception {
@@ -47,5 +57,28 @@ class PdClinicalRecordSecurityIntegrationTest {
         assertThat(stored.getPayloadCipher()).doesNotContain("UPDRS").doesNotContain("오른손 떨림");
         assertThat(clinicalRecords.read(stored).structuredResults()).containsExactlyElementsOf(request.structuredResults());
         assertThat(clinicalRecords.byPatient(questionnaire.getPatient().getId())).containsExactly(first);
+    }
+
+    @Test
+    void clinicianCanApproveClinicalRecordThroughHttpApi() throws Exception {
+        var created = questionnaires.create("01022223333", "SMS", LocalDate.of(2026, 9, 3), 24, "doctor");
+        String token = created.link().substring(created.link().indexOf("questionnaireToken=") + 19);
+        var questionnaire = questionnaires.submit(token, json.readTree("""
+                {"name":"이환자","birth6":"650101","sex":"M","plannedDate":"2026-09-03","chiefComplaint":"경직"}
+                """));
+        var request = new PdClinicalRecordController.ApproveRequest(
+                "검사: 정상",
+                List.of(new PdClinicalRecordController.ResultItem("EMR 붙여넣기", "검사", "정상", "승인")),
+                new PdClinicalRecordController.Soap("경직", "검사 정상", "경과 관찰", "재진"),
+                Map.of(), null, null);
+
+        mockMvc.perform(put("/api/pd/questionnaires/{id}/clinical-record", questionnaire.getId())
+                        .with(user("doctor").roles("CLINICIAN"))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.questionnaireId").value(questionnaire.getId().toString()))
+                .andExpect(jsonPath("$.structuredResults[0].value").value("정상"));
     }
 }

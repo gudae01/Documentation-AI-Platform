@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import tools.jackson.databind.JsonNode;
 
 import java.time.Instant;
@@ -21,13 +22,16 @@ public class QuestionnaireController {
     private final QuestionnaireService service;
     private final QuestionnaireInvitationRepository invitations;
     private final AuditService audit;
+    private final QuestionnaireChangePublisher changePublisher;
 
     public QuestionnaireController(QuestionnaireService service,
                                    QuestionnaireInvitationRepository invitations,
-                                   AuditService audit) {
+                                   AuditService audit,
+                                   QuestionnaireChangePublisher changePublisher) {
         this.service = service;
         this.invitations = invitations;
         this.audit = audit;
+        this.changePublisher = changePublisher;
     }
 
     @PostMapping("/api/pd/questionnaire-invitations")
@@ -83,7 +87,14 @@ public class QuestionnaireController {
                                  HttpServletRequest servletRequest) {
         QuestionnaireSubmission submission = service.submit(token, payload);
         audit.record("PUBLIC", servletRequest, "SUBMIT", "QUESTIONNAIRE", submission.getId(), true);
+        changePublisher.publish(submission.getId());
         return new SubmitResponse(submission.getId(), submission.getStatus(), submission.getCreatedAt());
+    }
+
+    @GetMapping("/api/pd/questionnaire-events")
+    @PreAuthorize("hasRole('CLINICIAN')")
+    public SseEmitter events() {
+        return changePublisher.subscribe();
     }
 
     @GetMapping("/api/pd/questionnaires")
@@ -107,6 +118,7 @@ public class QuestionnaireController {
                                      Authentication authentication, HttpServletRequest servletRequest) {
         QuestionnaireSubmission submission = service.review(id, request.chart(), request.version());
         audit.record(authentication, servletRequest, "REVIEW", "QUESTIONNAIRE", id);
+        changePublisher.publish(id);
         return response(submission);
     }
 

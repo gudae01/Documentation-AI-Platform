@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type TextareaHTMLAttributes } from 'react';
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type TextareaHTMLAttributes } from 'react';
 import './pd-portal.css';
-import { pdApi, type AuthResponse, type PdClinicalRecord, type Questionnaire } from './pd-api';
+import { ApiError, pdApi, type AuthResponse, type PdClinicalRecord, type Questionnaire } from './pd-api';
 import { Links, LoginGate, PublicQuestionnaire } from './pd-portal';
 
 type StepId = 'emr' | 'tests' | 'audio' | 'soap' | 'final';
@@ -599,7 +599,7 @@ function PatientDirectory({ records, loading, error, onReload, onReview, onStart
     <section className="patient-directory">
       <header className="directory-heading">
         <div><p className="eyebrow">PATIENT RECORDS</p><h1>제출 문진 및 환자 기록</h1><span>H2에 저장된 제출 문진을 기존 환자 기록 화면에서 확인하고 검토합니다.</span></div>
-        <b>총 {records.length}건 · 병원 내부 데이터</b>
+        <b><i className="live-sync-dot" />자동 동기화 · 총 {records.length}건</b>
       </header>
       {error && <div className="record-load-message error"><strong>기록을 불러오지 못했습니다.</strong><span>{error}</span><button onClick={onReload}>다시 불러오기</button></div>}
       {loading && <div className="record-load-message"><strong>환자 기록을 불러오는 중입니다.</strong></div>}
@@ -1135,44 +1135,85 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
   const [draftSaveState, setDraftSaveState] = useState<'idle' | 'saved' | 'error'>('idle');
   const recordingWidgetRef = useRef<HTMLDivElement>(null);
   const deferredDraftWidgetRef = useRef<HTMLDivElement>(null);
+  const questionnaireSyncingRef = useRef(false);
   const [questionnaires, setQuestionnaires] = useState<Questionnaire[]>([]);
   const [clinicalRecords, setClinicalRecords] = useState<PdClinicalRecord[]>([]);
   const [questionnairesLoading, setQuestionnairesLoading] = useState(true);
   const [questionnairesError, setQuestionnairesError] = useState('');
 
-  const loadQuestionnaires = async () => {
-    setQuestionnairesLoading(true);
-    setQuestionnairesError('');
+  const loadQuestionnaires = useCallback(async (silent = false) => {
+    if (questionnaireSyncingRef.current) return;
+    questionnaireSyncingRef.current = true;
+    if (!silent) setQuestionnairesLoading(true);
     try {
-      const [loadedQuestionnaires, loadedClinicalRecords] = await Promise.all([
+      const [questionnaireResult, clinicalRecordResult] = await Promise.allSettled([
         pdApi.questionnaires(),
         pdApi.clinicalRecords(),
       ]);
-      setQuestionnaires(loadedQuestionnaires);
-      setClinicalRecords(loadedClinicalRecords);
+      if (questionnaireResult.status === 'rejected') throw questionnaireResult.reason;
+      setQuestionnaires(questionnaireResult.value);
+      if (clinicalRecordResult.status === 'fulfilled') {
+        setClinicalRecords(clinicalRecordResult.value);
+        setQuestionnairesError('');
+      } else if (!(clinicalRecordResult.reason instanceof ApiError && clinicalRecordResult.reason.status === 404)) {
+        setQuestionnairesError(clinicalRecordResult.reason instanceof Error ? clinicalRecordResult.reason.message : '승인된 진료기록을 불러오지 못했습니다.');
+      } else {
+        setClinicalRecords([]);
+        setQuestionnairesError('');
+      }
     } catch (reason) {
       setQuestionnairesError(reason instanceof Error ? reason.message : '제출 문진을 불러오지 못했습니다.');
     } finally {
-      setQuestionnairesLoading(false);
+      questionnaireSyncingRef.current = false;
+      if (!silent) setQuestionnairesLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    let active = true;
-    pdApi.questionnaires()
-      .then((items) => { if (active) setQuestionnaires(items); })
-      .catch((reason) => { if (active) setQuestionnairesError(reason instanceof Error ? reason.message : '제출 문진을 불러오지 못했습니다.'); })
-      .finally(() => { if (active) setQuestionnairesLoading(false); });
-    return () => { active = false; };
-  }, []);
+    const initialLoad = window.setTimeout(() => void loadQuestionnaires(), 0);
+    return () => window.clearTimeout(initialLoad);
+  }, [loadQuestionnaires]);
+
+  useEffect(() => {
+    if (activeView !== 'patients') return;
+    const synchronize = () => {
+      if (document.visibilityState === 'visible') void loadQuestionnaires(true);
+    };
+    const initialSync = window.setTimeout(synchronize, 0);
+    const events = new EventSource(pdApi.questionnaireEventsUrl, { withCredentials: true });
+    events.addEventListener('questionnaire-changed', synchronize);
+    events.onerror = () => events.close();
+    const fallbackInterval = window.setInterval(synchronize, 30_000);
+    window.addEventListener('focus', synchronize);
+    document.addEventListener('visibilitychange', synchronize);
+    return () => {
+      events.close();
+      window.clearTimeout(initialSync);
+      window.clearInterval(fallbackInterval);
+      window.removeEventListener('focus', synchronize);
+      document.removeEventListener('visibilitychange', synchronize);
+    };
+  }, [activeView, loadQuestionnaires]);
 
   const patientRecords = questionnaires.map((questionnaire) => questionnaireToPatientRecord(
     questionnaire,
     clinicalRecords.filter((record) => record.patientId === questionnaire.patientId),
   ));
   const reviewQuestionnaire = async (id: string, chart: string, version: number) => {
-    await pdApi.review(id, { chart, version });
-    await loadQuestionnaires();
+    try {
+      const reviewed = await pdApi.review(id, { chart, version });
+      setQuestionnaires((current) => current.map((item) => item.id === reviewed.id ? reviewed : item));
+    } catch (reason) {
+      if (!(reason instanceof ApiError) || reason.status !== 409) throw reason;
+      await loadQuestionnaires(true);
+      const latest = await pdApi.questionnaires();
+      const current = latest.find((item) => item.id === id);
+      if (current?.status === 'REVIEWED') {
+        setQuestionnaires(latest);
+        return;
+      }
+      throw new Error('다른 화면에서 문진이 변경되었습니다. 최신 내용을 불러왔으니 다시 확인해 주세요.');
+    }
   };
 
   const flowSteps = encounterType === 'followup' ? followupVisitSteps : firstVisitSteps;
@@ -1386,19 +1427,26 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
       value: section.lines.join('\n'),
       status: '의료진 최종 승인',
     }));
-    await pdApi.approveClinicalRecord(selectedPatient.questionnaireId, {
-      rawExaminationText: chartText,
-      structuredResults,
-      soap: {
-        subjective: soapValues.S ?? '',
-        objective: soapValues.O ?? '',
-        assessment: soapValues.A ?? '',
-        plan: soapValues.P ?? '',
-      },
-      autonomic: autonomicValues,
-      audioFileName: audioFile?.name ?? null,
-      autonomicFileName: autonomicFile?.name ?? null,
-    });
+    try {
+      await pdApi.approveClinicalRecord(selectedPatient.questionnaireId, {
+        rawExaminationText: chartText,
+        structuredResults,
+        soap: {
+          subjective: soapValues.S ?? '',
+          objective: soapValues.O ?? '',
+          assessment: soapValues.A ?? '',
+          plan: soapValues.P ?? '',
+        },
+        autonomic: autonomicValues,
+        audioFileName: audioFile?.name ?? null,
+        autonomicFileName: autonomicFile?.name ?? null,
+      });
+    } catch (reason) {
+      if (reason instanceof ApiError && reason.status === 404) {
+        throw new Error('현재 실행 중인 백엔드가 이전 버전입니다. Docker 백엔드를 최신 이미지로 다시 실행한 뒤 승인해 주세요.');
+      }
+      throw reason;
+    }
     if (!approved && selectedPatient && autonomicFile) {
       const now = new Date();
       const uploadDate = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')}`;

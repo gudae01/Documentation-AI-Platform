@@ -85,6 +85,7 @@ async function download(path: string): Promise<Blob> {
 export const pdApi = {
   me: () => call<AuthResponse>('/api/auth/me'),
   loginUrl: `${BASE}/oauth2/authorization/kakao`,
+  questionnaireEventsUrl: `${BASE}/api/pd/questionnaire-events`,
   logout: () => call<void>('/api/auth/logout', { method: 'POST' }),
   invite: (body: object) => call<Invite>('/api/pd/questionnaire-invitations', {
     method: 'POST', body: JSON.stringify(body),
