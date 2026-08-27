@@ -29,11 +29,12 @@ class PdClinicalRecordSecurityIntegrationTest {
     @Autowired QuestionnaireService questionnaires;
     @Autowired PdClinicalRecordService clinicalRecords;
     @Autowired PdClinicalRecordRepository repository;
+    @Autowired PdClinicalRecordRevisionRepository revisions;
     @Autowired ObjectMapper json;
     @Autowired MockMvc mockMvc;
 
     @Test
-    void encryptsApprovedRecordAndReturnsSameRecordForRetry() throws Exception {
+    void encryptsApprovedRecordAndPreservesPreviousVersionWhenSoapChanges() throws Exception {
         var created = questionnaires.create("01012345678", "SMS", LocalDate.of(2026, 9, 1), 24, "doctor");
         String token = created.link().substring(created.link().indexOf("questionnaireToken=") + 19);
         var questionnaire = questionnaires.submit(token, json.readTree("""
@@ -50,12 +51,26 @@ class PdClinicalRecordSecurityIntegrationTest {
 
         var first = clinicalRecords.approve(questionnaire.getId(), request, "의료진");
         var retry = clinicalRecords.approve(questionnaire.getId(), request, "의료진");
+        var revisedRequest = new PdClinicalRecordController.ApproveRequest(
+                "UPDRS: 16점",
+                List.of(new PdClinicalRecordController.ResultItem(
+                        "EMR 붙여넣기", "UPDRS", "16점", "의료진 최종 승인")),
+                new PdClinicalRecordController.Soap("오른손 떨림 감소", "보행 안정", "증상 호전", "8주 후 추적"),
+                Map.of("hrvCurrent", "45"),
+                "visit-2.webm",
+                "ans-2.csv");
+        var revised = clinicalRecords.approve(questionnaire.getId(), revisedRequest, "수정 의료진");
         var stored = repository.findById(first.getId()).orElseThrow();
+        var archived = revisions.findByClinicalRecordIdOrderByArchivedAtDesc(first.getId());
 
         assertThat(retry.getId()).isEqualTo(first.getId());
+        assertThat(revised.getId()).isEqualTo(first.getId());
         assertThat(questionnaire.getStatus()).isEqualTo("REVIEWED");
         assertThat(stored.getPayloadCipher()).doesNotContain("UPDRS").doesNotContain("오른손 떨림");
-        assertThat(clinicalRecords.read(stored).structuredResults()).containsExactlyElementsOf(request.structuredResults());
+        assertThat(clinicalRecords.read(stored).structuredResults()).containsExactlyElementsOf(revisedRequest.structuredResults());
+        assertThat(clinicalRecords.read(stored).soap().subjective()).isEqualTo("오른손 떨림 감소");
+        assertThat(archived).hasSize(1);
+        assertThat(archived.get(0).getPayloadCipher()).doesNotContain("UPDRS").doesNotContain("오른손 떨림");
         assertThat(clinicalRecords.byPatient(questionnaire.getPatient().getId())).containsExactly(first);
     }
 

@@ -36,7 +36,7 @@ public class PdClinicalRecord {
     @Column(nullable = false, length = 120)
     private String clinician;
 
-    @Column(nullable = false, updatable = false)
+    @Column(nullable = false)
     private Instant approvedAt;
 
     protected PdClinicalRecord() { }
@@ -45,6 +45,12 @@ public class PdClinicalRecord {
                             String payloadCipher, String clinician) {
         this.patient = patient;
         this.questionnaire = questionnaire;
+        this.payloadCipher = payloadCipher;
+        this.clinician = clinician;
+        this.approvedAt = Instant.now();
+    }
+
+    public void revise(String payloadCipher, String clinician) {
         this.payloadCipher = payloadCipher;
         this.clinician = clinician;
         this.approvedAt = Instant.now();

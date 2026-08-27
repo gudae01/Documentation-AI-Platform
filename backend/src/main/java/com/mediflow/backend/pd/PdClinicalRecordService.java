@@ -14,17 +14,20 @@ import java.util.UUID;
 @Transactional
 public class PdClinicalRecordService {
     private final PdClinicalRecordRepository records;
+    private final PdClinicalRecordRevisionRepository revisions;
     private final QuestionnaireSubmissionRepository questionnaires;
     private final PdPatientRepository patients;
     private final SensitiveDataCrypto crypto;
     private final ObjectMapper objectMapper;
 
     public PdClinicalRecordService(PdClinicalRecordRepository records,
+                                   PdClinicalRecordRevisionRepository revisions,
                                    QuestionnaireSubmissionRepository questionnaires,
                                    PdPatientRepository patients,
                                    SensitiveDataCrypto crypto,
                                    ObjectMapper objectMapper) {
         this.records = records;
+        this.revisions = revisions;
         this.questionnaires = questionnaires;
         this.patients = patients;
         this.crypto = crypto;
@@ -33,13 +36,18 @@ public class PdClinicalRecordService {
 
     public PdClinicalRecord approve(UUID questionnaireId, PdClinicalRecordController.ApproveRequest request,
                                     String clinician) {
-        return records.findByQuestionnaireId(questionnaireId).orElseGet(() -> {
+        String payload = write(request);
+        return records.findByQuestionnaireId(questionnaireId).map(existing -> {
+            if (samePayload(existing, payload)) return existing;
+            revisions.save(new PdClinicalRecordRevision(existing));
+            existing.revise(crypto.encrypt(payload), clinician);
+            return records.save(existing);
+        }).orElseGet(() -> {
             QuestionnaireSubmission questionnaire = questionnaires.findById(questionnaireId)
                     .orElseThrow(() -> new NotFoundException("사전 문진을 찾을 수 없습니다."));
             if (!"REVIEWED".equals(questionnaire.getStatus())) {
                 questionnaire.review(questionnaire.getChartCipher());
             }
-            String payload = write(request);
             return records.save(new PdClinicalRecord(questionnaire.getPatient(), questionnaire,
                     crypto.encrypt(payload), clinician));
         });
@@ -72,6 +80,15 @@ public class PdClinicalRecordService {
             return objectMapper.writeValueAsString(request);
         } catch (JacksonException exception) {
             throw new IllegalArgumentException("진료기록 형식을 저장할 수 없습니다.", exception);
+        }
+    }
+
+    private boolean samePayload(PdClinicalRecord existing, String candidate) {
+        try {
+            return objectMapper.readTree(crypto.decrypt(existing.getPayloadCipher()))
+                    .equals(objectMapper.readTree(candidate));
+        } catch (JacksonException exception) {
+            throw new IllegalStateException("기존 진료기록을 비교할 수 없습니다.", exception);
         }
     }
 }

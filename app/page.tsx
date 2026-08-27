@@ -731,7 +731,7 @@ function PatientDirectory({ records, loading, error, onReload, onReview, onStart
             </div>
             {directoryExaminationRows.length > 0 && <section className="past-test-card stored-examination-card">
               <header><div><p className="eyebrow">QUESTIONNAIRE & APPROVED EXAMINATION</p><h2>정리된 검사 결과</h2></div><b>문진 {selectedPatient.questionnaireResults.length} · 승인 기록 {selectedPatient.tests.length}</b></header>
-              <div className="stored-examination-list">{directoryExaminationRows.map((row, index) => <article key={`${row.source}-${row.title}-${index}`}><span>{index + 1}</span><div><header><strong>{row.title}</strong><b className={`result-source-badge ${row.source === '환자 사전 문진' ? 'questionnaire' : 'existing'}`}>{row.source}</b></header><p>{row.value}</p></div><b>{row.status}</b></article>)}</div>
+              <div className="stored-examination-list">{directoryExaminationRows.map((row, index) => <article key={`${row.source}-${row.title}-${index}`}><div><header><strong>{row.title}</strong><b className={`result-source-badge ${row.source === '환자 사전 문진' ? 'questionnaire' : 'existing'}`}>{row.source}</b></header><p>{row.value}</p></div><b>{row.status}</b></article>)}</div>
               <footer>환자가 작성한 문진과 의료진이 최종 승인하여 H2에 암호화 저장된 검사 결과를 출처별로 분리해 표시합니다.</footer>
             </section>}
             <div className={`record-detail-grid ${hasAutonomicRecord ? '' : 'single'}`}>
@@ -931,9 +931,8 @@ function TestsStep({
                 <span><b>{organizedRows.length}</b>전체 항목</span>
               </div>
               <div className="organized-text-sections">
-                {organizedRows.map((row, index) => (
+                {organizedRows.map((row) => (
                   <section key={row.id}>
-                    <span>{index + 1}</span>
                     <div><header><strong>{row.title}</strong><b className={row.source === '환자 사전 문진' ? 'questionnaire' : row.source === '기존 기록' ? 'existing' : 'emr'}>{row.source}</b></header><p>{row.value || '입력된 결과값 없음'}</p>{row.status && <small>판정 · {row.status}</small>}</div>
                   </section>
                 ))}
@@ -1217,37 +1216,52 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
   const microphoneStreamRef = useRef<MediaStream | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const deferredDraftWidgetRef = useRef<HTMLDivElement>(null);
-  const questionnaireSyncingRef = useRef(false);
+  const questionnaireLoadPromiseRef = useRef<Promise<void> | null>(null);
   const [questionnaires, setQuestionnaires] = useState<Questionnaire[]>([]);
   const [clinicalRecords, setClinicalRecords] = useState<PdClinicalRecord[]>([]);
   const [questionnairesLoading, setQuestionnairesLoading] = useState(true);
   const [questionnairesError, setQuestionnairesError] = useState('');
 
-  const loadQuestionnaires = useCallback(async (silent = false) => {
-    if (questionnaireSyncingRef.current) return;
-    questionnaireSyncingRef.current = true;
-    if (!silent) setQuestionnairesLoading(true);
-    try {
-      const [questionnaireResult, clinicalRecordResult] = await Promise.allSettled([
-        pdApi.questionnaires(),
-        pdApi.clinicalRecords(),
-      ]);
-      if (questionnaireResult.status === 'rejected') throw questionnaireResult.reason;
-      setQuestionnaires(questionnaireResult.value);
-      if (clinicalRecordResult.status === 'fulfilled') {
-        setClinicalRecords(clinicalRecordResult.value);
-        setQuestionnairesError('');
-      } else if (!(clinicalRecordResult.reason instanceof ApiError && clinicalRecordResult.reason.status === 404)) {
-        setQuestionnairesError(clinicalRecordResult.reason instanceof Error ? clinicalRecordResult.reason.message : '승인된 진료기록을 불러오지 못했습니다.');
-      } else {
-        setClinicalRecords([]);
-        setQuestionnairesError('');
+  const loadQuestionnaires = useCallback(async (silent = false, refreshAfterCurrent = false) => {
+    const activeLoad = questionnaireLoadPromiseRef.current;
+    if (activeLoad) {
+      await activeLoad;
+      if (!refreshAfterCurrent) return;
+    }
+    const loadStartedWhileWaiting = questionnaireLoadPromiseRef.current;
+    if (loadStartedWhileWaiting) {
+      await loadStartedWhileWaiting;
+      return;
+    }
+    const task = (async () => {
+      if (!silent) setQuestionnairesLoading(true);
+      try {
+        const [questionnaireResult, clinicalRecordResult] = await Promise.allSettled([
+          pdApi.questionnaires(),
+          pdApi.clinicalRecords(),
+        ]);
+        if (questionnaireResult.status === 'rejected') throw questionnaireResult.reason;
+        setQuestionnaires(questionnaireResult.value);
+        if (clinicalRecordResult.status === 'fulfilled') {
+          setClinicalRecords(clinicalRecordResult.value);
+          setQuestionnairesError('');
+        } else if (!(clinicalRecordResult.reason instanceof ApiError && clinicalRecordResult.reason.status === 404)) {
+          setQuestionnairesError(clinicalRecordResult.reason instanceof Error ? clinicalRecordResult.reason.message : '승인된 진료기록을 불러오지 못했습니다.');
+        } else {
+          setClinicalRecords([]);
+          setQuestionnairesError('');
+        }
+      } catch (reason) {
+        setQuestionnairesError(reason instanceof Error ? reason.message : '제출 문진을 불러오지 못했습니다.');
+      } finally {
+        if (!silent) setQuestionnairesLoading(false);
       }
-    } catch (reason) {
-      setQuestionnairesError(reason instanceof Error ? reason.message : '제출 문진을 불러오지 못했습니다.');
+    })();
+    questionnaireLoadPromiseRef.current = task;
+    try {
+      await task;
     } finally {
-      questionnaireSyncingRef.current = false;
-      if (!silent) setQuestionnairesLoading(false);
+      if (questionnaireLoadPromiseRef.current === task) questionnaireLoadPromiseRef.current = null;
     }
   }, []);
 
@@ -1287,7 +1301,7 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
       setQuestionnaires((current) => current.map((item) => item.id === reviewed.id ? reviewed : item));
     } catch (reason) {
       if (!(reason instanceof ApiError) || reason.status !== 409) throw reason;
-      await loadQuestionnaires(true);
+      await loadQuestionnaires(true, true);
       const latest = await pdApi.questionnaires();
       const current = latest.find((item) => item.id === id);
       if (current?.status === 'REVIEWED') {
@@ -1668,7 +1682,7 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
     setDraftPrompt(null);
     setDeferredDraft(null);
     setDeferredDraftPosition(null);
-    await loadQuestionnaires();
+    await loadQuestionnaires(false, true);
   };
   const finishEncounterToHome = () => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop();
@@ -1740,7 +1754,7 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
 
         {activeView === 'home' && <HomeScreen onSendQuestionnaire={openQuestionnaireLinks} onOpenPatients={openPatientDirectory} />}
         {activeView === 'links' && <div className="pd-module-view pd-scope"><Links /></div>}
-        {activeView === 'patients' && <PatientDirectory records={patientRecords} loading={questionnairesLoading} error={questionnairesError} onReload={() => void loadQuestionnaires()} onReview={reviewQuestionnaire} onStartEncounter={startQuestionnaireEncounter} sessionAutonomicFiles={sessionAutonomicFiles} />}
+        {activeView === 'patients' && <PatientDirectory records={patientRecords} loading={questionnairesLoading} error={questionnairesError} onReload={() => void loadQuestionnaires(false, true)} onReview={reviewQuestionnaire} onStartEncounter={startQuestionnaireEncounter} sessionAutonomicFiles={sessionAutonomicFiles} />}
         {activeView === 'encounter' && (
           <>
             <div className="encounter-patient-bar">
