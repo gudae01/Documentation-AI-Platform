@@ -23,7 +23,10 @@ class PdApiAuthorizationIntegrationTest {
     @Test
     void blocksUnauthenticatedClinicianApiAndAllowsClinicianRole() throws Exception {
         mockMvc.perform(get("/api/pd/questionnaires")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/pd/clinical-records")).andExpect(status().isUnauthorized());
         mockMvc.perform(get("/api/pd/questionnaires").with(user("doctor").roles("CLINICIAN")))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/pd/clinical-records").with(user("doctor").roles("CLINICIAN")))
                 .andExpect(status().isOk());
     }
 

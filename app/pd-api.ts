@@ -18,6 +18,19 @@ export type Questionnaire = {
   respondentType: string; rawJson: string; structuredJson: string; chart: string; status: string;
   submittedAt: string; reviewedAt: string | null; version: number;
 };
+export type PdClinicalRecord = {
+  id: string;
+  patientId: string;
+  questionnaireId: string;
+  rawExaminationText: string;
+  structuredResults: Array<{ source: string; title: string; value: string; status: string }>;
+  soap: { subjective: string; objective: string; assessment: string; plan: string };
+  autonomic: Record<string, string>;
+  audioFileName: string | null;
+  autonomicFileName: string | null;
+  clinician: string;
+  approvedAt: string;
+};
 export type Admission = {
   id: string; patientId: string; name: string; birth6: string; sex: string; parsedJson: string;
   report: string; status: string; createdAt: string; reviewedAt: string | null;
@@ -94,6 +107,12 @@ export const pdApi = {
   review: (id: string, body: object) => call<Questionnaire>(`/api/pd/questionnaires/${id}/review`, {
     method: 'PUT', body: JSON.stringify(body),
   }),
+  clinicalRecords: () => call<PdClinicalRecord[]>('/api/pd/clinical-records'),
+  patientClinicalRecords: (patientId: string) => call<PdClinicalRecord[]>(`/api/pd/patients/${patientId}/clinical-records`),
+  approveClinicalRecord: (questionnaireId: string, body: object) => call<PdClinicalRecord>(
+    `/api/pd/questionnaires/${questionnaireId}/clinical-record`,
+    { method: 'PUT', body: JSON.stringify(body) },
+  ),
   admissions: () => call<Admission[]>('/api/pd/admissions'),
   parseAdmission: (body: object) => call<Admission>('/api/pd/admissions', {
     method: 'POST', body: JSON.stringify(body),
