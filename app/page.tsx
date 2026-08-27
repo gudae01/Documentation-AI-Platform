@@ -876,6 +876,7 @@ function FinalStep({
   onChartTextChange,
   onAutonomicChange,
   onApprove,
+  onFinishWithoutPdf,
 }: {
   stepNumber: number;
   approved: boolean;
@@ -890,6 +891,7 @@ function FinalStep({
   onChartTextChange: (value: string) => void;
   onAutonomicChange: (key: string, value: string) => void;
   onApprove: () => void;
+  onFinishWithoutPdf: () => void;
 }) {
   const [showPreview, setShowPreview] = useState(false);
   const printAfterOpeningRef = useRef(false);
@@ -917,6 +919,16 @@ function FinalStep({
   const closeReport = () => {
     printAfterOpeningRef.current = false;
     setShowPreview(false);
+  };
+  const approveAndChooseNext = () => {
+    onApprove();
+    const shouldPrintPdf = window.confirm('최종 승인이 완료되었습니다.\n환자 안내 PDF를 출력하시겠습니까?');
+    if (shouldPrintPdf) {
+      printAfterOpeningRef.current = true;
+      setShowPreview(true);
+      return;
+    }
+    onFinishWithoutPdf();
   };
 
   useEffect(() => {
@@ -992,7 +1004,7 @@ function FinalStep({
         onPrint={printReport}
       />}
       <div className="final-approval-only">
-        <button disabled={approved} onClick={onApprove}>{approved ? '최종 승인 완료' : '내용을 확인하고 최종 승인'} <b>✓</b></button>
+        <button disabled={approved} onClick={approveAndChooseNext}>{approved ? '최종 승인 완료' : '내용을 확인하고 최종 승인'} <b>✓</b></button>
       </div>
     </div>
   );
@@ -1283,6 +1295,27 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
     setDeferredDraft(null);
     setDeferredDraftPosition(null);
   };
+  const finishEncounterToHome = () => {
+    setActiveView('home');
+    setActiveStep('emr');
+    setEncounterStarted(false);
+    setSelectedPatient(null);
+    setEncounterType('new');
+    setApproved(false);
+    setEmrCaptured(false);
+    setSoapValues({ S: '', O: '', A: '', P: '' });
+    setChartText('');
+    setAudioFile(null);
+    setAutonomicFile(null);
+    setHasPreviousAutonomic(null);
+    setAutonomicValues({});
+    setRecording(false);
+    setRecordingStarted(false);
+    setRecordingSeconds(0);
+    setRecordingPosition(null);
+    setDraftSaveState('idle');
+    resetScroll();
+  };
   const patientName = selectedPatient?.name ?? '새 환자';
   const patientMeta = selectedPatient ? `${selectedPatient.gender} · ${selectedPatient.age}세 · ${selectedPatient.id}` : 'EMR 환자정보 캡처 대기';
 
@@ -1351,7 +1384,7 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
               {activeStep === 'tests' && <TestsStep stepNumber={currentIndex + 1} encounterType={encounterType} chartText={chartText} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} onChartTextChange={setChartText} onAutonomicFileChange={(file) => { setAutonomicFile(file); setHasPreviousAutonomic(file ? Boolean(selectedPatient) : selectedPatient ? true : null); }} onPreviousChange={setHasPreviousAutonomic} />}
               {activeStep === 'audio' && <AudioStep stepNumber={currentIndex + 1} encounterType={encounterType} selectedFile={audioFile} recording={recording} recordingStarted={recordingStarted} recordingSeconds={recordingSeconds} onSelectedFileChange={setAudioFile} onToggleRecording={toggleRecording} />}
               {activeStep === 'soap' && <SoapStep stepNumber={currentIndex + 1} values={soapValues} onChange={(letter, value) => setSoapValues({ ...soapValues, [letter]: value })} />}
-              {activeStep === 'final' && <FinalStep stepNumber={currentIndex + 1} approved={approved} patient={selectedPatient} soapValues={soapValues} chartText={chartText} audioFile={audioFile} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} autonomicValues={autonomicValues} onSoapChange={(letter, value) => setSoapValues((current) => ({ ...current, [letter]: value }))} onChartTextChange={setChartText} onAutonomicChange={(key, value) => setAutonomicValues((current) => ({ ...current, [key]: value }))} onApprove={approveEncounter} />}
+              {activeStep === 'final' && <FinalStep stepNumber={currentIndex + 1} approved={approved} patient={selectedPatient} soapValues={soapValues} chartText={chartText} audioFile={audioFile} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} autonomicValues={autonomicValues} onSoapChange={(letter, value) => setSoapValues((current) => ({ ...current, [letter]: value }))} onChartTextChange={setChartText} onAutonomicChange={(key, value) => setAutonomicValues((current) => ({ ...current, [key]: value }))} onApprove={approveEncounter} onFinishWithoutPdf={finishEncounterToHome} />}
             </div>
 
             <footer className="flow-footer-actions">
