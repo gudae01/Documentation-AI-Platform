@@ -1,5 +1,11 @@
 const runtimeEnv = import.meta.env as ImportMetaEnv & { VITE_API_BASE_URL?: string };
-const BASE = runtimeEnv.VITE_API_BASE_URL || 'http://localhost:8080';
+const browserBackend = typeof window !== 'undefined' && !window.location.hostname.endsWith('.github.io')
+  ? `${window.location.protocol}//${window.location.hostname}:8080`
+  : 'http://localhost:8080';
+const BASE = runtimeEnv.VITE_API_BASE_URL || browserBackend;
+const LOGIN_RETURN_URL = typeof window !== 'undefined'
+  ? `${window.location.origin}${window.location.pathname}`
+  : '';
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -84,7 +90,7 @@ async function download(path: string): Promise<Blob> {
 
 export const pdApi = {
   me: () => call<AuthResponse>('/api/auth/me'),
-  loginUrl: `${BASE}/oauth2/authorization/kakao`,
+  loginUrl: `${BASE}/api/auth/login?returnUrl=${encodeURIComponent(LOGIN_RETURN_URL)}`,
   questionnaireEventsUrl: `${BASE}/api/pd/questionnaire-events`,
   logout: () => call<void>('/api/auth/logout', { method: 'POST' }),
   invite: (body: object) => call<Invite>('/api/pd/questionnaire-invitations', {

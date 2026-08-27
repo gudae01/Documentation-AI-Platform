@@ -48,6 +48,7 @@ $env:QUESTIONNAIRE_DELIVERY_WEBHOOK_TOKEN="웹훅 Bearer 토큰"
 |---|---|---|---|
 | GET | `/api/auth/me` | 공개 | 로그인 상태 |
 | GET | `/api/auth/csrf` | 공개 | CSRF 토큰 |
+| GET | `/api/auth/login` | 공개 | 허용된 프론트 주소를 세션에 보관하고 카카오 로그인 시작 |
 | POST | `/api/pd/questionnaire-invitations` | 의료진 | 링크 생성·전송 |
 | GET | `/api/pd/questionnaire-invitations` | 의료진 | 링크 상태 목록 |
 | DELETE | `/api/pd/questionnaire-invitations/{id}` | 의료진 | 링크 철회 |

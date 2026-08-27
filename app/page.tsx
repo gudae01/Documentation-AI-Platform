@@ -35,6 +35,13 @@ type AutonomicFileRecord = {
   metrics: [string, string, string][];
   file?: File;
 };
+type ExaminationResult = {
+  source: '환자 사전 문진' | '기존 기록' | 'EMR 붙여넣기';
+  title: string;
+  value: string;
+  status: string;
+};
+type MicrophoneState = 'checking' | 'available' | 'requesting' | 'recording' | 'denied' | 'unavailable' | 'unsupported';
 type PatientRecord = {
   questionnaireId: string;
   questionnaireVersion: number;
@@ -74,6 +81,7 @@ type PatientRecord = {
     clinician: string;
   }[];
   soap: Record<'S' | 'O' | 'A' | 'P', string>;
+  questionnaireResults: [string, string, string][];
   tests: [string, string, string][];
   autonomicFiles: AutonomicFileRecord[];
   autonomic: {
@@ -138,6 +146,15 @@ function questionnaireToPatientRecord(questionnaire: Questionnaire, clinicalReco
   const allergies = joinPayload(payload, ['allergy', 'foodAllergy', 'otherAllergy']) || '미확인';
   const reviewed = questionnaire.status === 'REVIEWED';
   const latestClinicalRecord = clinicalRecords[0];
+  const questionnaireResults = organizeClinicalText(questionnaire.chart
+    .split(/\r?\n/)
+    .filter((line) => !/^\[사전 문진\]/.test(line.trim()))
+    .join('\n'))
+    .map((section) => [
+      section.title,
+      section.lines.join('\n'),
+      reviewed ? '의료진 문진 확인 완료' : '환자 작성 · 의료진 미검토',
+    ] as [string, string, string]);
   const persistedTests = clinicalRecords.flatMap((record) => record.structuredResults.map((result) => [
     `${dateLabel(record.approvedAt)} · ${result.title}`,
     result.value,
@@ -220,6 +237,7 @@ function questionnaireToPatientRecord(questionnaire: Questionnaire, clinicalReco
       A: latestClinicalRecord.soap.assessment,
       P: latestClinicalRecord.soap.plan,
     } : { S: patientExplanation, O: '', A: '', P: '' },
+    questionnaireResults,
     tests: persistedTests,
     autonomicFiles: persistedAutonomicFiles,
     autonomic: {
@@ -353,11 +371,13 @@ type PatientGuideData = {
   visitDate: string;
   clinician: string;
   soapValues: Record<string, string>;
+  examinationResults: ExaminationResult[];
   autonomicSummary: string;
   autonomicFileName?: string;
+  autonomicMetrics: { metric: string; previous: string; current: string; changeOrStatus: string }[];
 };
 
-function PatientGuideDocument({ approved, patientName, registrationNumber, visitDate, clinician, soapValues, autonomicSummary, autonomicFileName }: PatientGuideData) {
+function PatientGuideDocument({ approved, patientName, registrationNumber, visitDate, clinician, soapValues, examinationResults, autonomicSummary, autonomicFileName, autonomicMetrics }: PatientGuideData) {
   const reportText = (key: string, fallback: string) => soapValues[key]?.trim() || fallback;
   return (
     <article className={approved ? 'patient-report-paper approved' : 'patient-report-paper'}>
@@ -379,11 +399,21 @@ function PatientGuideDocument({ approved, patientName, registrationNumber, visit
         <section><i>A</i><div><strong>담당 의사 소견</strong><p>{reportText('A', '담당 의사가 최종 확인한 평가와 진단만 표시됩니다.')}</p></div></section>
         <section><i>P</i><div><strong>치료·관리 계획</strong><p>{reportText('P', '담당 의사가 확정한 처방, 검사 계획, 생활 안내와 경과관찰 계획이 표시됩니다.')}</p></div></section>
       </div>
+      <section className="report-examination-results">
+        <header><div><span>EXAMINATION RESULTS</span><strong>정리된 검사 결과</strong></div><b>총 {examinationResults.length}개 항목</b></header>
+        {examinationResults.length ? (
+          <table>
+            <thead><tr><th>출처</th><th>항목</th><th>정리된 내용</th><th>상태</th></tr></thead>
+            <tbody>{examinationResults.map((result, index) => <tr key={`${result.source}-${result.title}-${index}`}><td>{result.source}</td><th scope="row">{result.title}</th><td>{result.value}</td><td>{result.status}</td></tr>)}</tbody>
+          </table>
+        ) : <p>연결된 사전 문진 또는 검사 결과가 없습니다.</p>}
+      </section>
       <div className="report-result-grid single">
         <section>
           <header><div><span>AUTONOMIC TEST</span><strong>자율신경검사 설명</strong></div><b>{autonomicFileName ? '검사파일 연결' : '입력 대기'}</b></header>
           <p>{autonomicSummary}</p>
           {autonomicFileName && <small>연결 파일 · {autonomicFileName}</small>}
+          {autonomicMetrics.length > 0 && <table className="report-autonomic-table"><thead><tr><th>지표</th><th>이전</th><th>현재</th><th>변화·상태</th></tr></thead><tbody>{autonomicMetrics.map((row) => <tr key={row.metric}><th scope="row">{row.metric}</th><td>{row.previous}</td><td>{row.current}</td><td>{row.changeOrStatus}</td></tr>)}</tbody></table>}
         </section>
       </div>
       <section className="report-prescription">
@@ -570,8 +600,13 @@ function PatientDirectory({ records, loading, error, onReload, onReview, onStart
     || selectedPatient.autonomic.comparison?.length
     || availableAutonomicFiles.length
   ));
+  const directoryExaminationRows: ExaminationResult[] = selectedPatient ? [
+    ...selectedPatient.questionnaireResults.map(([title, value, status]) => ({ source: '환자 사전 문진' as const, title, value, status })),
+    ...selectedPatient.tests.map(([title, value, status]) => ({ source: '기존 기록' as const, title, value, status })),
+  ] : [];
   const printDate = formatPrintDate();
   const printTitle = selectedPatient ? `${selectedPatient.name}_${selectedPatient.id}_사전문진기록` : '환자_사전문진기록';
+  const printDocumentTitle = hasClinicianRecord ? '환자 사전 문진 및 승인 진료 기록' : '환자 사전 문진 기록';
   const openUploadedFile = (record: AutonomicFileRecord) => {
     if (!record.file) return;
     const fileUrl = URL.createObjectURL(record.file);
@@ -620,14 +655,14 @@ function PatientDirectory({ records, loading, error, onReload, onReview, onStart
         </aside>
         {selectedPatient && (
           <article className="patient-record-detail">
-            <div className="patient-record-print-title"><span>MEDIFLOW</span><strong>환자 사전 문진 기록</strong><small>Patient-submitted Questionnaire</small></div>
+            <div className="patient-record-print-title"><span>MEDIFLOW</span><strong>{printDocumentTitle}</strong><small>{hasClinicianRecord ? 'Questionnaire & Approved Clinical Record' : 'Patient-submitted Questionnaire'}</small></div>
             <header className="record-detail-head">
               <div className="record-patient-avatar">{selectedPatient.name.slice(-1)}</div>
               <div><p><strong>{selectedPatient.name}</strong><span>{selectedPatient.gender} · 생년월일 {selectedPatient.birthDate}</span></p><small>{selectedPatient.id} · {selectedPatient.department} · 제출 문진</small></div>
               <div className="record-detail-actions">
                 <button className="record-start-encounter-button" onClick={() => onStartEncounter(selectedPatient)}>문진 기반 진료 시작 <b>→</b></button>
                 <button className="record-confirm-button" onClick={confirmQuestionnaire} disabled={selectedPatient.questionnaireStatus === 'REVIEWED' || reviewingId === selectedPatient.questionnaireId}>{selectedPatient.questionnaireStatus === 'REVIEWED' ? '문진 확인 완료' : reviewingId === selectedPatient.questionnaireId ? '저장 중…' : '문진 확인 완료'}</button>
-                <button className="record-pdf-button" onClick={printPatientRecord} disabled={selectedPatient.questionnaireStatus !== 'REVIEWED'}>{selectedPatient.questionnaireStatus === 'REVIEWED' ? '문진 PDF' : '확인 후 문진 PDF'}</button>
+                <button className="record-pdf-button" onClick={printPatientRecord} disabled={selectedPatient.questionnaireStatus !== 'REVIEWED'}>{selectedPatient.questionnaireStatus === 'REVIEWED' ? hasClinicianRecord ? '문진·진료 PDF' : '문진 PDF' : '확인 후 문진 PDF'}</button>
               </div>
             </header>
             {reviewActionError && <div className="record-action-error">{reviewActionError}</div>}
@@ -694,10 +729,10 @@ function PatientDirectory({ records, loading, error, onReload, onReview, onStart
               </section>
               )}
             </div>
-            {selectedPatient.tests.length > 0 && <section className="past-test-card stored-examination-card">
-              <header><div><p className="eyebrow">APPROVED EXAMINATION HISTORY</p><h2>정리된 검사 결과</h2></div><b>승인 기록 {selectedPatient.tests.length}개</b></header>
-              <div className="stored-examination-list">{selectedPatient.tests.map(([title, value, status], index) => <article key={`${title}-${index}`}><span>{index + 1}</span><div><strong>{title}</strong><p>{value}</p></div><b>{status}</b></article>)}</div>
-              <footer>의료진이 최종 승인하여 H2에 암호화 저장된 결과만 표시합니다.</footer>
+            {directoryExaminationRows.length > 0 && <section className="past-test-card stored-examination-card">
+              <header><div><p className="eyebrow">QUESTIONNAIRE & APPROVED EXAMINATION</p><h2>정리된 검사 결과</h2></div><b>문진 {selectedPatient.questionnaireResults.length} · 승인 기록 {selectedPatient.tests.length}</b></header>
+              <div className="stored-examination-list">{directoryExaminationRows.map((row, index) => <article key={`${row.source}-${row.title}-${index}`}><span>{index + 1}</span><div><header><strong>{row.title}</strong><b className={`result-source-badge ${row.source === '환자 사전 문진' ? 'questionnaire' : 'existing'}`}>{row.source}</b></header><p>{row.value}</p></div><b>{row.status}</b></article>)}</div>
+              <footer>환자가 작성한 문진과 의료진이 최종 승인하여 H2에 암호화 저장된 검사 결과를 출처별로 분리해 표시합니다.</footer>
             </section>}
             <div className={`record-detail-grid ${hasAutonomicRecord ? '' : 'single'}`}>
               <section className="past-soap-card">
@@ -742,7 +777,7 @@ function PatientDirectory({ records, loading, error, onReload, onReview, onStart
               <footer><span>업로드된 자율신경검사 파일과 파일에서 정리한 결과만 표시됩니다.</span></footer>
             </section>
             </div>
-            <footer className="patient-record-print-footer"><span>출력일 {printDate}</span><p>본 문서는 환자 또는 보호자가 직접 작성한 사전 문진을 의료진 확인용으로 출력한 자료이며, 의료진의 확정 진료기록이 아닙니다.</p></footer>
+            <footer className="patient-record-print-footer"><span>출력일 {printDate}</span><p>{hasClinicianRecord ? '본 문서는 환자 또는 보호자가 작성한 사전 문진과 의료진이 최종 승인한 SOAP·검사·자율신경계 기록을 출처별로 구분하여 출력한 자료입니다.' : '본 문서는 환자 또는 보호자가 직접 작성한 사전 문진을 의료진 확인용으로 출력한 자료이며, 의료진의 확정 진료기록이 아닙니다.'}</p></footer>
           </article>
         )}
       </div>
@@ -783,9 +818,15 @@ function EmrStep({ stepNumber, encounterType, captured, patient, onCapture }: { 
   );
 }
 
-function AudioStep({ stepNumber, encounterType, selectedFile, recording, recordingStarted, recordingSeconds, onSelectedFileChange, onToggleRecording }: { stepNumber: number; encounterType: EncounterType; selectedFile: File | null; recording: boolean; recordingStarted: boolean; recordingSeconds: number; onSelectedFileChange: (file: File | null) => void; onToggleRecording: () => void }) {
+function AudioStep({ stepNumber, encounterType, selectedFile, recording, recordingStarted, recordingSeconds, microphoneState, microphoneLabel, microphoneError, onSelectedFileChange, onToggleRecording, onCheckMicrophone }: { stepNumber: number; encounterType: EncounterType; selectedFile: File | null; recording: boolean; recordingStarted: boolean; recordingSeconds: number; microphoneState: MicrophoneState; microphoneLabel: string; microphoneError: string; onSelectedFileChange: (file: File | null) => void; onToggleRecording: () => void | Promise<void>; onCheckMicrophone: () => void | Promise<void> }) {
   const fileExtension = selectedFile?.name.split('.').pop()?.toUpperCase() || 'AUDIO';
-  const recordingStatus = recording ? '녹음 중' : recordingStarted ? '일시정지' : '대기';
+  const recordingStatus = recording ? '녹음 중' : recordingStarted ? '녹음 완료' : '대기';
+  const microphoneStatus = microphoneState === 'recording' ? '마이크 사용 중'
+    : microphoneState === 'available' ? '마이크 연결됨'
+      : microphoneState === 'checking' ? '마이크 확인 중'
+        : microphoneState === 'requesting' ? '권한 요청 중'
+          : microphoneState === 'denied' ? '마이크 권한 차단됨'
+            : microphoneState === 'unavailable' ? '마이크를 찾지 못함' : '보안 연결 필요';
 
   return (
     <div className="step-surface">
@@ -794,10 +835,11 @@ function AudioStep({ stepNumber, encounterType, selectedFile, recording, recordi
       <div className="audio-flow-layout">
         <section className="audio-input-panel live-audio-card">
           <header><div><p className="eyebrow">LIVE RECORDING</p><h3>실시간 녹음</h3></div><span>{recordingStatus}</span></header>
+          <div className={`microphone-check ${microphoneState}`}><i aria-hidden="true" /><span><strong>{microphoneStatus}</strong><small>{microphoneError || microphoneLabel || '데스크톱에 연결된 오디오 입력 장치를 확인합니다.'}</small></span><button disabled={recording || microphoneState === 'requesting'} onClick={onCheckMicrophone}>다시 확인</button></div>
           <div className="live-recorder">
             <span className={recording ? 'record-orb active' : 'record-orb'}><i /></span>
-            <div><p className="eyebrow">RECORDING TIME</p><strong>{formatRecordingTime(recordingSeconds)}</strong><small>{recording ? '진료 음성을 기록하고 있습니다' : recordingStarted ? '녹음이 일시정지되었습니다' : '녹음 시작을 눌러 진료 기록을 시작하세요'}</small></div>
-            <button onClick={onToggleRecording}>{recording ? '녹음 중지' : recordingStarted ? '녹음 다시 시작' : '녹음 시작'}</button>
+            <div><p className="eyebrow">RECORDING TIME</p><strong>{formatRecordingTime(recordingSeconds)}</strong><small>{recording ? '진료 음성을 실제 녹음파일로 기록하고 있습니다' : recordingStarted ? '녹음파일이 오른쪽 파일 영역에 연결되었습니다' : '녹음 시작을 누르면 브라우저가 마이크 권한을 요청합니다'}</small></div>
+            <button disabled={microphoneState === 'checking' || microphoneState === 'requesting' || microphoneState === 'unsupported'} onClick={onToggleRecording}>{recording ? '녹음 중지·저장' : recordingStarted ? '새 녹음 시작' : '녹음 시작'}</button>
           </div>
           <div className="audio-wave" aria-hidden="true">{[18,34,22,48,29,56,31,40,21,51,37,26,45,20,33,49,25,38,17,30,42,27,50,22].map((height, index) => <i style={{ height: recording ? height : 3 }} key={index} />)}</div>
         </section>
@@ -818,6 +860,7 @@ function TestsStep({
   stepNumber,
   encounterType,
   chartText,
+  questionnaireResults,
   existingResults,
   autonomicFile,
   hasPrevious,
@@ -828,6 +871,7 @@ function TestsStep({
   stepNumber: number;
   encounterType: EncounterType | null;
   chartText: string;
+  questionnaireResults: [string, string, string][];
   existingResults: [string, string, string][];
   autonomicFile: File | null;
   hasPrevious: boolean | null;
@@ -836,6 +880,13 @@ function TestsStep({
   onPreviousChange: (value: boolean | null) => void;
 }) {
   const pastedSections = organizeClinicalText(chartText);
+  const questionnaireRows = questionnaireResults.map(([title, value, status], index) => ({
+    id: `questionnaire-${index}`,
+    source: '환자 사전 문진' as const,
+    title,
+    value,
+    status,
+  }));
   const existingRows = existingResults.map(([title, value, status], index) => ({
     id: `existing-${index}`,
     source: '기존 기록' as const,
@@ -850,7 +901,7 @@ function TestsStep({
     value: section.lines.join('\n'),
     status: '원문 기반 정리',
   }));
-  const organizedRows = [...existingRows, ...pastedRows];
+  const organizedRows = [...questionnaireRows, ...existingRows, ...pastedRows];
   const organized = organizedRows.length > 0;
   const isFirstVisit = encounterType !== 'followup';
 
@@ -874,6 +925,7 @@ function TestsStep({
           ) : (
             <div className="organized-text-result">
               <div className="organized-result-overview">
+                <span><b>{questionnaireRows.length}</b>환자 사전 문진</span>
                 <span><b>{existingRows.length}</b>기존 저장 결과</span>
                 <span><b>{pastedRows.length}</b>이번 EMR 정리</span>
                 <span><b>{organizedRows.length}</b>전체 항목</span>
@@ -882,11 +934,11 @@ function TestsStep({
                 {organizedRows.map((row, index) => (
                   <section key={row.id}>
                     <span>{index + 1}</span>
-                    <div><header><strong>{row.title}</strong><b className={row.source === '기존 기록' ? 'existing' : 'emr'}>{row.source}</b></header><p>{row.value || '입력된 결과값 없음'}</p>{row.status && <small>판정 · {row.status}</small>}</div>
+                    <div><header><strong>{row.title}</strong><b className={row.source === '환자 사전 문진' ? 'questionnaire' : row.source === '기존 기록' ? 'existing' : 'emr'}>{row.source}</b></header><p>{row.value || '입력된 결과값 없음'}</p>{row.status && <small>판정 · {row.status}</small>}</div>
                   </section>
                 ))}
               </div>
-              <footer>기존 결과와 새 EMR 정리본을 함께 표시합니다. 붙여넣은 전체 원문은 왼쪽 입력란에 그대로 보존됩니다.</footer>
+              <footer>환자 사전 문진, 기존 승인 기록과 새 EMR 정리본을 출처별로 함께 표시합니다. 붙여넣은 전체 원문은 왼쪽 입력란에 그대로 보존됩니다.</footer>
             </div>
           )}
         </section>
@@ -939,6 +991,7 @@ function FinalStep({
   patient,
   soapValues,
   chartText,
+  questionnaireResults,
   existingResults,
   audioFile,
   autonomicFile,
@@ -955,6 +1008,7 @@ function FinalStep({
   patient: PatientRecord | null;
   soapValues: Record<string, string>;
   chartText: string;
+  questionnaireResults: [string, string, string][];
   existingResults: [string, string, string][];
   audioFile: File | null;
   autonomicFile: File | null;
@@ -970,7 +1024,7 @@ function FinalStep({
   const [approving, setApproving] = useState(false);
   const [approvalError, setApprovalError] = useState('');
   const printAfterOpeningRef = useRef(false);
-  const autonomicMetrics = [['HRV', 'hrv'], ['LF/HF', 'lfhf'], ['스트레스 지수', 'stress']];
+  const autonomicMetricDefinitions = [['HRV', 'hrv'], ['LF/HF', 'lfhf'], ['스트레스 지수', 'stress']];
   const pastedChartRows = organizeClinicalText(chartText).map((section, pastedIndex) => ({
     id: `emr-${pastedIndex}`,
     source: 'EMR 붙여넣기' as const,
@@ -987,7 +1041,15 @@ function FinalStep({
     status: status || '저장된 결과',
     pastedIndex: null,
   }));
-  const finalChartRows = [...existingChartRows, ...pastedChartRows];
+  const questionnaireChartRows = questionnaireResults.map(([label, value, status], index) => ({
+    id: `questionnaire-${index}`,
+    source: '환자 사전 문진' as const,
+    label,
+    value,
+    status,
+    pastedIndex: null,
+  }));
+  const finalChartRows = [...questionnaireChartRows, ...existingChartRows, ...pastedChartRows];
   const updateChartRow = (pastedIndex: number, value: string) => {
     const updated = pastedChartRows.map((row) => row.pastedIndex === pastedIndex ? { ...row, value } : row);
     onChartTextChange(updated.map((row) => `${row.label}:\n${row.value}`).join('\n\n'));
@@ -1000,6 +1062,18 @@ function FinalStep({
         : '검사파일 항목과 수치가 표시되며, 이전 검사 존재 여부 확인 후 비교 설명이 생성됩니다.'
     : '자율신경검사 파일을 입력하면 검사 항목, 현재 결과, 이전 결과 및 변화 설명이 표시됩니다.';
   const editableAutonomicSummary = autonomicValues.interpretation?.trim() || autonomicSummary;
+  const reportAutonomicMetrics = autonomicMetricDefinitions.map(([metric, key]) => ({
+    metric,
+    previous: autonomicValues[`${key}Previous`]?.trim() || '-',
+    current: autonomicValues[`${key}Current`]?.trim() || '-',
+    changeOrStatus: (hasPrevious === true ? autonomicValues[`${key}Change`] : autonomicValues[`${key}Status`])?.trim() || '확인 필요',
+  })).filter((row) => row.previous !== '-' || row.current !== '-' || row.changeOrStatus !== '확인 필요');
+  const reportExaminationResults: ExaminationResult[] = finalChartRows.map((row) => ({
+    source: row.source,
+    title: row.label,
+    value: row.value,
+    status: row.status,
+  }));
   const reportDate = formatPrintDate();
   const reportTitle = `${patient?.name ?? '환자'}_${patient?.id ?? '진료'}_종합진료안내서`;
   const printReport = () => printDocument('printing-patient-guide', reportTitle);
@@ -1067,24 +1141,24 @@ function FinalStep({
             {hasPrevious === true ? (
               <div className="autonomic-comparison-table final-autonomic-table">
                 <header><span>지표</span><span>이전</span><span>현재</span><span>변화</span></header>
-                {autonomicMetrics.map(([metric, key]) => <div key={key}><strong>{metric}</strong><input disabled={approved} value={autonomicValues[`${key}Previous`] ?? ''} onChange={(event) => onAutonomicChange(`${key}Previous`, event.target.value)} placeholder="이전값" /><input disabled={approved} value={autonomicValues[`${key}Current`] ?? ''} onChange={(event) => onAutonomicChange(`${key}Current`, event.target.value)} placeholder="현재값" /><input disabled={approved} value={autonomicValues[`${key}Change`] ?? ''} onChange={(event) => onAutonomicChange(`${key}Change`, event.target.value)} placeholder="변화량" /></div>)}
+                {autonomicMetricDefinitions.map(([metric, key]) => <div key={key}><strong>{metric}</strong><input disabled={approved} value={autonomicValues[`${key}Previous`] ?? ''} onChange={(event) => onAutonomicChange(`${key}Previous`, event.target.value)} placeholder="이전값" /><input disabled={approved} value={autonomicValues[`${key}Current`] ?? ''} onChange={(event) => onAutonomicChange(`${key}Current`, event.target.value)} placeholder="현재값" /><input disabled={approved} value={autonomicValues[`${key}Change`] ?? ''} onChange={(event) => onAutonomicChange(`${key}Change`, event.target.value)} placeholder="변화량" /></div>)}
               </div>
             ) : (
               <div className="autonomic-current-table final-autonomic-table">
                 <header><span>지표</span><span>현재 결과</span><span>상태</span></header>
-                {autonomicMetrics.map(([metric, key]) => <div key={key}><strong>{metric}</strong><input disabled={approved} value={autonomicValues[`${key}Current`] ?? ''} onChange={(event) => onAutonomicChange(`${key}Current`, event.target.value)} placeholder="현재값" /><input disabled={approved} value={autonomicValues[`${key}Status`] ?? ''} onChange={(event) => onAutonomicChange(`${key}Status`, event.target.value)} placeholder="정상·경계·높음" /></div>)}
+                {autonomicMetricDefinitions.map(([metric, key]) => <div key={key}><strong>{metric}</strong><input disabled={approved} value={autonomicValues[`${key}Current`] ?? ''} onChange={(event) => onAutonomicChange(`${key}Current`, event.target.value)} placeholder="현재값" /><input disabled={approved} value={autonomicValues[`${key}Status`] ?? ''} onChange={(event) => onAutonomicChange(`${key}Status`, event.target.value)} placeholder="정상·경계·높음" /></div>)}
               </div>
             )}
             <label className="final-autonomic-interpretation"><strong>검사 해석</strong><AutoResizeTextarea disabled={approved} value={autonomicValues.interpretation ?? ''} onChange={(event) => onAutonomicChange('interpretation', event.target.value)} placeholder={autonomicSummary} /></label>
           </section>
         </div>
         <section className="past-test-card final-test-editor">
-          <header><div><p className="eyebrow">EXAMINATION</p><h2>정리된 검사 결과</h2></div><b>기존 {existingChartRows.length} · EMR {pastedChartRows.length} · 전체 {finalChartRows.length}</b></header>
+          <header><div><p className="eyebrow">EXAMINATION</p><h2>정리된 검사 결과</h2></div><b>문진 {questionnaireChartRows.length} · 기존 {existingChartRows.length} · EMR {pastedChartRows.length} · 전체 {finalChartRows.length}</b></header>
           {finalChartRows.length ? (
             <div className="final-test-table-wrap">
               <table className="final-test-table">
                 <thead><tr><th>출처</th><th>항목</th><th>정리된 내용</th><th>상태</th></tr></thead>
-                <tbody>{finalChartRows.map((row) => <tr key={row.id}><td><b className={`result-source-badge ${row.source === '기존 기록' ? 'existing' : 'emr'}`}>{row.source}</b></td><th scope="row">{row.label}</th><td><AutoResizeTextarea disabled={approved || row.pastedIndex === null} value={row.value} onChange={(event) => row.pastedIndex !== null && updateChartRow(row.pastedIndex, event.target.value)} aria-label={`${row.label} 내용 ${row.pastedIndex === null ? '확인' : '수정'}`} /></td><td><span>{approved ? '승인됨' : row.pastedIndex === null ? row.status : '수정 가능'}</span></td></tr>)}</tbody>
+                <tbody>{finalChartRows.map((row) => <tr key={row.id}><td><b className={`result-source-badge ${row.source === '환자 사전 문진' ? 'questionnaire' : row.source === '기존 기록' ? 'existing' : 'emr'}`}>{row.source}</b></td><th scope="row">{row.label}</th><td><AutoResizeTextarea disabled={approved || row.pastedIndex === null} value={row.value} onChange={(event) => row.pastedIndex !== null && updateChartRow(row.pastedIndex, event.target.value)} aria-label={`${row.label} 내용 ${row.pastedIndex === null ? '확인' : '수정'}`} /></td><td><span>{approved ? '승인됨' : row.pastedIndex === null ? row.status : '수정 가능'}</span></td></tr>)}</tbody>
               </table>
             </div>
           ) : <div className="final-test-empty"><strong>정리된 검사 결과가 없습니다</strong><span>검사자료 보완 단계에서 내용을 입력하면 항목별 표로 표시됩니다.</span></div>}
@@ -1097,8 +1171,10 @@ function FinalStep({
         visitDate={reportDate}
         clinician="담당의사"
         soapValues={soapValues}
+        examinationResults={reportExaminationResults}
         autonomicSummary={editableAutonomicSummary}
         autonomicFileName={autonomicFile?.name}
+        autonomicMetrics={reportAutonomicMetrics}
         onClose={closeReport}
         onPrint={printReport}
       />}
@@ -1128,12 +1204,18 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
   const [recording, setRecording] = useState(false);
   const [recordingStarted, setRecordingStarted] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [microphoneState, setMicrophoneState] = useState<MicrophoneState>('checking');
+  const [microphoneLabel, setMicrophoneLabel] = useState('');
+  const [microphoneError, setMicrophoneError] = useState('');
   const [recordingPosition, setRecordingPosition] = useState<{ x: number; y: number } | null>(null);
   const [draftPrompt, setDraftPrompt] = useState<EncounterDraft | null>(() => typeof window === 'undefined' ? null : readEncounterDraft());
   const [deferredDraft, setDeferredDraft] = useState<EncounterDraft | null>(null);
   const [deferredDraftPosition, setDeferredDraftPosition] = useState<{ x: number; y: number } | null>(null);
   const [draftSaveState, setDraftSaveState] = useState<'idle' | 'saved' | 'error'>('idle');
   const recordingWidgetRef = useRef<HTMLDivElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const microphoneStreamRef = useRef<MediaStream | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
   const deferredDraftWidgetRef = useRef<HTMLDivElement>(null);
   const questionnaireSyncingRef = useRef(false);
   const [questionnaires, setQuestionnaires] = useState<Questionnaire[]>([]);
@@ -1224,6 +1306,8 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
   const openQuestionnaireLinks = () => { setActiveView('links'); resetScroll(); };
   const openPatientDirectory = () => { setActiveView('patients'); resetScroll(); };
   const startQuestionnaireEncounter = (patient: PatientRecord) => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop();
+    else stopMicrophoneStream();
     setSelectedPatient(patient);
     setEncounterType('followup');
     setApproved(false);
@@ -1259,6 +1343,58 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
     const timer = window.setInterval(() => setRecordingSeconds((seconds) => seconds + 1), 1000);
     return () => window.clearInterval(timer);
   }, [recording]);
+
+  const stopMicrophoneStream = useCallback(() => {
+    microphoneStreamRef.current?.getTracks().forEach((track) => track.stop());
+    microphoneStreamRef.current = null;
+  }, []);
+
+  const checkMicrophone = useCallback(async () => {
+    setMicrophoneError('');
+    if (!window.isSecureContext) {
+      setMicrophoneState('unsupported');
+      setMicrophoneLabel('데스크톱에서 http://localhost:5173 주소로 접속하거나 HTTPS를 사용해 주세요.');
+      return;
+    }
+    if (!navigator.mediaDevices?.enumerateDevices || typeof MediaRecorder === 'undefined') {
+      setMicrophoneState('unsupported');
+      setMicrophoneLabel('이 브라우저는 마이크 녹음을 지원하지 않습니다. 최신 Chrome 또는 Edge를 사용해 주세요.');
+      return;
+    }
+    setMicrophoneState('checking');
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const microphones = devices.filter((device) => device.kind === 'audioinput');
+      if (!microphones.length) {
+        setMicrophoneState('unavailable');
+        setMicrophoneLabel('운영체제에서 인식된 마이크가 없습니다. 연결 상태와 Windows 소리 설정을 확인해 주세요.');
+        return;
+      }
+      setMicrophoneState('available');
+      setMicrophoneLabel(microphones.find((device) => device.label)?.label || `오디오 입력 장치 ${microphones.length}개 감지 · 녹음 시작 시 권한 확인`);
+    } catch (reason) {
+      setMicrophoneState('unavailable');
+      setMicrophoneError(reason instanceof Error ? reason.message : '마이크 장치를 확인하지 못했습니다.');
+    }
+  }, []);
+
+  useEffect(() => {
+    const initialCheck = window.setTimeout(() => void checkMicrophone(), 0);
+    const devices = navigator.mediaDevices;
+    if (!devices?.addEventListener) return () => window.clearTimeout(initialCheck);
+    const handleDeviceChange = () => void checkMicrophone();
+    devices.addEventListener('devicechange', handleDeviceChange);
+    return () => {
+      window.clearTimeout(initialCheck);
+      devices.removeEventListener('devicechange', handleDeviceChange);
+    };
+  }, [checkMicrophone]);
+
+  useEffect(() => () => {
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== 'inactive') recorder.stop();
+    stopMicrophoneStream();
+  }, [stopMicrophoneStream]);
 
   useEffect(() => {
     if (!recordingStarted) return;
@@ -1300,9 +1436,67 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
     return () => window.removeEventListener('resize', keepDeferredDraftInView);
   }, [deferredDraft]);
 
-  const toggleRecording = () => {
-    setRecordingStarted(true);
-    setRecording((current) => !current);
+  const toggleRecording = async () => {
+    const activeRecorder = mediaRecorderRef.current;
+    if (activeRecorder && activeRecorder.state !== 'inactive') {
+      activeRecorder.stop();
+      setRecording(false);
+      return;
+    }
+    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      await checkMicrophone();
+      return;
+    }
+    setMicrophoneState('requesting');
+    setMicrophoneError('');
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+      microphoneStreamRef.current = stream;
+      const supportedType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus']
+        .find((type) => MediaRecorder.isTypeSupported(type));
+      const recorder = supportedType ? new MediaRecorder(stream, { mimeType: supportedType }) : new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+      recordedChunksRef.current = [];
+      recorder.addEventListener('dataavailable', (event) => {
+        if (event.data.size > 0) recordedChunksRef.current.push(event.data);
+      });
+      recorder.addEventListener('stop', () => {
+        const mimeType = recorder.mimeType || supportedType || 'audio/webm';
+        const extension = mimeType.includes('ogg') ? 'ogg' : 'webm';
+        const blob = new Blob(recordedChunksRef.current, { type: mimeType });
+        if (blob.size > 0) {
+          const timestamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '_').slice(0, 13);
+          setAudioFile(new File([blob], `진료녹음_${timestamp}.${extension}`, { type: mimeType, lastModified: Date.now() }));
+        }
+        recordedChunksRef.current = [];
+        mediaRecorderRef.current = null;
+        setRecording(false);
+        setMicrophoneState('available');
+        stopMicrophoneStream();
+      });
+      recorder.addEventListener('error', () => {
+        setMicrophoneState('unavailable');
+        setMicrophoneError('녹음 중 오류가 발생했습니다. 마이크 연결 상태를 확인해 주세요.');
+        setRecording(false);
+        stopMicrophoneStream();
+      });
+      recorder.start(1000);
+      setRecordingSeconds(0);
+      setRecordingStarted(true);
+      setRecording(true);
+      setMicrophoneState('recording');
+      const activeTrack = stream.getAudioTracks()[0];
+      setMicrophoneLabel(activeTrack?.label || '기본 마이크');
+    } catch (reason) {
+      stopMicrophoneStream();
+      const permissionDenied = reason instanceof DOMException && (reason.name === 'NotAllowedError' || reason.name === 'SecurityError');
+      setMicrophoneState(permissionDenied ? 'denied' : 'unavailable');
+      setMicrophoneError(permissionDenied
+        ? '브라우저에서 마이크 권한이 차단되었습니다. 주소창의 사이트 권한에서 마이크를 허용해 주세요.'
+        : reason instanceof Error ? reason.message : '마이크를 시작하지 못했습니다.');
+    }
   };
   const startRecordingDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
     if ((event.target as HTMLElement).closest('button')) return;
@@ -1384,6 +1578,8 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
     };
     try {
       window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop();
+      else stopMicrophoneStream();
       setRecording(false);
       setDraftPrompt(null);
       setDeferredDraft(draft);
@@ -1393,6 +1589,8 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
     }
   };
   const restoreEncounterDraft = (draft: EncounterDraft) => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop();
+    else stopMicrophoneStream();
     const patient = draft.patientId ? patientRecords.find((record) => record.id === draft.patientId) ?? null : null;
     const restoredSteps = draft.encounterType === 'followup' ? followupVisitSteps : firstVisitSteps;
     const restoredStep = restoredSteps.some((step) => step.id === draft.activeStep) ? draft.activeStep : restoredSteps[0].id;
@@ -1473,6 +1671,8 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
     await loadQuestionnaires();
   };
   const finishEncounterToHome = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop();
+    else stopMicrophoneStream();
     setActiveView('home');
     setActiveStep('emr');
     setEncounterStarted(false);
@@ -1531,8 +1731,8 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
               >
                 <span className="recording-drag-handle" aria-hidden="true">⠿</span>
                 <i><span /></i>
-                <div><strong>{recording ? '녹음 중' : '녹음 일시정지'}</strong><small>{formatRecordingTime(recordingSeconds)} · {patientName}</small></div>
-                <button onClick={toggleRecording} aria-label={recording ? '녹음 일시정지' : '녹음 다시 시작'}>{recording ? '중지' : '다시 시작'}</button>
+                <div><strong>{recording ? '녹음 중' : '녹음파일 생성 완료'}</strong><small>{formatRecordingTime(recordingSeconds)} · {patientName}</small></div>
+                <button onClick={toggleRecording} aria-label={recording ? '녹음 중지 및 저장' : '새 녹음 시작'}>{recording ? '중지·저장' : '새 녹음'}</button>
               </div>
             )}
           </div>
@@ -1556,10 +1756,10 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
 
             <div className="flow-content">
               {activeStep === 'emr' && <EmrStep stepNumber={currentIndex + 1} encounterType={encounterType} captured={emrCaptured} patient={selectedPatient} onCapture={() => setEmrCaptured(true)} />}
-              {activeStep === 'tests' && <TestsStep stepNumber={currentIndex + 1} encounterType={encounterType} chartText={chartText} existingResults={selectedPatient?.tests ?? []} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} onChartTextChange={setChartText} onAutonomicFileChange={(file) => { setAutonomicFile(file); setHasPreviousAutonomic(file ? Boolean(selectedPatient) : selectedPatient ? true : null); }} onPreviousChange={setHasPreviousAutonomic} />}
-              {activeStep === 'audio' && <AudioStep stepNumber={currentIndex + 1} encounterType={encounterType} selectedFile={audioFile} recording={recording} recordingStarted={recordingStarted} recordingSeconds={recordingSeconds} onSelectedFileChange={setAudioFile} onToggleRecording={toggleRecording} />}
+              {activeStep === 'tests' && <TestsStep stepNumber={currentIndex + 1} encounterType={encounterType} chartText={chartText} questionnaireResults={selectedPatient?.questionnaireResults ?? []} existingResults={selectedPatient?.tests ?? []} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} onChartTextChange={setChartText} onAutonomicFileChange={(file) => { setAutonomicFile(file); setHasPreviousAutonomic(file ? Boolean(selectedPatient) : selectedPatient ? true : null); }} onPreviousChange={setHasPreviousAutonomic} />}
+              {activeStep === 'audio' && <AudioStep stepNumber={currentIndex + 1} encounterType={encounterType} selectedFile={audioFile} recording={recording} recordingStarted={recordingStarted} recordingSeconds={recordingSeconds} microphoneState={microphoneState} microphoneLabel={microphoneLabel} microphoneError={microphoneError} onSelectedFileChange={setAudioFile} onToggleRecording={toggleRecording} onCheckMicrophone={checkMicrophone} />}
               {activeStep === 'soap' && <SoapStep stepNumber={currentIndex + 1} values={soapValues} onChange={(letter, value) => setSoapValues({ ...soapValues, [letter]: value })} />}
-              {activeStep === 'final' && <FinalStep stepNumber={currentIndex + 1} approved={approved} patient={selectedPatient} soapValues={soapValues} chartText={chartText} existingResults={selectedPatient?.tests ?? []} audioFile={audioFile} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} autonomicValues={autonomicValues} onSoapChange={(letter, value) => setSoapValues((current) => ({ ...current, [letter]: value }))} onChartTextChange={setChartText} onAutonomicChange={(key, value) => setAutonomicValues((current) => ({ ...current, [key]: value }))} onApprove={approveEncounter} onFinishWithoutPdf={finishEncounterToHome} />}
+              {activeStep === 'final' && <FinalStep stepNumber={currentIndex + 1} approved={approved} patient={selectedPatient} soapValues={soapValues} chartText={chartText} questionnaireResults={selectedPatient?.questionnaireResults ?? []} existingResults={selectedPatient?.tests ?? []} audioFile={audioFile} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} autonomicValues={autonomicValues} onSoapChange={(letter, value) => setSoapValues((current) => ({ ...current, [letter]: value }))} onChartTextChange={setChartText} onAutonomicChange={(key, value) => setAutonomicValues((current) => ({ ...current, [key]: value }))} onApprove={approveEncounter} onFinishWithoutPdf={finishEncounterToHome} />}
             </div>
 
             <footer className="flow-footer-actions">

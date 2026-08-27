@@ -25,14 +25,16 @@ import java.util.Arrays;
 public class SecurityConfig {
 
     private final KakaoOAuth2UserService kakaoOAuth2UserService;
+    private final LoginRedirectService loginRedirectService;
 
-    public SecurityConfig(KakaoOAuth2UserService kakaoOAuth2UserService) {
+    public SecurityConfig(KakaoOAuth2UserService kakaoOAuth2UserService,
+                          LoginRedirectService loginRedirectService) {
         this.kakaoOAuth2UserService = kakaoOAuth2UserService;
+        this.loginRedirectService = loginRedirectService;
     }
 
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http,
-                                            @Value("${app.frontend-url}") String frontendUrl,
                                             @Value("${server.servlet.session.cookie.same-site}") String sameSite,
                                             @Value("${server.servlet.session.cookie.secure}") boolean secureCookie)
             throws Exception {
@@ -57,7 +59,8 @@ public class SecurityConfig {
                                 apiEntryPoint, PathPatternRequestMatcher.pathPattern("/api/**")))
                 .oauth2Login(oauth -> oauth
                         .userInfoEndpoint(userInfo -> userInfo.userService(kakaoOAuth2UserService))
-                        .defaultSuccessUrl(frontendUrl, true))
+                        .successHandler((request, response, authentication) ->
+                                response.sendRedirect(loginRedirectService.consume(request))))
                 .logout(logout -> logout
                         .logoutUrl("/api/auth/logout")
                         .logoutSuccessHandler((request, response, authentication) -> response.setStatus(204))

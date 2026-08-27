@@ -646,6 +646,7 @@ button { cursor: pointer; }
 .stored-examination-card .stored-examination-list article { min-height: 0; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: start; padding: 12px 15px; }
 .stored-examination-list article > span { width: 26px; height: 26px; display: grid; place-items: center; margin: 0; border-radius: 8px; background: #e8f4f2; color: #2f7c73; font-size: 9px; font-weight: 800; }
 .stored-examination-list article > div { min-width: 0; }
+.stored-examination-list article > div > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .stored-examination-list article p { margin: 5px 0 0; color: #60767c; font-size: 12px; line-height: 1.6; white-space: pre-wrap; }
 .stored-examination-list article > b { padding: 5px 7px; border-radius: 6px; background: #eaf5f2; color: #34776f; font-size: 9px; white-space: nowrap; }
 .autonomic-record-card > header { min-height: 65px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-bottom: 1px solid #e4eaea; }
@@ -801,12 +802,23 @@ button { cursor: pointer; }
 .audio-input-panel > header > span { padding: 5px 7px; border-radius: 5px; background: #eef4f3; color: #657d81; font-size: 9px; }
 .audio-input-badges { display: flex; align-items: center; gap: 6px; }
 .audio-input-badges span { padding: 7px 9px; border: 1px solid #d5e3e1; border-radius: 7px; background: white; color: #47766f; font-size: 10px; font-weight: 750; }
+.microphone-check { min-height: 58px; display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 10px; padding: 9px 14px; border-bottom: 1px solid #e5eceb; background: #f7faf9; }
+.microphone-check > i { width: 27px; height: 27px; display: grid; place-items: center; border-radius: 50%; background: #dfeeea; }
+.microphone-check > i::after { content: ''; width: 8px; height: 13px; border: 2px solid #2d8176; border-radius: 7px; }
+.microphone-check strong, .microphone-check small { display: block; }
+.microphone-check strong { color: #3b5d62; font-size: 10px; }
+.microphone-check small { margin-top: 3px; color: #7d8f93; font-size: 8px; line-height: 1.45; }
+.microphone-check > button { padding: 6px 8px; border: 1px solid #d4e2df; border-radius: 6px; background: white; color: #42766f; font-size: 8px; font-weight: 750; }
+.microphone-check.denied, .microphone-check.unavailable, .microphone-check.unsupported { background: #fff7f4; }
+.microphone-check.denied > i, .microphone-check.unavailable > i, .microphone-check.unsupported > i { background: #f5dfda; }
+.microphone-check.denied > i::after, .microphone-check.unavailable > i::after, .microphone-check.unsupported > i::after { border-color: #b85e51; }
 .live-recorder { min-height: 180px; display: grid; grid-template-columns: 66px 1fr auto; align-items: center; gap: 16px; padding: 25px; }
 .record-orb { width: 64px; height: 64px; display: grid; place-items: center; border: 1px solid #ecd4d4; border-radius: 50%; background: #fff5f4; }
 .record-orb i { width: 22px; height: 22px; border-radius: 50%; background: #d96464; }
 .record-orb.active { box-shadow: 0 0 0 9px #fff0ef; animation: pulse 1.6s infinite; }
 .live-recorder strong, .live-recorder small { display: block; }.live-recorder strong { font: 700 23px monospace; letter-spacing: .06em; }.live-recorder small { margin-top: 7px; color: #89969a; font-size: 8px; }
 .live-recorder > button { padding: 9px 12px; border: 1px solid #e3c5c5; border-radius: 7px; background: white; color: #bf5353; font-size: 8px; font-weight: 700; }
+.live-recorder > button:disabled, .microphone-check > button:disabled { opacity: .5; cursor: not-allowed; }
 .audio-to-chart-route { min-height: 52px; display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 13px; padding: 9px 14px; border: 1px solid #d8e7e4; border-radius: 10px; background: #f2f8f6; color: #52736e; }
 .audio-to-chart-route span { display: flex; align-items: center; gap: 7px; font-size: 8px; font-weight: 700; }.audio-to-chart-route span i { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; background: #25877b; color: white; font-size: 7px; font-style: normal; }.audio-to-chart-route > b { color: #84a69f; font-size: 10px; }
 .audio-wave { flex: 1; min-height: 155px; display: flex; align-items: center; justify-content: space-between; gap: 5px; padding: 0 30px; border-top: 1px solid #e9eeee; background: #f8fbfa; }
@@ -959,6 +971,20 @@ button { cursor: pointer; }
 .report-result-grid ul { display: grid; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
 .report-result-grid li { display: grid; grid-template-columns: 22px 1fr; align-items: start; gap: 8px; color: #5f747a; font-size: 11px; line-height: 1.5; }
 .report-result-grid li i { width: 21px; height: 21px; display: grid; place-items: center; border-radius: 6px; background: #edf4f2; color: #397d74; font-size: 9px; font-style: normal; }
+.report-examination-results { margin-top: 10px; padding: 16px; border: 1px solid #dfe6e5; border-radius: 10px; background: white; }
+.report-examination-results > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid #e6ebea; }
+.report-examination-results header span, .report-examination-results header strong { display: block; }
+.report-examination-results header span { color: #168477; font-size: 9px; font-weight: 800; letter-spacing: .05em; }
+.report-examination-results header strong { margin-top: 4px; color: #344e56; font-size: 13px; }
+.report-examination-results header > b { color: #849297; font-size: 10px; }
+.report-examination-results table, .report-autonomic-table { width: 100%; margin-top: 12px; border-collapse: collapse; table-layout: fixed; }
+.report-examination-results th, .report-examination-results td, .report-autonomic-table th, .report-autonomic-table td { padding: 8px; border: 1px solid #e1e8e7; color: #5c7177; font-size: 9px; line-height: 1.5; text-align: left; vertical-align: top; white-space: pre-wrap; overflow-wrap: anywhere; }
+.report-examination-results thead th, .report-autonomic-table thead th { background: #f0f6f4; color: #3c645f; font-weight: 800; }
+.report-examination-results th:first-child { width: 105px; }
+.report-examination-results th:nth-child(2) { width: 140px; }
+.report-examination-results th:last-child { width: 115px; }
+.report-autonomic-table th { width: 25%; }
+.report-examination-results > p { margin: 13px 0 0; color: #819095; font-size: 11px; }
 .report-result-grid > section > p { margin: 13px 0 0; color: #667b80; font-size: 12px; line-height: 1.65; }
 .report-result-grid > section > small { display: block; margin-top: 11px; color: #8c999d; font-size: 10px; word-break: break-all; }
 .report-prescription { display: grid; grid-template-columns: 190px 1fr; align-items: center; gap: 18px; margin-top: 10px; padding: 17px; border: 1px solid #eadfce; border-radius: 10px; background: #fffaf2; }
@@ -1042,7 +1068,7 @@ button { cursor: pointer; }
 .organized-text-intro strong, .organized-text-intro small { display: block; }
 .organized-text-intro strong { color: #316e66; font-size: 11px; }
 .organized-text-intro small { margin-top: 4px; color: #6b8580; font-size: 9px; }
-.organized-result-overview { display: grid; grid-template-columns: repeat(3, 1fr); border-bottom: 1px solid #dce7e5; background: #f5faf8; }
+.organized-result-overview { display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid #dce7e5; background: #f5faf8; }
 .organized-result-overview > span { display: flex; align-items: center; justify-content: center; gap: 5px; min-height: 44px; border-right: 1px solid #e0e9e7; color: #71858a; font-size: 10px; }
 .organized-result-overview > span:last-child { border-right: 0; }
 .organized-result-overview b { color: #26776d; font-size: 15px; }
@@ -1057,6 +1083,7 @@ button { cursor: pointer; }
 .organized-text-sections header > b, .result-source-badge { flex: 0 0 auto; padding: 4px 6px; border-radius: 5px; font-size: 8px; font-weight: 800; white-space: nowrap; }
 .organized-text-sections header > b.existing, .result-source-badge.existing { background: #e9f1f7; color: #4e6d86; }
 .organized-text-sections header > b.emr, .result-source-badge.emr { background: #e5f3ef; color: #28766d; }
+.organized-text-sections header > b.questionnaire, .result-source-badge.questionnaire { background: #fff0cf; color: #91681e; }
 .organized-text-result > footer { padding: 11px 16px; background: #f8faf9; color: #849398; font-size: 9px; }
 
 .autonomic-card > header { min-height: 78px; display: flex; align-items: center; justify-content: space-between; padding: 0 19px; border-bottom: 1px solid #e5ebeb; }
@@ -1395,6 +1422,8 @@ button { cursor: pointer; }
   body.printing-patient-guide .report-prescription { grid-template-columns: 190px minmax(0, 1fr) !important; }
   body.printing-patient-guide .report-document-footer { grid-template-columns: minmax(0, 1fr) auto !important; }
   body.printing-patient-guide .report-overview, body.printing-patient-guide .report-clinical-grid > section, body.printing-patient-guide .report-result-grid > section, body.printing-patient-guide .report-prescription, body.printing-patient-guide .report-document-footer { break-inside: avoid-page; page-break-inside: avoid; }
+  body.printing-patient-guide .report-examination-results { break-before: auto; break-inside: auto; page-break-inside: auto; }
+  body.printing-patient-guide .report-examination-results > header { break-after: avoid-page; page-break-after: avoid; }
 
   body.printing-patient-record .patient-directory { width: 100% !important; min-height: 0 !important; padding: 0 !important; background: white !important; }
   body.printing-patient-record .directory-heading, body.printing-patient-record .patient-record-list { display: none !important; }
@@ -1461,6 +1490,8 @@ button { cursor: pointer; }
   body.printing-patient-record .autonomic-file-history-detail { padding: 8px 10px; }
   body.printing-patient-record .autonomic-file-history-table > header, body.printing-patient-record .autonomic-file-history-table > div { min-height: 25px; break-inside: avoid-page; }
   body.printing-patient-record .past-test-card > div article { min-height: 0; grid-template-columns: 60px minmax(0, 1fr) !important; padding: 10px; }
+  body.printing-patient-record .stored-examination-list { max-height: none !important; overflow: visible !important; }
+  body.printing-patient-record .stored-examination-list article { grid-template-columns: 28px minmax(0, 1fr) auto !important; break-inside: avoid-page; page-break-inside: avoid; }
   body.printing-patient-record .past-test-card article button, body.printing-patient-record .past-test-card footer { display: none !important; }
   body.printing-patient-record .patient-record-print-footer { display: flex !important; align-items: center; justify-content: space-between; gap: 20px; margin-top: 16px; padding-top: 9px; border-top: 1px solid #cdd8d7; color: #758486; font-size: 10px; break-inside: avoid-page; }
   body.printing-patient-record .patient-record-print-footer p { margin: 0; }
