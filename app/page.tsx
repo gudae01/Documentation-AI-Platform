@@ -219,7 +219,7 @@ function questionnaireToPatientRecord(questionnaire: Questionnaire, clinicalReco
     current || '-',
     change || '확인 필요',
   ] as [string, string, string, string]) : undefined;
-  const clinicalDetails = [
+  const rawClinicalDetails = [
     ['작성자', joinPayload(payload, ['respondent', 'relationship'])],
     ['파킨슨병 발병·진단', joinPayload(payload, ['pdOnset', 'pdDiagnosis', 'pdDiagnosisHospital', 'initialSymptoms', 'onsetSide'])],
     ['현재 상태', joinPayload(payload, ['currentStage', 'dbsHistory', 'rehabilitationHistory'])],
@@ -229,6 +229,10 @@ function questionnaireToPatientRecord(questionnaire: Questionnaire, clinicalReco
     ['과거력·가족력', joinPayload(payload, ['pastHistory', 'familyHistory'])],
     ['생활·자율 증상', joinPayload(payload, ['diet', 'digestion', 'bowel', 'urine', 'sleep', 'bodyFacts', 'brainFacts'])],
   ].filter((detail) => detail[1]).map(([label, value]) => ({ label, value }));
+  const reviewedClinicalDetails = questionnaireResults.map(([label, value]) => ({ label, value }));
+  const clinicalDetails = reviewedClinicalDetails.length
+    ? reviewedClinicalDetails
+    : [{ label: '진료·입원 예정일', value: questionnaire.plannedDate }, ...rawClinicalDetails];
 
   return {
     questionnaireId: questionnaire.id,
@@ -251,10 +255,7 @@ function questionnaireToPatientRecord(questionnaire: Questionnaire, clinicalReco
       assessment: latestClinicalRecord?.soap.assessment ?? '',
       plan: latestClinicalRecord?.soap.plan ?? '',
     },
-    clinicalDetails: [
-      { label: '진료·입원 예정일', value: questionnaire.plannedDate },
-      ...clinicalDetails,
-    ],
+    clinicalDetails,
     hasApprovedClinicalRecord: Boolean(currentClinicalRecord),
     approvedExaminationResults,
     approvedAutonomicFileName: currentClinicalRecord?.autonomicFileName ?? undefined,
@@ -636,7 +637,7 @@ function PatientDirectory({ records, loading, error, onReload, onReview, onStart
   const [reviewingId, setReviewingId] = useState('');
   const [reviewActionError, setReviewActionError] = useState('');
   const [editingQuestionnaireId, setEditingQuestionnaireId] = useState('');
-  const [questionnaireDraft, setQuestionnaireDraft] = useState('');
+  const [questionnaireDraftFields, setQuestionnaireDraftFields] = useState<{ label: string; value: string }[]>([]);
   const [showPatientGuide, setShowPatientGuide] = useState(false);
   const normalizedQuery = query.trim().toLowerCase();
   const filteredPatients = records.filter((patient) => [patient.name, patient.id, patient.chiefComplaint, patient.department].some((value) => value.toLowerCase().includes(normalizedQuery)));
@@ -695,27 +696,35 @@ function PatientDirectory({ records, loading, error, onReload, onReview, onStart
   const printPatientGuide = () => printDocument('printing-patient-guide', printTitle);
   const startQuestionnaireEdit = () => {
     if (!selectedPatient) return;
-    setQuestionnaireDraft(selectedPatient.questionnaireChart);
+    setQuestionnaireDraftFields(selectedPatient.clinicalDetails.map((detail) => ({ ...detail })));
     setEditingQuestionnaireId(selectedPatient.questionnaireId);
     setReviewActionError('');
+    window.requestAnimationFrame(() => document.getElementById(`current-record-${selectedPatient.lastVisit.replace(/\./g, '-')}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   };
   const cancelQuestionnaireEdit = () => {
     setEditingQuestionnaireId('');
-    setQuestionnaireDraft('');
+    setQuestionnaireDraftFields([]);
     setReviewActionError('');
+  };
+  const updateQuestionnaireDraftField = (index: number, value: string) => {
+    setQuestionnaireDraftFields((current) => current.map((field, fieldIndex) => fieldIndex === index ? { ...field, value } : field));
   };
   const saveQuestionnaireReview = async () => {
     if (!selectedPatient) return;
-    if (!questionnaireDraft.trim()) {
-      setReviewActionError('의료진 확인 내용을 입력해 주세요.');
+    const filledFields = questionnaireDraftFields.filter((field) => field.value.trim());
+    if (!filledFields.length) {
+      setReviewActionError('문진 항목을 한 개 이상 입력해 주세요.');
       return;
     }
+    const chartHeader = selectedPatient.questionnaireChart.split(/\r?\n/).find((line) => /^\[사전 문진\]/.test(line.trim()))
+      ?? '[사전 문진] 환자 설명 — 의료진 확인 필요';
+    const questionnaireChart = [chartHeader, ...filledFields.map((field) => `${field.label}: ${field.value.trim().replace(/\s*\r?\n\s*/g, ' / ')}`)].join('\n');
     setReviewingId(selectedPatient.questionnaireId);
     setReviewActionError('');
     try {
-      await onReview(selectedPatient.questionnaireId, questionnaireDraft, selectedPatient.questionnaireVersion);
+      await onReview(selectedPatient.questionnaireId, questionnaireChart, selectedPatient.questionnaireVersion);
       setEditingQuestionnaireId('');
-      setQuestionnaireDraft('');
+      setQuestionnaireDraftFields([]);
     } catch (reason) {
       setReviewActionError(reason instanceof Error ? reason.message : '문진 확인 상태를 저장하지 못했습니다.');
     } finally {
@@ -752,19 +761,12 @@ function PatientDirectory({ records, loading, error, onReload, onReview, onStart
               <div className="record-patient-avatar">{selectedPatient.name.slice(-1)}</div>
               <div><p><strong>{selectedPatient.name}</strong><span>{selectedPatient.gender} · 생년월일 {selectedPatient.birthDate}</span></p><small>{selectedPatient.id} · {selectedPatient.department} · 제출 문진</small></div>
               <div className="record-detail-actions">
-                <button className="record-start-encounter-button" onClick={() => onStartEncounter(selectedPatient)}>문진 기반 진료 시작 <b>→</b></button>
-                <button className="record-confirm-button" onClick={startQuestionnaireEdit} disabled={reviewingId === selectedPatient.questionnaireId}>{selectedPatient.questionnaireStatus === 'REVIEWED' ? '문진 다시 수정' : '문진 확인·수정'}</button>
-                <button className="record-pdf-button" onClick={() => setShowPatientGuide(true)} disabled={!hasApprovedClinicalRecord}>{hasApprovedClinicalRecord ? '최종 승인 PDF' : '최종 승인 후 PDF'}</button>
+                <button className="record-start-encounter-button" onClick={() => onStartEncounter(selectedPatient)}><span className="full-action-label">문진 기반 진료 시작</span><span className="compact-action-label">진료 시작</span><b>→</b></button>
+                <button className="record-confirm-button" onClick={startQuestionnaireEdit} disabled={reviewingId === selectedPatient.questionnaireId}><span className="full-action-label">{selectedPatient.questionnaireStatus === 'REVIEWED' ? '문진 다시 수정' : '문진 확인·수정'}</span><span className="compact-action-label">{selectedPatient.questionnaireStatus === 'REVIEWED' ? '문진 수정' : '문진 확인'}</span></button>
+                <button className="record-pdf-button" onClick={() => setShowPatientGuide(true)} disabled={!hasApprovedClinicalRecord}><span className="full-action-label">{hasApprovedClinicalRecord ? '최종 승인 PDF' : '최종 승인 후 PDF'}</span><span className="compact-action-label">PDF</span></button>
               </div>
             </header>
             {reviewActionError && <div className="record-action-error">{reviewActionError}</div>}
-            {editingQuestionnaireId === selectedPatient.questionnaireId && (
-              <section className="questionnaire-review-editor" aria-label="의료진 문진 확인 내용 수정">
-                <header><div><p className="eyebrow">CLINICIAN REVIEW NOTE</p><h2>{selectedPatient.questionnaireStatus === 'REVIEWED' ? '문진 확인 내용 다시 수정' : '문진 확인 및 내용 정리'}</h2><span>환자 제출 원문은 그대로 보존되며, 의료진 확인본만 수정됩니다.</span></div><b>{selectedPatient.questionnaireStatus === 'REVIEWED' ? '재수정 가능' : '확인 전'}</b></header>
-                <label><span>의료진 확인 내용</span><AutoResizeTextarea value={questionnaireDraft} onChange={(event) => setQuestionnaireDraft(event.target.value)} aria-label="의료진 문진 확인 내용" /></label>
-                <footer><span>저장할 때 최신 버전을 확인하여 다른 의료진의 수정 내용을 보호합니다.</span><div><button className="questionnaire-edit-cancel" onClick={cancelQuestionnaireEdit}>취소</button><button className="questionnaire-edit-save" onClick={() => void saveQuestionnaireReview()} disabled={reviewingId === selectedPatient.questionnaireId}>{reviewingId === selectedPatient.questionnaireId ? '저장 중…' : selectedPatient.questionnaireStatus === 'REVIEWED' ? '수정 내용 저장' : '확인 완료 저장'}</button></div></footer>
-              </section>
-            )}
             <section className={`questionnaire-origin-banner ${selectedPatient.questionnaireStatus === 'REVIEWED' ? 'reviewed' : 'pending'}`}>
               <i>환자</i>
               <div><strong>환자 또는 보호자가 직접 작성한 정보입니다</strong><p>의료진의 판단·진단·치료계획이 아니며, 진료기록과 분리하여 원문 그대로 보존합니다.</p></div>
@@ -782,14 +784,14 @@ function PatientDirectory({ records, loading, error, onReload, onReview, onStart
             </section>
             <section className="record-detailed-card" id={`current-record-${selectedPatient.lastVisit.replace(/\./g, '-')}`}>
               <header>
-                <div><p className="eyebrow">QUESTIONNAIRE DETAIL</p><h2>사전 문진 상세 기록</h2><span>환자가 제출한 항목을 원문 기준으로 표시합니다.</span></div>
-                <b>{selectedPatient.questionnaireStatus === 'REVIEWED' ? '의료진 검토 완료' : '의료진 미검토'}</b>
+                <div><p className="eyebrow">QUESTIONNAIRE DETAIL</p><h2>사전 문진 상세 기록</h2><span>{editingQuestionnaireId === selectedPatient.questionnaireId ? '각 항목의 내용을 직접 수정한 뒤 아래에서 저장하세요.' : '환자가 제출한 원문을 바탕으로 항목별 확인 내용을 표시합니다.'}</span></div>
+                <b>{editingQuestionnaireId === selectedPatient.questionnaireId ? '항목별 수정 중' : selectedPatient.questionnaireStatus === 'REVIEWED' ? '의료진 검토 완료' : '의료진 미검토'}</b>
               </header>
               <div className="clinical-detail-table">
-                <div className="clinical-detail-table-head"><span>기록 항목</span><span>상세 내용</span></div>
-                {selectedPatient.clinicalDetails.map((detail) => <div className="clinical-detail-row" key={detail.label}><strong>{detail.label}</strong><p>{detail.value}</p></div>)}
+                <div className="clinical-detail-table-head"><span>기록 항목</span><span>{editingQuestionnaireId === selectedPatient.questionnaireId ? '수정할 내용' : '상세 내용'}</span></div>
+                {(editingQuestionnaireId === selectedPatient.questionnaireId ? questionnaireDraftFields : selectedPatient.clinicalDetails).map((detail, index) => <div className={editingQuestionnaireId === selectedPatient.questionnaireId ? 'clinical-detail-row editing' : 'clinical-detail-row'} key={`${detail.label}-${index}`}><strong>{detail.label}</strong>{editingQuestionnaireId === selectedPatient.questionnaireId ? <AutoResizeTextarea value={detail.value} onChange={(event) => updateQuestionnaireDraftField(index, event.target.value)} aria-label={`${detail.label} 수정`} /> : <p>{detail.value}</p>}</div>)}
               </div>
-              <footer><span>문진 제출일 <b>{selectedPatient.lastVisit}</b></span><span>작성 주체 <b>환자 또는 보호자</b></span><span>의료진 확인 <b>{selectedPatient.approvedAt}</b></span></footer>
+              {editingQuestionnaireId === selectedPatient.questionnaireId ? <footer className="questionnaire-inline-edit-footer"><span>환자 제출 원문은 보존되고 의료진 확인 내용만 수정됩니다.</span><div><button className="questionnaire-edit-cancel" onClick={cancelQuestionnaireEdit}>취소</button><button className="questionnaire-edit-save" onClick={() => void saveQuestionnaireReview()} disabled={reviewingId === selectedPatient.questionnaireId}>{reviewingId === selectedPatient.questionnaireId ? '저장 중…' : '수정 저장'}</button></div></footer> : <footer><span>문진 제출일 <b>{selectedPatient.lastVisit}</b></span><span>작성 주체 <b>환자 또는 보호자</b></span><span>의료진 확인 <b>{selectedPatient.approvedAt}</b></span></footer>}
             </section>
             {!hasClinicianRecord && <section className="questionnaire-clinical-boundary"><i>진료</i><div><strong>의료진 확정 진료기록은 아직 없습니다</strong><p>아래의 SOAP·검사·치료계획 영역은 진료를 시작하고 의료진이 작성·최종 승인한 뒤 생성됩니다.</p></div><button onClick={() => onStartEncounter(selectedPatient)}>이 문진으로 진료 시작 →</button></section>}
             <div className={hasClinicianRecord ? 'clinician-record-sections' : 'clinician-record-sections empty'}>
