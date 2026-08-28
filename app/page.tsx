@@ -99,7 +99,7 @@ const firstVisitSteps: FlowStep[] = [
   { id: 'emr', label: '환자정보 캡처', description: 'EMR 기본정보 확인' },
   { id: 'audio', label: '진료 녹음 입력', description: '실시간 · 녹음파일' },
   { id: 'tests', label: '검사자료 보완', description: '있는 자료만 추가' },
-  { id: 'soap', label: '차트 작성', description: '녹음 기반 SOAP' },
+  { id: 'soap', label: 'SOAP 작성', description: '의료진 직접 작성' },
   { id: 'final', label: '최종 승인', description: '문서 확정' },
 ];
 
@@ -108,7 +108,7 @@ const DRAFT_STORAGE_KEY = 'mediflow:encounter-draft:v1';
 const followupVisitSteps: FlowStep[] = [
   { id: 'tests', label: '이전자료 확인', description: '차트 · 검사 이력' },
   { id: 'audio', label: '진료 녹음 입력', description: '실시간 · 녹음파일' },
-  { id: 'soap', label: '차트 작성', description: '비교 · SOAP 초안' },
+  { id: 'soap', label: 'SOAP 작성', description: '의료진 직접 작성' },
   { id: 'final', label: '최종 승인', description: '문서 확정' },
 ];
 
@@ -307,10 +307,11 @@ function formatPrintDate(date = new Date()) {
 
 const PRINT_BODY_CLASSES = ['printing-patient-guide'];
 
-function printDocument(bodyClass: string, title: string) {
+function printDocument(bodyClass: string, title: string, onComplete?: () => void) {
   const previousTitle = document.title;
   const printMedia = window.matchMedia('print');
   let cleaned = false;
+  let postPrintTimer: number | null = null;
 
   const cleanup = () => {
     if (cleaned) return;
@@ -321,6 +322,8 @@ function printDocument(bodyClass: string, title: string) {
     if (typeof printMedia.removeEventListener === 'function') printMedia.removeEventListener('change', handlePrintMediaChange);
     else printMedia.removeListener(handlePrintMediaChange);
     window.clearTimeout(cleanupTimer);
+    if (postPrintTimer !== null) window.clearTimeout(postPrintTimer);
+    onComplete?.();
   };
   const handlePrintMediaChange = (event: MediaQueryListEvent) => {
     if (!event.matches) cleanup();
@@ -342,6 +345,9 @@ function printDocument(bodyClass: string, title: string) {
         return;
       }
       window.print();
+      // 일부 iPadOS·인앱 브라우저는 afterprint를 보내지 않고 즉시 반환합니다.
+      // 인쇄 데이터가 캡처될 시간을 준 뒤 화면 상태를 정리해 다음 화면으로 이동합니다.
+      if (!cleaned) postPrintTimer = window.setTimeout(cleanup, 900);
     } catch (error) {
       cleanup();
       throw error;
@@ -903,7 +909,12 @@ function AudioStep({ stepNumber, encounterType, selectedFile, recording, recordi
   return (
     <div className="step-surface">
       <header className="step-heading"><div><p className="eyebrow">STEP {stepNumber} · AUDIO INPUT</p><h2>진료 녹음 입력</h2><span>{encounterType === 'new' ? '실시간으로 진료를 녹음하거나, 진료 후 스마트폰·녹음기의 파일을 바로 추가할 수 있습니다.' : '오늘 진료의 실시간 녹음과 녹음파일을 기존 환자기록과 함께 차트 근거로 사용할 수 있습니다.'}</span></div></header>
-      <div className="audio-to-chart-route"><span><i>1</i>진료 녹음·파일</span><b>→</b><span><i>2</i>환자 설명 확인</span><b>→</b><span><i>3</i>의료진 차트 작성</span><b>→</b><span><i>4</i>최종 검토·승인</span></div>
+      <div className="audio-to-chart-route"><span><i>1</i>진료 녹음·파일</span><b>→</b><span><i>2</i>검사자료 확인</span><b>→</b><span><i>3</i>SOAP 직접 작성</span><b>→</b><span><i>4</i>최종 검토·승인</span></div>
+      <section className="soap-generation-notice" aria-label="SOAP 생성 방식 안내">
+        <i>AI</i>
+        <div><strong>현재는 녹음 후 SOAP가 자동으로 작성되지 않습니다</strong><p>녹음은 진료기록의 근거 파일로 연결됩니다. 자동 초안을 사용하려면 음성 전사(STT)와 의료 문서 AI를 추가로 연동해야 하며, 현재 화면에서는 의료진이 SOAP를 직접 작성합니다.</p></div>
+        <span>직접 작성</span>
+      </section>
       <div className="audio-flow-layout">
         <section className="audio-input-panel live-audio-card">
           <header><div><p className="eyebrow">LIVE RECORDING</p><h3>실시간 녹음</h3></div><span>{recordingStatus}</span></header>
@@ -918,9 +929,9 @@ function AudioStep({ stepNumber, encounterType, selectedFile, recording, recordi
         <section className="audio-input-panel upload-audio-card">
           <header><div><p className="eyebrow">AUDIO FILE</p><h3>녹음파일 업로드</h3></div><span>{selectedFile ? '파일 연결됨' : '선택 대기'}</span></header>
           {!selectedFile ? (
-            <div className="flow-dropzone"><i /><strong>진료 후 녹음파일 넣기</strong><span>스마트폰·녹음기 파일 · M4A · MP3 · WAV · AAC</span><label><input type="file" accept=".m4a,.mp3,.wav,.aac,audio/*" onChange={(event) => onSelectedFileChange(event.target.files?.[0] ?? null)} /><b>녹음파일 선택</b></label><small>진료 중 차트를 작성하지 못한 경우에도 이 파일을 근거로 차트와 SOAP 초안을 만듭니다.</small></div>
+            <div className="flow-dropzone"><i /><strong>진료 후 녹음파일 넣기</strong><span>스마트폰·녹음기 파일 · M4A · MP3 · WAV · AAC</span><label><input type="file" accept=".m4a,.mp3,.wav,.aac,audio/*" onChange={(event) => onSelectedFileChange(event.target.files?.[0] ?? null)} /><b>녹음파일 선택</b></label><small>현재는 파일을 진료기록 근거로 연결합니다. STT·AI 연동 후에는 이 파일로 SOAP 초안을 만들 수 있습니다.</small></div>
           ) : (
-            <div className="flow-file-selected"><i>{fileExtension}</i><div><strong>{selectedFile.name}</strong><span>{formatFileSize(selectedFile.size)} · {selectedFile.type || 'MIME type 확인 필요'}</span><small>이 파일은 차트·SOAP 초안과 최종 승인 기록의 근거로 연결됩니다.</small></div><button onClick={() => onSelectedFileChange(null)}>×</button></div>
+            <div className="flow-file-selected"><i>{fileExtension}</i><div><strong>{selectedFile.name}</strong><span>{formatFileSize(selectedFile.size)} · {selectedFile.type || 'MIME type 확인 필요'}</span><small>이 파일은 최종 진료기록의 근거로 연결되며, SOAP는 다음 단계에서 직접 작성합니다.</small></div><button onClick={() => onSelectedFileChange(null)}>×</button></div>
           )}
         </section>
       </div>
@@ -974,6 +985,11 @@ function TestsStep({
     status: '원문 기반 정리',
   }));
   const organizedRows = [...questionnaireRows, ...existingRows, ...pastedRows];
+  const organizedGroups = [
+    { source: '환자 사전 문진', label: '환자가 알려준 내용', description: '진료 전 환자가 직접 작성한 증상과 상태', tone: 'questionnaire', rows: questionnaireRows },
+    { source: '기존 기록', label: '이전 승인 기록', description: '의료진이 이전 진료에서 확정한 검사 결과', tone: 'existing', rows: existingRows },
+    { source: 'EMR 붙여넣기', label: '이번에 추가한 검사', description: '붙여넣은 원문에서 항목별로 정리한 결과', tone: 'emr', rows: pastedRows },
+  ].filter((group) => group.rows.length > 0);
   const organized = organizedRows.length > 0;
   const isFirstVisit = encounterType !== 'followup';
 
@@ -993,23 +1009,26 @@ function TestsStep({
         <section className="organized-chart-card">
           <header><div><p className="eyebrow">READABLE CHART</p><h3>정리된 검사 결과</h3></div><span>{organized ? `전체 ${organizedRows.length}개 항목` : '입력 대기'}</span></header>
           {!organized ? (
-            <div className="organized-empty"><i /><strong>{isFirstVisit ? '추가할 검사자료가 없다면 건너뛰세요' : '검사 차트를 붙여넣어 주세요'}</strong><span>{isFirstVisit ? '다음 단계에서 진료 녹음을 근거로 SOAP 차트 초안을 작성합니다.' : '검사 항목별 카드로 분리하여 의료진이 빠르게 읽을 수 있게 표시합니다.'}</span></div>
+            <div className="organized-empty"><i /><strong>{isFirstVisit ? '추가할 검사자료가 없다면 건너뛰세요' : '검사 차트를 붙여넣어 주세요'}</strong><span>{isFirstVisit ? '검사자료가 없어도 다음 단계에서 의료진이 SOAP를 직접 작성할 수 있습니다.' : '검사 항목별 카드로 분리하여 의료진이 빠르게 읽을 수 있게 표시합니다.'}</span></div>
           ) : (
             <div className="organized-text-result">
-              <div className="organized-result-overview">
-                <span><b>{questionnaireRows.length}</b>환자 사전 문진</span>
-                <span><b>{existingRows.length}</b>기존 저장 결과</span>
-                <span><b>{pastedRows.length}</b>이번 EMR 정리</span>
-                <span><b>{organizedRows.length}</b>전체 항목</span>
+              <div className="organized-result-overview" aria-label="검사 결과 요약">
+                <span className="total"><b>{organizedRows.length}</b><small>전체 결과</small></span>
+                <span><b>{questionnaireRows.length}</b><small>환자 문진</small></span>
+                <span><b>{existingRows.length}</b><small>기존 기록</small></span>
+                <span><b>{pastedRows.length}</b><small>이번 검사</small></span>
               </div>
-              <div className="organized-text-sections">
-                {organizedRows.map((row) => (
-                  <section key={row.id}>
-                    <div><header><strong>{row.title}</strong><b className={row.source === '환자 사전 문진' ? 'questionnaire' : row.source === '기존 기록' ? 'existing' : 'emr'}>{row.source}</b></header><p>{row.value || '입력된 결과값 없음'}</p>{row.status && <small>판정 · {row.status}</small>}</div>
+              <div className="organized-result-groups">
+                {organizedGroups.map((group) => (
+                  <section className={`organized-source-group ${group.tone}`} key={group.source}>
+                    <header className="organized-source-heading"><div><i>{group.rows.length}</i><span><strong>{group.label}</strong><small>{group.description}</small></span></div><b>{group.source}</b></header>
+                    <div className="organized-result-cards">
+                      {group.rows.map((row) => <article key={row.id}><header><strong>{row.title}</strong>{row.status && <span>{row.status}</span>}</header><p>{row.value || '입력된 결과값이 없습니다.'}</p></article>)}
+                    </div>
                   </section>
                 ))}
               </div>
-              <footer>환자 사전 문진, 기존 승인 기록과 새 EMR 정리본을 출처별로 함께 표시합니다. 붙여넣은 전체 원문은 왼쪽 입력란에 그대로 보존됩니다.</footer>
+              <footer>출처별로 나누어 표시했습니다. 붙여넣은 전체 원문은 왼쪽 입력란에 그대로 보존되며, 다음 단계에서 최종 내용을 확인할 수 있습니다.</footer>
             </div>
           )}
         </section>
@@ -1035,20 +1054,28 @@ function TestsStep({
   );
 }
 
-function SoapStep({ stepNumber, values, onChange }: { stepNumber: number; values: Record<string, string>; onChange: (letter: string, value: string) => void }) {
+function SoapStep({ stepNumber, values, hasAudio, hasQuestionnaire, hasTests, onChange }: { stepNumber: number; values: Record<string, string>; hasAudio: boolean; hasQuestionnaire: boolean; hasTests: boolean; onChange: (letter: string, value: string) => void }) {
   return (
     <div className="step-surface">
-      <header className="step-heading"><div><p className="eyebrow">STEP {stepNumber} · DOCTOR REVIEW</p><h2>진료차트 작성·검토</h2><span>환자 문진과 진료 녹음, 검사자료를 참고하여 의료진이 SOAP 차트를 직접 작성·수정합니다.</span></div><span className="step-status">의료진 작성</span></header>
+      <header className="step-heading"><div><p className="eyebrow">STEP {stepNumber} · DOCTOR REVIEW</p><h2>SOAP 직접 작성</h2><span>연결된 환자 문진과 녹음, 검사자료를 참고하여 의료진이 차트를 작성·검토합니다.</span></div><span className="step-status">AI 자동생성 미연결</span></header>
+      <section className="soap-generation-notice compact" aria-label="SOAP 작성 안내">
+        <i>직접</i>
+        <div><strong>녹음이 자동으로 텍스트나 SOAP로 변환되지는 않습니다</strong><p>아래 입력란에 의료진이 직접 작성해 주세요. 추후 STT·의료 문서 AI를 연동하면 초안을 먼저 만들고 의료진이 검토·수정하는 흐름으로 확장할 수 있습니다.</p></div>
+      </section>
       <div className="soap-flow-layout">
         <section className="soap-editor-card">
-          <header><div><p className="eyebrow">STRUCTURED SOAP</p><h3>의사 수정본</h3></div><span>직접 편집 가능</span></header>
+          <header><div><p className="eyebrow">STRUCTURED SOAP</p><h3>SOAP 작성란</h3></div><span>의료진 직접 입력</span></header>
           <div className="flow-soap-fields">
             {soapDefinitions.map(([letter, label, placeholder]) => <label key={letter}><i className={`soap-${letter.toLowerCase()}`}>{letter}</i><span><strong>{label}</strong><AutoResizeTextarea value={values[letter]} onChange={(event) => onChange(letter, event.target.value)} placeholder={placeholder} /></span></label>)}
           </div>
         </section>
         <aside className="evidence-panel">
-          <header><div><p className="eyebrow">GROUNDING</p><h3>입력 근거</h3></div><span>원본 연결</span></header>
-          <div className="evidence-empty"><i /><strong>SOAP 문장을 선택하세요</strong><span>선택한 문장의 녹음 구간, 문진 또는 검사 원본이 여기에 표시됩니다.</span></div>
+          <header><div><p className="eyebrow">SOURCE CHECK</p><h3>현재 연결된 자료</h3></div><span>작성 전 확인</span></header>
+          <div className="soap-source-statuses">
+            <span className={hasAudio ? 'connected' : ''}><i>{hasAudio ? '✓' : '—'}</i><strong>진료 녹음</strong><small>{hasAudio ? '근거 파일 연결됨' : '연결된 파일 없음'}</small></span>
+            <span className={hasQuestionnaire ? 'connected' : ''}><i>{hasQuestionnaire ? '✓' : '—'}</i><strong>환자 문진</strong><small>{hasQuestionnaire ? '환자 작성 내용 연결됨' : '연결된 문진 없음'}</small></span>
+            <span className={hasTests ? 'connected' : ''}><i>{hasTests ? '✓' : '—'}</i><strong>검사자료</strong><small>{hasTests ? '확인할 결과 있음' : '추가된 결과 없음'}</small></span>
+          </div>
           <div className="evidence-rules"><strong>기록 원칙</strong>{['입력에 없는 정보 임의 기재 금지', '의료진 확인 없는 확정 진단 기재 금지', '의사가 말하지 않은 처방 기재 금지', '숫자와 단위 임의 변경 금지'].map((rule) => <span key={rule}><i>✓</i>{rule}</span>)}</div>
         </aside>
       </div>
@@ -1094,9 +1121,11 @@ function FinalStep({
   onFinishWithoutPdf: () => void;
 }) {
   const [showPreview, setShowPreview] = useState(false);
+  const [showPdfChoice, setShowPdfChoice] = useState(false);
   const [approving, setApproving] = useState(false);
   const [approvalError, setApprovalError] = useState('');
   const printAfterOpeningRef = useRef(false);
+  const finishAfterPrintRef = useRef(false);
   const pastedChartRows = organizeClinicalText(chartText).map((section, pastedIndex) => ({
     id: `emr-${pastedIndex}`,
     source: 'EMR 붙여넣기' as const,
@@ -1122,6 +1151,11 @@ function FinalStep({
     pastedIndex: null,
   }));
   const finalChartRows = [...questionnaireChartRows, ...existingChartRows, ...pastedChartRows];
+  const finalResultGroups = [
+    { source: '환자 사전 문진', label: '환자가 알려준 내용', tone: 'questionnaire', rows: questionnaireChartRows },
+    { source: '기존 기록', label: '이전 승인 기록', tone: 'existing', rows: existingChartRows },
+    { source: 'EMR 붙여넣기', label: '이번에 추가한 검사', tone: 'emr', rows: pastedChartRows },
+  ].filter((group) => group.rows.length > 0);
   const updateChartRow = (pastedIndex: number, value: string) => {
     const updated = pastedChartRows.map((row) => row.pastedIndex === pastedIndex ? { ...row, value } : row);
     onChartTextChange(updated.map((row) => `${row.label}:\n${row.value}`).join('\n\n'));
@@ -1140,25 +1174,36 @@ function FinalStep({
   const reportTitle = `${patient?.name ?? '환자'}_${patient?.id ?? '진료'}_종합진료안내서`;
   const printReport = () => printDocument('printing-patient-guide', reportTitle);
   const showReport = () => {
-    if (approved) printAfterOpeningRef.current = true;
+    if (approved) {
+      printAfterOpeningRef.current = true;
+      finishAfterPrintRef.current = false;
+    }
     setShowPreview(true);
   };
   const closeReport = () => {
     printAfterOpeningRef.current = false;
+    finishAfterPrintRef.current = false;
     setShowPreview(false);
+  };
+  const finishApprovedEncounter = () => {
+    setShowPdfChoice(false);
+    setShowPreview(false);
+    printAfterOpeningRef.current = false;
+    finishAfterPrintRef.current = false;
+    onFinishWithoutPdf();
+  };
+  const printApprovedEncounter = () => {
+    setShowPdfChoice(false);
+    finishAfterPrintRef.current = true;
+    printAfterOpeningRef.current = true;
+    setShowPreview(true);
   };
   const approveAndChooseNext = async () => {
     setApproving(true);
     setApprovalError('');
     try {
       await onApprove();
-      const shouldPrintPdf = window.confirm('최종 승인이 완료되었습니다.\n환자 안내 PDF를 출력하시겠습니까?');
-      if (shouldPrintPdf) {
-        printAfterOpeningRef.current = true;
-        setShowPreview(true);
-        return;
-      }
-      onFinishWithoutPdf();
+      setShowPdfChoice(true);
     } catch (reason) {
       setApprovalError(reason instanceof Error ? reason.message : '최종 진료기록을 저장하지 못했습니다.');
     } finally {
@@ -1169,9 +1214,14 @@ function FinalStep({
   useEffect(() => {
     if (!approved || !showPreview || !printAfterOpeningRef.current) return;
     printAfterOpeningRef.current = false;
-    const frame = window.requestAnimationFrame(() => printDocument('printing-patient-guide', reportTitle));
+    const shouldFinishAfterPrint = finishAfterPrintRef.current;
+    finishAfterPrintRef.current = false;
+    const frame = window.requestAnimationFrame(() => printDocument('printing-patient-guide', reportTitle, shouldFinishAfterPrint ? () => {
+      setShowPreview(false);
+      onFinishWithoutPdf();
+    } : undefined));
     return () => window.cancelAnimationFrame(frame);
-  }, [approved, reportTitle, showPreview]);
+  }, [approved, onFinishWithoutPdf, reportTitle, showPreview]);
 
   return (
     <div className="step-surface final-step">
@@ -1215,15 +1265,31 @@ function FinalStep({
           </section>
         </div>
         <section className="past-test-card final-test-editor">
-          <header><div><p className="eyebrow">EXAMINATION</p><h2>정리된 검사 결과</h2></div><b>문진 {questionnaireChartRows.length} · 기존 {existingChartRows.length} · EMR {pastedChartRows.length} · 전체 {finalChartRows.length}</b></header>
+          <header><div><p className="eyebrow">EXAMINATION</p><h2>정리된 검사 결과</h2></div><b>전체 {finalChartRows.length}개 항목</b></header>
           {finalChartRows.length ? (
-            <div className="final-test-table-wrap">
-              <table className="final-test-table">
-                <thead><tr><th>출처</th><th>항목</th><th>정리된 내용</th><th>상태</th></tr></thead>
-                <tbody>{finalChartRows.map((row) => <tr key={row.id}><td><b className={`result-source-badge ${row.source === '환자 사전 문진' ? 'questionnaire' : row.source === '기존 기록' ? 'existing' : 'emr'}`}>{row.source}</b></td><th scope="row">{row.label}</th><td><AutoResizeTextarea disabled={approved || row.pastedIndex === null} value={row.value} onChange={(event) => row.pastedIndex !== null && updateChartRow(row.pastedIndex, event.target.value)} aria-label={`${row.label} 내용 ${row.pastedIndex === null ? '확인' : '수정'}`} /></td><td><span>{approved ? '승인됨' : row.pastedIndex === null ? row.status : '수정 가능'}</span></td></tr>)}</tbody>
-              </table>
+            <div className="final-test-results">
+              <div className="final-test-overview" aria-label="최종 검사 결과 요약">
+                <span className="total"><b>{finalChartRows.length}</b><small>전체 결과</small></span>
+                <span><b>{questionnaireChartRows.length}</b><small>환자 문진</small></span>
+                <span><b>{existingChartRows.length}</b><small>기존 기록</small></span>
+                <span><b>{pastedChartRows.length}</b><small>이번 검사</small></span>
+              </div>
+              <div className="final-test-result-groups">
+                {finalResultGroups.map((group) => (
+                  <section className={`final-result-source ${group.tone}`} key={group.source}>
+                    <header><div><i>{group.rows.length}</i><span><strong>{group.label}</strong><small>{group.source}</small></span></div><b>{approved ? '승인 완료' : group.tone === 'emr' ? '내용 수정 가능' : '원본 확인'}</b></header>
+                    <div>{group.rows.map((row) => (
+                      <article key={row.id}>
+                        <header><strong>{row.label}</strong><span>{approved ? '승인됨' : row.pastedIndex === null ? row.status : '수정 가능'}</span></header>
+                        <AutoResizeTextarea disabled={approved || row.pastedIndex === null} value={row.value} onChange={(event) => row.pastedIndex !== null && updateChartRow(row.pastedIndex, event.target.value)} aria-label={`${row.label} 내용 ${row.pastedIndex === null ? '확인' : '수정'}`} />
+                        {row.pastedIndex === null && <small>원본 자료의 내용은 이 화면에서 수정하지 않습니다.</small>}
+                      </article>
+                    ))}</div>
+                  </section>
+                ))}
+              </div>
             </div>
-          ) : <div className="final-test-empty"><strong>정리된 검사 결과가 없습니다</strong><span>검사자료 보완 단계에서 내용을 입력하면 항목별 표로 표시됩니다.</span></div>}
+          ) : <div className="final-test-empty"><strong>정리된 검사 결과가 없습니다</strong><span>검사자료 보완 단계에서 내용을 입력하면 출처별 카드로 표시됩니다.</span></div>}
         </section>
       </section>
       {showPreview && <PatientGuideModal
@@ -1240,6 +1306,15 @@ function FinalStep({
         onClose={closeReport}
         onPrint={printReport}
       />}
+      {showPdfChoice && (
+        <div className="pdf-choice-backdrop">
+          <section className="pdf-choice-dialog" role="dialog" aria-modal="true" aria-labelledby="pdf-choice-title" aria-describedby="pdf-choice-description">
+            <i>PDF</i>
+            <div><p className="eyebrow">FINAL APPROVAL COMPLETE</p><h3 id="pdf-choice-title">환자 안내 PDF를 출력할까요?</h3><p id="pdf-choice-description">PDF를 출력하면 인쇄창을 닫은 뒤 홈으로 이동합니다. 출력하지 않아도 승인된 진료기록은 안전하게 저장되고 바로 홈으로 돌아갑니다.</p></div>
+            <footer><button className="pdf-choice-skip" onClick={finishApprovedEncounter}>출력하지 않고 홈으로</button><button className="pdf-choice-print" onClick={printApprovedEncounter}>PDF 출력</button></footer>
+          </section>
+        </div>
+      )}
       <div className="final-approval-only">
         {approvalError && <span className="final-approval-error">{approvalError}</span>}
         <button disabled={approved || approving} onClick={approveAndChooseNext}>{approved ? '최종 승인 완료' : approving ? 'H2에 안전하게 저장 중…' : '내용을 확인하고 최종 승인'} <b>✓</b></button>
@@ -1784,7 +1859,16 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
     resetScroll();
   };
   const patientName = selectedPatient?.name ?? '새 환자';
-  const patientMeta = selectedPatient ? `${selectedPatient.gender} · ${selectedPatient.age}세 · ${selectedPatient.id}` : 'EMR 환자정보 캡처 대기';
+  const patientMeta = selectedPatient ? `${selectedPatient.gender}${selectedPatient.age ? ` · ${selectedPatient.age}세` : ''} · ${selectedPatient.id}` : 'EMR 환자정보 캡처 대기';
+  const nextStep = flowSteps[currentIndex + 1];
+  const nextButtonLabels: Record<StepId, string> = {
+    emr: '환자정보 확인으로',
+    tests: '검사자료 확인으로',
+    audio: '진료 녹음으로',
+    soap: 'SOAP 직접 작성으로',
+    final: '최종 확인으로',
+  };
+  const nextButtonLabel = nextStep ? nextButtonLabels[nextStep.id] : '';
 
   return (
     <main className="flow-app">
@@ -1848,7 +1932,7 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
               {activeStep === 'emr' && <EmrStep stepNumber={currentIndex + 1} encounterType={encounterType} captured={emrCaptured} patient={selectedPatient} onCapture={() => setEmrCaptured(true)} />}
               {activeStep === 'tests' && <TestsStep stepNumber={currentIndex + 1} encounterType={encounterType} chartText={chartText} questionnaireResults={selectedPatient?.questionnaireResults ?? []} existingResults={selectedPatient?.tests ?? []} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} onChartTextChange={setChartText} onAutonomicFileChange={(file) => { setAutonomicFile(file); setHasPreviousAutonomic(file ? Boolean(selectedPatient) : selectedPatient ? true : null); }} onPreviousChange={setHasPreviousAutonomic} />}
               {activeStep === 'audio' && <AudioStep stepNumber={currentIndex + 1} encounterType={encounterType} selectedFile={audioFile} recording={recording} recordingStarted={recordingStarted} recordingSeconds={recordingSeconds} microphoneState={microphoneState} microphoneLabel={microphoneLabel} microphoneError={microphoneError} onSelectedFileChange={setAudioFile} onToggleRecording={toggleRecording} onCheckMicrophone={checkMicrophone} />}
-              {activeStep === 'soap' && <SoapStep stepNumber={currentIndex + 1} values={soapValues} onChange={(letter, value) => setSoapValues({ ...soapValues, [letter]: value })} />}
+              {activeStep === 'soap' && <SoapStep stepNumber={currentIndex + 1} values={soapValues} hasAudio={Boolean(audioFile || recordingStarted)} hasQuestionnaire={Boolean(selectedPatient)} hasTests={Boolean(chartText.trim() || selectedPatient?.tests.length)} onChange={(letter, value) => setSoapValues({ ...soapValues, [letter]: value })} />}
               {activeStep === 'final' && <FinalStep stepNumber={currentIndex + 1} approved={approved} patient={selectedPatient} clinician={nickname} soapValues={soapValues} chartText={chartText} questionnaireResults={selectedPatient?.questionnaireResults ?? []} existingResults={selectedPatient?.tests ?? []} audioFile={audioFile} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} autonomicValues={autonomicValues} onSoapChange={(letter, value) => setSoapValues((current) => ({ ...current, [letter]: value }))} onChartTextChange={setChartText} onAutonomicChange={(key, value) => setAutonomicValues((current) => ({ ...current, [key]: value }))} onApprove={approveEncounter} onFinishWithoutPdf={finishEncounterToHome} />}
             </div>
 
@@ -1856,7 +1940,7 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
               <button className="flow-previous" onClick={goPrevious}>← 이전 단계</button>
               <div><span>{currentIndex + 1} / {flowSteps.length}</span><strong>{flowSteps[currentIndex].label}</strong></div>
               <button className={`flow-draft-save ${draftSaveState}`} onClick={saveEncounterDraft}>{draftSaveState === 'saved' ? '임시 저장 완료 ✓' : draftSaveState === 'error' ? '저장 실패 · 다시 시도' : '임시 저장'}</button>
-              {activeStep !== 'final' && <button className="flow-next" onClick={goNext}>{`${flowSteps[currentIndex + 1].label}로`} <b>→</b></button>}
+              {activeStep !== 'final' && <button className="flow-next" onClick={goNext}>{nextButtonLabel} <b>→</b></button>}
             </footer>
           </>
         )}
