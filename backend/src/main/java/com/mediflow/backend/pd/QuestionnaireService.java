@@ -131,7 +131,8 @@ public class QuestionnaireService {
     public QuestionnaireSubmission review(UUID id, String chart, long version) {
         QuestionnaireSubmission submission = submissions.findById(id)
                 .orElseThrow(() -> new NotFoundException("문진을 찾을 수 없습니다."));
-        if ("REVIEWED".equals(submission.getStatus())) {
+        String currentChart = crypto.decrypt(submission.getChartCipher());
+        if ("REVIEWED".equals(submission.getStatus()) && currentChart.equals(chart)) {
             return submission;
         }
         if (submission.getVersion() != version) {

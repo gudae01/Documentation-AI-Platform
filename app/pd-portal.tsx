@@ -315,7 +315,7 @@ function Questionnaires() {
         <details open><summary>환자 설명</summary><JsonView value={selected.rawJson} /></details>
         <details><summary>구조화 데이터와 출처</summary><JsonView value={selected.structuredJson} /></details>
         <label>의료진 검토 문안<textarea rows={22} value={chart} onChange={(event) => setChart(event.target.value)} /></label>
-        <button className="primary" onClick={review}>검토 완료 저장</button></div>}
+        <button className="primary" onClick={review}>{selected.status === 'REVIEWED' ? '수정 내용 저장' : '검토 완료 저장'}</button></div>}
     </div>
   </Section>;
 }

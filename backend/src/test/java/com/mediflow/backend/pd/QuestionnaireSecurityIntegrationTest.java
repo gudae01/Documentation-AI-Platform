@@ -13,6 +13,7 @@ import static org.assertj.core.api.Assertions.*;
 class QuestionnaireSecurityIntegrationTest {
     @Autowired QuestionnaireService service;
     @Autowired QuestionnaireInvitationRepository invitations;
+    @Autowired QuestionnaireSubmissionRepository submissions;
     @Autowired ObjectMapper json;
 
     @Test
@@ -38,5 +39,20 @@ class QuestionnaireSecurityIntegrationTest {
 
         assertThat(first.getStatus()).isEqualTo("REVIEWED");
         assertThat(repeated.getId()).isEqualTo(first.getId());
+    }
+
+    @Test
+    void reviewedQuestionnaireCanBeRevisedWithCurrentVersion() throws Exception {
+        var created = service.create("01077776666", "SMS", LocalDate.of(2026, 9, 4), 24, "doctor");
+        String token = created.link().substring(created.link().indexOf("questionnaireToken=") + 19);
+        var submitted = service.submit(token, json.readTree("{\"name\":\"이환자\",\"birth6\":\"680101\",\"sex\":\"M\",\"plannedDate\":\"2026-09-04\",\"chiefComplaint\":\"보행 불편\"}"));
+
+        var reviewed = service.review(submitted.getId(), "환자 설명 확인", submitted.getVersion());
+        submissions.flush();
+        var revised = service.review(reviewed.getId(), "환자 설명 확인 및 낙상 이력 보완", reviewed.getVersion());
+        submissions.flush();
+
+        assertThat(revised.getStatus()).isEqualTo("REVIEWED");
+        assertThat(service.decrypt(revised.getChartCipher())).isEqualTo("환자 설명 확인 및 낙상 이력 보완");
     }
 }

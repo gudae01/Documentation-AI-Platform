@@ -416,7 +416,6 @@ type PatientGuideData = {
   visitDate: string;
   clinician: string;
   soapValues: Record<string, string>;
-  examinationResults: ExaminationResult[];
   autonomicSummary: string;
   autonomicFileName?: string;
   autonomicMetrics: { metric: string; previous: string; current: string; changeOrStatus: string }[];
@@ -440,7 +439,7 @@ function describeAutonomicReport(hasFile: boolean, hasPrevious: boolean | null) 
   return '검사파일 항목과 수치가 표시되며, 이전 검사 존재 여부 확인 후 비교 설명이 생성됩니다.';
 }
 
-function PatientGuideDocument({ approved, patientName, registrationNumber, visitDate, clinician, soapValues, examinationResults, autonomicSummary, autonomicFileName, autonomicMetrics }: PatientGuideData) {
+function PatientGuideDocument({ approved, patientName, registrationNumber, visitDate, clinician, soapValues, autonomicSummary, autonomicFileName, autonomicMetrics }: PatientGuideData) {
   const reportText = (key: string, fallback: string) => soapValues[key]?.trim() || fallback;
   return (
     <article className={approved ? 'patient-report-paper approved' : 'patient-report-paper'}>
@@ -462,15 +461,6 @@ function PatientGuideDocument({ approved, patientName, registrationNumber, visit
         <section><i>A</i><div><strong>담당 의사 소견</strong><p>{reportText('A', '담당 의사가 최종 확인한 평가와 진단만 표시됩니다.')}</p></div></section>
         <section><i>P</i><div><strong>치료·관리 계획</strong><p>{reportText('P', '담당 의사가 확정한 처방, 검사 계획, 생활 안내와 경과관찰 계획이 표시됩니다.')}</p></div></section>
       </div>
-      <section className="report-examination-results">
-        <header><div><span>EXAMINATION RESULTS</span><strong>정리된 검사 결과</strong></div><b>총 {examinationResults.length}개 항목</b></header>
-        {examinationResults.length ? (
-          <table>
-            <thead><tr><th>출처</th><th>항목</th><th>정리된 내용</th><th>상태</th></tr></thead>
-            <tbody>{examinationResults.map((result, index) => <tr key={`${result.source}-${result.title}-${index}`}><td>{result.source}</td><th scope="row">{result.title}</th><td>{result.value}</td><td>{result.status}</td></tr>)}</tbody>
-          </table>
-        ) : <p>연결된 사전 문진 또는 검사 결과가 없습니다.</p>}
-      </section>
       <div className="report-result-grid single">
         <section>
           <header><div><span>AUTONOMIC TEST</span><strong>자율신경검사 설명</strong></div><b>{autonomicFileName ? '검사파일 연결' : '입력 대기'}</b></header>
@@ -645,6 +635,8 @@ function PatientDirectory({ records, loading, error, onReload, onReview, onStart
   const [selectedId, setSelectedId] = useState('');
   const [reviewingId, setReviewingId] = useState('');
   const [reviewActionError, setReviewActionError] = useState('');
+  const [editingQuestionnaireId, setEditingQuestionnaireId] = useState('');
+  const [questionnaireDraft, setQuestionnaireDraft] = useState('');
   const [showPatientGuide, setShowPatientGuide] = useState(false);
   const normalizedQuery = query.trim().toLowerCase();
   const filteredPatients = records.filter((patient) => [patient.name, patient.id, patient.chiefComplaint, patient.department].some((value) => value.toLowerCase().includes(normalizedQuery)));
@@ -673,6 +665,12 @@ function PatientDirectory({ records, loading, error, onReload, onReview, onStart
         ...selectedPatient.tests.map(([title, value, status]) => ({ source: '기존 기록' as const, title, value, status })),
       ]
     : [];
+  const directoryExaminationGroups = [
+    { source: '환자 사전 문진' as const, label: '환자가 알려준 내용', tone: 'questionnaire' },
+    { source: '기존 기록' as const, label: '이전 승인 기록', tone: 'existing' },
+    { source: 'EMR 붙여넣기' as const, label: '이번에 추가한 검사', tone: 'emr' },
+  ].map((group) => ({ ...group, rows: directoryExaminationRows.filter((row) => row.source === group.source) }))
+    .filter((group) => group.rows.length > 0);
   const directoryAutonomicMetrics = selectedPatient?.autonomic.comparison
     ? selectedPatient.autonomic.comparison.map(([metric, previous, current, changeOrStatus]) => ({ metric, previous, current, changeOrStatus }))
     : selectedPatient?.autonomic.current.map(([metric, current, changeOrStatus]) => ({ metric, previous: '-', current, changeOrStatus })) ?? [];
@@ -683,7 +681,6 @@ function PatientDirectory({ records, loading, error, onReload, onReview, onStart
     visitDate: selectedPatient.approvedAt,
     clinician: selectedPatient.clinician,
     soapValues: selectedPatient.soap,
-    examinationResults: directoryExaminationRows,
     autonomicSummary: selectedPatient.autonomic.interpretation,
     autonomicFileName: selectedPatient.approvedAutonomicFileName,
     autonomicMetrics: directoryAutonomicMetrics,
@@ -696,12 +693,29 @@ function PatientDirectory({ records, loading, error, onReload, onReview, onStart
     window.setTimeout(() => URL.revokeObjectURL(fileUrl), 60_000);
   };
   const printPatientGuide = () => printDocument('printing-patient-guide', printTitle);
-  const confirmQuestionnaire = async () => {
-    if (!selectedPatient || selectedPatient.questionnaireStatus === 'REVIEWED') return;
+  const startQuestionnaireEdit = () => {
+    if (!selectedPatient) return;
+    setQuestionnaireDraft(selectedPatient.questionnaireChart);
+    setEditingQuestionnaireId(selectedPatient.questionnaireId);
+    setReviewActionError('');
+  };
+  const cancelQuestionnaireEdit = () => {
+    setEditingQuestionnaireId('');
+    setQuestionnaireDraft('');
+    setReviewActionError('');
+  };
+  const saveQuestionnaireReview = async () => {
+    if (!selectedPatient) return;
+    if (!questionnaireDraft.trim()) {
+      setReviewActionError('의료진 확인 내용을 입력해 주세요.');
+      return;
+    }
     setReviewingId(selectedPatient.questionnaireId);
     setReviewActionError('');
     try {
-      await onReview(selectedPatient.questionnaireId, selectedPatient.questionnaireChart, selectedPatient.questionnaireVersion);
+      await onReview(selectedPatient.questionnaireId, questionnaireDraft, selectedPatient.questionnaireVersion);
+      setEditingQuestionnaireId('');
+      setQuestionnaireDraft('');
     } catch (reason) {
       setReviewActionError(reason instanceof Error ? reason.message : '문진 확인 상태를 저장하지 못했습니다.');
     } finally {
@@ -739,11 +753,18 @@ function PatientDirectory({ records, loading, error, onReload, onReview, onStart
               <div><p><strong>{selectedPatient.name}</strong><span>{selectedPatient.gender} · 생년월일 {selectedPatient.birthDate}</span></p><small>{selectedPatient.id} · {selectedPatient.department} · 제출 문진</small></div>
               <div className="record-detail-actions">
                 <button className="record-start-encounter-button" onClick={() => onStartEncounter(selectedPatient)}>문진 기반 진료 시작 <b>→</b></button>
-                <button className="record-confirm-button" onClick={confirmQuestionnaire} disabled={selectedPatient.questionnaireStatus === 'REVIEWED' || reviewingId === selectedPatient.questionnaireId}>{selectedPatient.questionnaireStatus === 'REVIEWED' ? '문진 확인 완료' : reviewingId === selectedPatient.questionnaireId ? '저장 중…' : '문진 확인 완료'}</button>
+                <button className="record-confirm-button" onClick={startQuestionnaireEdit} disabled={reviewingId === selectedPatient.questionnaireId}>{selectedPatient.questionnaireStatus === 'REVIEWED' ? '문진 다시 수정' : '문진 확인·수정'}</button>
                 <button className="record-pdf-button" onClick={() => setShowPatientGuide(true)} disabled={!hasApprovedClinicalRecord}>{hasApprovedClinicalRecord ? '최종 승인 PDF' : '최종 승인 후 PDF'}</button>
               </div>
             </header>
             {reviewActionError && <div className="record-action-error">{reviewActionError}</div>}
+            {editingQuestionnaireId === selectedPatient.questionnaireId && (
+              <section className="questionnaire-review-editor" aria-label="의료진 문진 확인 내용 수정">
+                <header><div><p className="eyebrow">CLINICIAN REVIEW NOTE</p><h2>{selectedPatient.questionnaireStatus === 'REVIEWED' ? '문진 확인 내용 다시 수정' : '문진 확인 및 내용 정리'}</h2><span>환자 제출 원문은 그대로 보존되며, 의료진 확인본만 수정됩니다.</span></div><b>{selectedPatient.questionnaireStatus === 'REVIEWED' ? '재수정 가능' : '확인 전'}</b></header>
+                <label><span>의료진 확인 내용</span><AutoResizeTextarea value={questionnaireDraft} onChange={(event) => setQuestionnaireDraft(event.target.value)} aria-label="의료진 문진 확인 내용" /></label>
+                <footer><span>저장할 때 최신 버전을 확인하여 다른 의료진의 수정 내용을 보호합니다.</span><div><button className="questionnaire-edit-cancel" onClick={cancelQuestionnaireEdit}>취소</button><button className="questionnaire-edit-save" onClick={() => void saveQuestionnaireReview()} disabled={reviewingId === selectedPatient.questionnaireId}>{reviewingId === selectedPatient.questionnaireId ? '저장 중…' : selectedPatient.questionnaireStatus === 'REVIEWED' ? '수정 내용 저장' : '확인 완료 저장'}</button></div></footer>
+              </section>
+            )}
             <section className={`questionnaire-origin-banner ${selectedPatient.questionnaireStatus === 'REVIEWED' ? 'reviewed' : 'pending'}`}>
               <i>환자</i>
               <div><strong>환자 또는 보호자가 직접 작성한 정보입니다</strong><p>의료진의 판단·진단·치료계획이 아니며, 진료기록과 분리하여 원문 그대로 보존합니다.</p></div>
@@ -808,9 +829,14 @@ function PatientDirectory({ records, loading, error, onReload, onReview, onStart
               )}
             </div>
             {directoryExaminationRows.length > 0 && <section className="past-test-card stored-examination-card">
-              <header><div><p className="eyebrow">QUESTIONNAIRE & APPROVED EXAMINATION</p><h2>정리된 검사 결과</h2></div><b>문진 {selectedPatient.questionnaireResults.length} · 승인 기록 {selectedPatient.tests.length}</b></header>
-              <div className="stored-examination-list">{directoryExaminationRows.map((row, index) => <article key={`${row.source}-${row.title}-${index}`}><div><header><strong>{row.title}</strong><b className={`result-source-badge ${row.source === '환자 사전 문진' ? 'questionnaire' : 'existing'}`}>{row.source}</b></header><p>{row.value}</p></div><b>{row.status}</b></article>)}</div>
-              <footer>환자가 작성한 문진과 의료진이 최종 승인하여 H2에 암호화 저장된 검사 결과를 출처별로 분리해 표시합니다.</footer>
+              <header><div><p className="eyebrow">APPROVED EXAMINATION</p><h2>정리된 검사 결과</h2></div><b>전체 {directoryExaminationRows.length}개 항목</b></header>
+              <div className="organized-readable-list stored-readable-list">
+                {directoryExaminationGroups.map((group) => <section className={`organized-source-group ${group.tone}`} key={group.source}>
+                  <header className="organized-source-heading"><div><i>{group.rows.length}</i><span><strong>{group.label}</strong><small>{group.source}</small></span></div></header>
+                  <div className="organized-result-table"><header><span>항목</span><span>정리된 내용</span></header>{group.rows.map((row, index) => <article key={`${row.source}-${row.title}-${index}`}><strong>{row.title}</strong><p>{row.value}</p></article>)}</div>
+                </section>)}
+              </div>
+              <footer>항목과 정리된 내용만 표시합니다. 환자 안내 PDF에는 이 영역이 포함되지 않습니다.</footer>
             </section>}
             <div className={`record-detail-grid ${hasAutonomicRecord ? '' : 'single'}`}>
               <section className="past-soap-card">
@@ -1012,23 +1038,19 @@ function TestsStep({
             <div className="organized-empty"><i /><strong>{isFirstVisit ? '추가할 검사자료가 없다면 건너뛰세요' : '검사 차트를 붙여넣어 주세요'}</strong><span>{isFirstVisit ? '검사자료가 없어도 다음 단계에서 의료진이 SOAP를 직접 작성할 수 있습니다.' : '검사 항목별 카드로 분리하여 의료진이 빠르게 읽을 수 있게 표시합니다.'}</span></div>
           ) : (
             <div className="organized-text-result">
-              <div className="organized-result-overview" aria-label="검사 결과 요약">
-                <span className="total"><b>{organizedRows.length}</b><small>전체 결과</small></span>
-                <span><b>{questionnaireRows.length}</b><small>환자 문진</small></span>
-                <span><b>{existingRows.length}</b><small>기존 기록</small></span>
-                <span><b>{pastedRows.length}</b><small>이번 검사</small></span>
-              </div>
-              <div className="organized-result-groups">
+              <div className="organized-result-guide"><i>✓</i><span><strong>항목과 정리된 내용을 한눈에 확인하세요</strong><small>자료 출처별로 구분하되 판정 배지와 중복 정보는 줄였습니다.</small></span></div>
+              <div className="organized-readable-list">
                 {organizedGroups.map((group) => (
                   <section className={`organized-source-group ${group.tone}`} key={group.source}>
                     <header className="organized-source-heading"><div><i>{group.rows.length}</i><span><strong>{group.label}</strong><small>{group.description}</small></span></div><b>{group.source}</b></header>
-                    <div className="organized-result-cards">
-                      {group.rows.map((row) => <article key={row.id}><header><strong>{row.title}</strong>{row.status && <span>{row.status}</span>}</header><p>{row.value || '입력된 결과값이 없습니다.'}</p></article>)}
+                    <div className="organized-result-table">
+                      <header><span>항목</span><span>정리된 내용</span></header>
+                      {group.rows.map((row) => <article key={row.id}><strong>{row.title}</strong><p>{row.value || '입력된 결과값이 없습니다.'}</p></article>)}
                     </div>
                   </section>
                 ))}
               </div>
-              <footer>출처별로 나누어 표시했습니다. 붙여넣은 전체 원문은 왼쪽 입력란에 그대로 보존되며, 다음 단계에서 최종 내용을 확인할 수 있습니다.</footer>
+              <footer>붙여넣은 전체 원문은 왼쪽 입력란에 그대로 보존됩니다.</footer>
             </div>
           )}
         </section>
@@ -1163,13 +1185,6 @@ function FinalStep({
   const autonomicSummary = describeAutonomicReport(Boolean(autonomicFile), hasPrevious);
   const editableAutonomicSummary = autonomicValues.interpretation?.trim() || autonomicSummary;
   const reportAutonomicMetrics = buildAutonomicReportMetrics(autonomicValues, hasPrevious === true);
-  const reportExaminationResults: ExaminationResult[] = finalChartRows.map((row) => ({
-    source: row.source,
-    title: row.label,
-    value: row.value,
-    status: approved && row.source === '환자 사전 문진' ? '의료진 문진 확인 완료'
-      : approved && row.source === 'EMR 붙여넣기' ? '의료진 최종 승인' : row.status,
-  }));
   const reportDate = formatPrintDate();
   const reportTitle = `${patient?.name ?? '환자'}_${patient?.id ?? '진료'}_종합진료안내서`;
   const printReport = () => printDocument('printing-patient-guide', reportTitle);
@@ -1268,21 +1283,17 @@ function FinalStep({
           <header><div><p className="eyebrow">EXAMINATION</p><h2>정리된 검사 결과</h2></div><b>전체 {finalChartRows.length}개 항목</b></header>
           {finalChartRows.length ? (
             <div className="final-test-results">
-              <div className="final-test-overview" aria-label="최종 검사 결과 요약">
-                <span className="total"><b>{finalChartRows.length}</b><small>전체 결과</small></span>
-                <span><b>{questionnaireChartRows.length}</b><small>환자 문진</small></span>
-                <span><b>{existingChartRows.length}</b><small>기존 기록</small></span>
-                <span><b>{pastedChartRows.length}</b><small>이번 검사</small></span>
-              </div>
-              <div className="final-test-result-groups">
+              <div className="organized-result-guide"><i>✓</i><span><strong>항목별 최종 내용을 확인하세요</strong><small>이번에 추가한 검사 내용은 승인 전까지 직접 수정할 수 있습니다.</small></span></div>
+              <div className="organized-readable-list final-readable-list">
                 {finalResultGroups.map((group) => (
-                  <section className={`final-result-source ${group.tone}`} key={group.source}>
-                    <header><div><i>{group.rows.length}</i><span><strong>{group.label}</strong><small>{group.source}</small></span></div><b>{approved ? '승인 완료' : group.tone === 'emr' ? '내용 수정 가능' : '원본 확인'}</b></header>
-                    <div>{group.rows.map((row) => (
+                  <section className={`organized-source-group ${group.tone}`} key={group.source}>
+                    <header className="organized-source-heading"><div><i>{group.rows.length}</i><span><strong>{group.label}</strong><small>{group.source}</small></span></div><b>{approved ? '승인 완료' : group.tone === 'emr' ? '수정 가능' : '원본 확인'}</b></header>
+                    <div className="organized-result-table editable">
+                      <header><span>항목</span><span>정리된 내용</span></header>
+                      {group.rows.map((row) => (
                       <article key={row.id}>
-                        <header><strong>{row.label}</strong><span>{approved ? '승인됨' : row.pastedIndex === null ? row.status : '수정 가능'}</span></header>
+                        <strong>{row.label}</strong>
                         <AutoResizeTextarea disabled={approved || row.pastedIndex === null} value={row.value} onChange={(event) => row.pastedIndex !== null && updateChartRow(row.pastedIndex, event.target.value)} aria-label={`${row.label} 내용 ${row.pastedIndex === null ? '확인' : '수정'}`} />
-                        {row.pastedIndex === null && <small>원본 자료의 내용은 이 화면에서 수정하지 않습니다.</small>}
                       </article>
                     ))}</div>
                   </section>
@@ -1299,7 +1310,6 @@ function FinalStep({
         visitDate={reportDate}
         clinician={clinician}
         soapValues={soapValues}
-        examinationResults={reportExaminationResults}
         autonomicSummary={editableAutonomicSummary}
         autonomicFileName={autonomicFile?.name}
         autonomicMetrics={reportAutonomicMetrics}
@@ -1440,12 +1450,6 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
     } catch (reason) {
       if (!(reason instanceof ApiError) || reason.status !== 409) throw reason;
       await loadQuestionnaires(true, true);
-      const latest = await pdApi.questionnaires();
-      const current = latest.find((item) => item.id === id);
-      if (current?.status === 'REVIEWED') {
-        setQuestionnaires(latest);
-        return;
-      }
       throw new Error('다른 화면에서 문진이 변경되었습니다. 최신 내용을 불러왔으니 다시 확인해 주세요.');
     }
   };
