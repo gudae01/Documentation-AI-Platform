@@ -1594,9 +1594,41 @@ button { cursor: pointer; }
 .record-confirm-button:disabled { border-color: #d8e4e2; background: #f1f5f4; color: #758987; }
 .record-action-error { margin: 0 19px 13px; padding: 9px 12px; border: 1px solid #f0cdca; border-radius: 8px; background: #fff4f3; color: #a43d36; font-size: 11px; }
 
+.patient-record-edit-bar { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin: 14px 20px 0; padding: 13px 15px; border: 1px solid #bcd8d2; border-radius: 11px; background: #edf8f5; }
+.patient-record-edit-bar.bottom { margin: 0 20px 22px; }
+.patient-record-edit-bar > span { min-width: 0; }
+.patient-record-edit-bar strong, .patient-record-edit-bar small { display: block; }
+.patient-record-edit-bar strong { color: #285f58; font-size: 14px; }
+.patient-record-edit-bar small { margin-top: 4px; color: #638078; font-size: 11px; line-height: 1.5; }
+.patient-record-edit-bar > div { display: flex; flex: 0 0 auto; gap: 8px; }
+.patient-record-edit-bar button { min-height: 39px; padding: 0 14px; border-radius: 8px; font-size: 12px; font-weight: 800; }
+.previous-record-list dd textarea { width: 100%; min-height: 58px; padding: 9px 10px; border: 1px solid #c9ddd8; border-radius: 7px; background: white; color: #49656b; font: inherit; line-height: 1.55; resize: vertical !important; }
+.stored-examination-card.editing > footer { display: flex; justify-content: flex-end; }
+.record-result-editing article { grid-template-columns: minmax(120px, .65fr) minmax(0, 1.4fr) 28px !important; gap: 9px; }
+.record-result-editing input, .record-result-editing textarea { width: 100%; min-width: 0; padding: 9px 10px; border: 1px solid #c9ddd8; border-radius: 7px; background: white; color: #425f65; font-size: 12px; line-height: 1.5; outline: none; }
+.record-result-editing textarea { min-height: 54px; resize: vertical !important; }
+.record-result-editing input:focus, .record-result-editing textarea:focus { border-color: #63a99e; box-shadow: 0 0 0 3px #e3f2ef; }
+.record-result-editing article > button { width: 28px; height: 28px; align-self: start; border: 1px solid #e1cecb; border-radius: 6px; background: #fff7f6; color: #a85b52; font-size: 16px; }
+.record-result-empty { padding: 24px; color: #7f9094; font-size: 12px; text-align: center; }
+.record-result-add { padding: 8px 11px; border: 1px solid #aad0c8; border-radius: 7px; background: white; color: #28766d; font-size: 11px; font-weight: 800; }
+.past-soap-card article.editing textarea { width: 100%; min-height: 68px; padding: 10px 11px; border: 1px solid #c9ddd8; border-radius: 8px; background: white; color: #49636a; font-size: 13px; line-height: 1.6; resize: vertical !important; }
+.patient-autonomic-edit-table input { width: calc(100% - 5px); min-width: 0; padding: 7px 6px; border: 1px solid #c9ddd8; border-radius: 6px; background: white; color: #49636a; font-size: 11px; }
+.autonomic-interpretation.editing textarea { width: 100%; min-height: 72px; margin-top: 7px; padding: 9px 10px; border: 1px solid #bdd8d2; border-radius: 7px; background: white; color: #496b64; font-size: 12px; line-height: 1.6; resize: vertical !important; }
+.autonomic-file-history-table.editing > div { gap: 6px; }
+.autonomic-file-history-table.editing input { width: 100%; min-width: 0; padding: 6px; border: 1px solid #c9ddd8; border-radius: 5px; background: white; color: #526e74; font-size: 10px; }
+.autonomic-history-interpretation-edit { display: block; margin-top: 10px; }
+.autonomic-history-interpretation-edit > strong { display: block; margin-bottom: 5px; color: #47656b; font-size: 11px; }
+.autonomic-history-interpretation-edit textarea { width: 100%; min-height: 62px; padding: 8px 9px; border: 1px solid #c9ddd8; border-radius: 6px; background: white; color: #526e74; font-size: 11px; line-height: 1.55; resize: vertical !important; }
+
 @media (max-width: 760px) {
   .legacy-session span { display: none; }
   .pd-module-view .workspace-section { padding: 26px 16px 78px; }
   .pd-module-view .workspace-section > h2 { font-size: 28px; }
   .record-load-message { margin-inline: 14px; }
+  .patient-record-edit-bar { align-items: stretch; flex-direction: column; margin-inline: 12px; }
+  .patient-record-edit-bar.bottom { margin-inline: 12px; }
+  .patient-record-edit-bar > div button { flex: 1; }
+  .record-result-editing article { grid-template-columns: minmax(0, 1fr) 28px !important; }
+  .record-result-editing article > input, .record-result-editing article > textarea { grid-column: 1; }
+  .record-result-editing article > button { grid-column: 2; grid-row: 1 / span 2; }
 }

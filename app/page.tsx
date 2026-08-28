@@ -34,6 +34,7 @@ type AutonomicFileRecord = {
   summary: string;
   metrics: [string, string, string][];
   file?: File;
+  sourceRecord?: PdClinicalRecord;
 };
 type ExaminationResult = {
   source: '환자 사전 문진' | '기존 기록' | 'EMR 붙여넣기';
@@ -65,6 +66,8 @@ type PatientRecord = {
   };
   clinicalDetails: { label: string; value: string }[];
   hasApprovedClinicalRecord: boolean;
+  currentClinicalRecord?: PdClinicalRecord;
+  clinicalRecords: PdClinicalRecord[];
   approvedExaminationResults: ExaminationResult[];
   approvedAutonomicFileName?: string;
   clinician: string;
@@ -76,9 +79,11 @@ type PatientRecord = {
     sources: string[];
   }[];
   previousRecords: {
+    recordId: string;
     date: string;
     visitType: string;
     chiefComplaint: string;
+    objective: string;
     assessment: string;
     treatment: string;
     clinician: string;
@@ -93,6 +98,14 @@ type PatientRecord = {
     comparison?: [string, string, string, string][];
     interpretation: string;
   };
+};
+
+type ClinicalRecordPayload = Pick<PdClinicalRecord,
+  'rawExaminationText' | 'structuredResults' | 'soap' | 'autonomic' | 'audioFileName' | 'autonomicFileName'>;
+
+type HistoricalClinicalDraft = {
+  soap: Record<'S' | 'O' | 'A' | 'P', string>;
+  autonomic: Record<string, string>;
 };
 
 const firstVisitSteps: FlowStep[] = [
@@ -168,21 +181,16 @@ function questionnaireToPatientRecord(questionnaire: Questionnaire, clinicalReco
     result.value,
     result.status || result.source,
   ] as [string, string, string]);
-  const storedApprovedResults: ExaminationResult[] = (currentClinicalRecord?.structuredResults ?? []).map((result) => ({
+  const storedApprovedResults: ExaminationResult[] = (currentClinicalRecord?.structuredResults ?? [])
+    .filter((result) => result.source !== '환자 사전 문진')
+    .map((result) => ({
     source: result.source === '환자 사전 문진' ? '환자 사전 문진'
       : result.source === 'EMR 붙여넣기' ? 'EMR 붙여넣기' : '기존 기록',
     title: result.title,
     value: result.value,
     status: result.status,
   }));
-  const approvedExaminationResults: ExaminationResult[] = currentClinicalRecord
-    ? storedApprovedResults.some((result) => result.source === '환자 사전 문진')
-      ? storedApprovedResults
-      : [
-        ...questionnaireResults.map(([title, value, status]) => ({ source: '환자 사전 문진' as const, title, value, status })),
-        ...storedApprovedResults,
-      ]
-    : [];
+  const approvedExaminationResults: ExaminationResult[] = currentClinicalRecord ? storedApprovedResults : [];
   const persistedAutonomicFiles: AutonomicFileRecord[] = clinicalRecords
     .filter((record) => record.autonomicFileName)
     .map((record) => ({
@@ -196,6 +204,7 @@ function questionnaireToPatientRecord(questionnaire: Questionnaire, clinicalReco
         ['LF/HF', record.autonomic.lfhfCurrent || '-', record.autonomic.lfhfStatus || '확인 필요'],
         ['스트레스 지수', record.autonomic.stressCurrent || '-', record.autonomic.stressStatus || '확인 필요'],
       ],
+      sourceRecord: record,
     }));
   const latestAutonomic = latestClinicalRecord?.autonomic ?? {};
   const latestAutonomicHasPrevious = latestAutonomic.hasPrevious === 'true'
@@ -257,15 +266,21 @@ function questionnaireToPatientRecord(questionnaire: Questionnaire, clinicalReco
     },
     clinicalDetails,
     hasApprovedClinicalRecord: Boolean(currentClinicalRecord),
+    currentClinicalRecord: currentClinicalRecord ?? undefined,
+    clinicalRecords,
     approvedExaminationResults,
     approvedAutonomicFileName: currentClinicalRecord?.autonomicFileName ?? undefined,
     clinician: latestClinicalRecord?.clinician ?? (reviewed ? '검토 의료진' : '미검토'),
     approvedAt: latestClinicalRecord ? dateLabel(latestClinicalRecord.approvedAt) : reviewed ? dateLabel(questionnaire.reviewedAt) : '미검토',
     courseSummary: [],
-    previousRecords: clinicalRecords.map((record) => ({
+    previousRecords: clinicalRecords
+      .filter((record) => record.questionnaireId !== questionnaire.id)
+      .map((record) => ({
+      recordId: record.id,
       date: dateLabel(record.approvedAt),
       visitType: '문진 기반 진료',
       chiefComplaint: record.soap.subjective || patientExplanation,
+      objective: record.soap.objective || '기록 없음',
       assessment: record.soap.assessment || '기록 없음',
       treatment: record.soap.plan || '기록 없음',
       clinician: record.clinician,
@@ -623,12 +638,13 @@ function HomeScreen({ onSendQuestionnaire, onOpenPatients }: {
   );
 }
 
-function PatientDirectory({ records, loading, error, onReload, onReview, onStartEncounter, sessionAutonomicFiles }: {
+function PatientDirectory({ records, loading, error, onReload, onReview, onUpdateClinicalRecord, onStartEncounter, sessionAutonomicFiles }: {
   records: PatientRecord[];
   loading: boolean;
   error: string;
   onReload: () => void;
   onReview: (id: string, chart: string, version: number) => Promise<void>;
+  onUpdateClinicalRecord: (questionnaireId: string, body: ClinicalRecordPayload) => Promise<void>;
   onStartEncounter: (patient: PatientRecord) => void;
   sessionAutonomicFiles: Record<string, AutonomicFileRecord[]>;
 }) {
@@ -638,14 +654,19 @@ function PatientDirectory({ records, loading, error, onReload, onReview, onStart
   const [reviewActionError, setReviewActionError] = useState('');
   const [editingQuestionnaireId, setEditingQuestionnaireId] = useState('');
   const [questionnaireDraftFields, setQuestionnaireDraftFields] = useState<{ label: string; value: string }[]>([]);
+  const [soapDraft, setSoapDraft] = useState<Record<'S' | 'O' | 'A' | 'P', string>>({ S: '', O: '', A: '', P: '' });
+  const [examinationDraftRows, setExaminationDraftRows] = useState<ExaminationResult[]>([]);
+  const [autonomicDraftValues, setAutonomicDraftValues] = useState<Record<string, string>>({});
+  const [historicalClinicalDrafts, setHistoricalClinicalDrafts] = useState<Record<string, HistoricalClinicalDraft>>({});
   const [showPatientGuide, setShowPatientGuide] = useState(false);
   const normalizedQuery = query.trim().toLowerCase();
   const filteredPatients = records.filter((patient) => [patient.name, patient.id, patient.chiefComplaint, patient.department].some((value) => value.toLowerCase().includes(normalizedQuery)));
   const selectedPatient = records.find((patient) => patient.questionnaireId === selectedId) ?? filteredPatients[0] ?? null;
+  const editingRecord = Boolean(selectedPatient && editingQuestionnaireId === selectedPatient.questionnaireId);
   const availableAutonomicFiles = selectedPatient ? [...(sessionAutonomicFiles[selectedPatient.id] ?? []), ...selectedPatient.autonomicFiles].sort((a, b) => b.date.localeCompare(a.date)) : [];
   const hasApprovedClinicalRecord = Boolean(selectedPatient?.hasApprovedClinicalRecord);
   const hasClinicianRecord = Boolean(selectedPatient && (
-    selectedPatient.courseSummary.length
+    selectedPatient.hasApprovedClinicalRecord || selectedPatient.courseSummary.length
     || selectedPatient.previousRecords.length
     || selectedPatient.tests.length
     || availableAutonomicFiles.length
@@ -658,19 +679,17 @@ function PatientDirectory({ records, loading, error, onReload, onReview, onStart
     || selectedPatient.autonomic.comparison?.length
     || availableAutonomicFiles.length
   ));
+  const showCurrentAutonomic = hasAutonomicRecord || Boolean(editingRecord && selectedPatient?.currentClinicalRecord);
   const directoryExaminationRows: ExaminationResult[] = selectedPatient
     ? selectedPatient.hasApprovedClinicalRecord
       ? selectedPatient.approvedExaminationResults
-      : [
-        ...selectedPatient.questionnaireResults.map(([title, value, status]) => ({ source: '환자 사전 문진' as const, title, value, status })),
-        ...selectedPatient.tests.map(([title, value, status]) => ({ source: '기존 기록' as const, title, value, status })),
-      ]
+      : selectedPatient.tests.map(([title, value, status]) => ({ source: '기존 기록' as const, title, value, status }))
     : [];
+  const visibleExaminationRows = editingRecord ? examinationDraftRows : directoryExaminationRows;
   const directoryExaminationGroups = [
-    { source: '환자 사전 문진' as const, label: '환자가 알려준 내용', tone: 'questionnaire' },
     { source: '기존 기록' as const, label: '이전 승인 기록', tone: 'existing' },
     { source: 'EMR 붙여넣기' as const, label: '이번에 추가한 검사', tone: 'emr' },
-  ].map((group) => ({ ...group, rows: directoryExaminationRows.filter((row) => row.source === group.source) }))
+  ].map((group) => ({ ...group, rows: visibleExaminationRows.filter((row) => row.source === group.source) }))
     .filter((group) => group.rows.length > 0);
   const directoryAutonomicMetrics = selectedPatient?.autonomic.comparison
     ? selectedPatient.autonomic.comparison.map(([metric, previous, current, changeOrStatus]) => ({ metric, previous, current, changeOrStatus }))
@@ -694,22 +713,66 @@ function PatientDirectory({ records, loading, error, onReload, onReview, onStart
     window.setTimeout(() => URL.revokeObjectURL(fileUrl), 60_000);
   };
   const printPatientGuide = () => printDocument('printing-patient-guide', printTitle);
-  const startQuestionnaireEdit = () => {
+  const startPatientRecordEdit = () => {
     if (!selectedPatient) return;
     setQuestionnaireDraftFields(selectedPatient.clinicalDetails.map((detail) => ({ ...detail })));
+    setSoapDraft({ ...selectedPatient.soap });
+    setExaminationDraftRows(directoryExaminationRows.map((row) => ({ ...row })));
+    setAutonomicDraftValues({ ...(selectedPatient.currentClinicalRecord?.autonomic ?? {}) });
+    setHistoricalClinicalDrafts(Object.fromEntries(selectedPatient.clinicalRecords
+      .filter((record) => record.id !== selectedPatient.currentClinicalRecord?.id)
+      .map((record) => [record.id, {
+        soap: {
+          S: record.soap.subjective,
+          O: record.soap.objective,
+          A: record.soap.assessment,
+          P: record.soap.plan,
+        },
+        autonomic: { ...record.autonomic },
+      }])));
     setEditingQuestionnaireId(selectedPatient.questionnaireId);
     setReviewActionError('');
     window.requestAnimationFrame(() => document.getElementById(`current-record-${selectedPatient.lastVisit.replace(/\./g, '-')}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   };
-  const cancelQuestionnaireEdit = () => {
+  const cancelPatientRecordEdit = () => {
     setEditingQuestionnaireId('');
     setQuestionnaireDraftFields([]);
+    setExaminationDraftRows([]);
+    setAutonomicDraftValues({});
+    setHistoricalClinicalDrafts({});
     setReviewActionError('');
   };
   const updateQuestionnaireDraftField = (index: number, value: string) => {
     setQuestionnaireDraftFields((current) => current.map((field, fieldIndex) => fieldIndex === index ? { ...field, value } : field));
   };
-  const saveQuestionnaireReview = async () => {
+  const updateExaminationDraftRow = (index: number, key: 'title' | 'value', value: string) => {
+    setExaminationDraftRows((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, [key]: value } : row));
+  };
+  const updateHistoricalSoapDraft = (recordId: string, letter: 'S' | 'O' | 'A' | 'P', value: string) => {
+    setHistoricalClinicalDrafts((current) => ({
+      ...current,
+      [recordId]: { ...current[recordId], soap: { ...current[recordId].soap, [letter]: value } },
+    }));
+  };
+  const updateHistoryAutonomicDraft = (record: AutonomicFileRecord, key: string, value: string) => {
+    if (record.sourceRecord?.id === selectedPatient?.currentClinicalRecord?.id) {
+      setAutonomicDraftValues((current) => ({ ...current, [key]: value }));
+      return;
+    }
+    if (!record.sourceRecord) return;
+    setHistoricalClinicalDrafts((current) => ({
+      ...current,
+      [record.sourceRecord!.id]: {
+        ...current[record.sourceRecord!.id],
+        autonomic: { ...current[record.sourceRecord!.id].autonomic, [key]: value },
+      },
+    }));
+  };
+  const getHistoryAutonomicValues = (record: AutonomicFileRecord) => {
+    if (record.sourceRecord?.id === selectedPatient?.currentClinicalRecord?.id) return autonomicDraftValues;
+    return record.sourceRecord ? historicalClinicalDrafts[record.sourceRecord.id]?.autonomic ?? record.sourceRecord.autonomic : {};
+  };
+  const savePatientRecord = async () => {
     if (!selectedPatient) return;
     const filledFields = questionnaireDraftFields.filter((field) => field.value.trim());
     if (!filledFields.length) {
@@ -723,10 +786,49 @@ function PatientDirectory({ records, loading, error, onReload, onReview, onStart
     setReviewActionError('');
     try {
       await onReview(selectedPatient.questionnaireId, questionnaireChart, selectedPatient.questionnaireVersion);
-      setEditingQuestionnaireId('');
-      setQuestionnaireDraftFields([]);
+      if (selectedPatient.currentClinicalRecord) {
+        const currentRecord = selectedPatient.currentClinicalRecord;
+        const structuredResults = examinationDraftRows
+          .filter((row) => row.title.trim() && row.source !== '환자 사전 문진')
+          .map((row) => ({ ...row, title: row.title.trim(), value: row.value.trim() }));
+        await onUpdateClinicalRecord(currentRecord.questionnaireId, {
+          rawExaminationText: structuredResults
+            .filter((row) => row.source === 'EMR 붙여넣기')
+            .map((row) => `${row.title}:\n${row.value}`)
+            .join('\n\n'),
+          structuredResults,
+          soap: {
+            subjective: soapDraft.S,
+            objective: soapDraft.O,
+            assessment: soapDraft.A,
+            plan: soapDraft.P,
+          },
+          autonomic: autonomicDraftValues,
+          audioFileName: currentRecord.audioFileName,
+          autonomicFileName: currentRecord.autonomicFileName,
+        });
+      }
+      for (const record of selectedPatient.clinicalRecords) {
+        if (record.id === selectedPatient.currentClinicalRecord?.id) continue;
+        const draft = historicalClinicalDrafts[record.id];
+        if (!draft) continue;
+        await onUpdateClinicalRecord(record.questionnaireId, {
+          rawExaminationText: record.rawExaminationText,
+          structuredResults: record.structuredResults.filter((row) => row.source !== '환자 사전 문진'),
+          soap: {
+            subjective: draft.soap.S,
+            objective: draft.soap.O,
+            assessment: draft.soap.A,
+            plan: draft.soap.P,
+          },
+          autonomic: draft.autonomic,
+          audioFileName: record.audioFileName,
+          autonomicFileName: record.autonomicFileName,
+        });
+      }
+      cancelPatientRecordEdit();
     } catch (reason) {
-      setReviewActionError(reason instanceof Error ? reason.message : '문진 확인 상태를 저장하지 못했습니다.');
+      setReviewActionError(reason instanceof Error ? reason.message : '환자 기록을 저장하지 못했습니다.');
     } finally {
       setReviewingId('');
     }
@@ -762,11 +864,12 @@ function PatientDirectory({ records, loading, error, onReload, onReview, onStart
               <div><p><strong>{selectedPatient.name}</strong><span>{selectedPatient.gender} · 생년월일 {selectedPatient.birthDate}</span></p><small>{selectedPatient.id} · {selectedPatient.department} · 제출 문진</small></div>
               <div className="record-detail-actions">
                 <button className="record-start-encounter-button" onClick={() => onStartEncounter(selectedPatient)}><span className="full-action-label">문진 기반 진료 시작</span><span className="compact-action-label">진료 시작</span><b>→</b></button>
-                <button className="record-confirm-button" onClick={startQuestionnaireEdit} disabled={reviewingId === selectedPatient.questionnaireId}><span className="full-action-label">{selectedPatient.questionnaireStatus === 'REVIEWED' ? '문진 다시 수정' : '문진 확인·수정'}</span><span className="compact-action-label">{selectedPatient.questionnaireStatus === 'REVIEWED' ? '문진 수정' : '문진 확인'}</span></button>
+                <button className="record-confirm-button" onClick={editingRecord ? cancelPatientRecordEdit : startPatientRecordEdit} disabled={reviewingId === selectedPatient.questionnaireId}><span className="full-action-label">{editingRecord ? '환자 기록 수정 취소' : '환자 기록 전체 수정'}</span><span className="compact-action-label">{editingRecord ? '수정 취소' : '기록 수정'}</span></button>
                 <button className="record-pdf-button" onClick={() => setShowPatientGuide(true)} disabled={!hasApprovedClinicalRecord}><span className="full-action-label">{hasApprovedClinicalRecord ? '최종 승인 PDF' : '최종 승인 후 PDF'}</span><span className="compact-action-label">PDF</span></button>
               </div>
             </header>
             {reviewActionError && <div className="record-action-error">{reviewActionError}</div>}
+            {editingRecord && <div className="patient-record-edit-bar"><span><strong>환자 기록 전체 수정 중</strong><small>사전 문진, 검사 결과, SOAP, 자율신경검사와 과거 이력을 항목별로 수정할 수 있습니다.</small></span><div><button className="questionnaire-edit-cancel" onClick={cancelPatientRecordEdit}>취소</button><button className="questionnaire-edit-save" onClick={() => void savePatientRecord()} disabled={reviewingId === selectedPatient.questionnaireId}>{reviewingId === selectedPatient.questionnaireId ? '저장 중…' : '전체 저장'}</button></div></div>}
             <section className={`questionnaire-origin-banner ${selectedPatient.questionnaireStatus === 'REVIEWED' ? 'reviewed' : 'pending'}`}>
               <i>환자</i>
               <div><strong>환자 또는 보호자가 직접 작성한 정보입니다</strong><p>의료진의 판단·진단·치료계획이 아니며, 진료기록과 분리하여 원문 그대로 보존합니다.</p></div>
@@ -784,14 +887,14 @@ function PatientDirectory({ records, loading, error, onReload, onReview, onStart
             </section>
             <section className="record-detailed-card" id={`current-record-${selectedPatient.lastVisit.replace(/\./g, '-')}`}>
               <header>
-                <div><p className="eyebrow">QUESTIONNAIRE DETAIL</p><h2>사전 문진 상세 기록</h2><span>{editingQuestionnaireId === selectedPatient.questionnaireId ? '각 항목의 내용을 직접 수정한 뒤 아래에서 저장하세요.' : '환자가 제출한 원문을 바탕으로 항목별 확인 내용을 표시합니다.'}</span></div>
-                <b>{editingQuestionnaireId === selectedPatient.questionnaireId ? '항목별 수정 중' : selectedPatient.questionnaireStatus === 'REVIEWED' ? '의료진 검토 완료' : '의료진 미검토'}</b>
+                <div><p className="eyebrow">QUESTIONNAIRE DETAIL</p><h2>사전 문진 상세 기록</h2><span>{editingRecord ? '환자가 작성한 문진 내용을 항목별로 수정합니다.' : '환자가 제출한 원문을 바탕으로 항목별 확인 내용을 표시합니다.'}</span></div>
+                <b>{editingRecord ? '항목별 수정 중' : selectedPatient.questionnaireStatus === 'REVIEWED' ? '의료진 검토 완료' : '의료진 미검토'}</b>
               </header>
               <div className="clinical-detail-table">
-                <div className="clinical-detail-table-head"><span>기록 항목</span><span>{editingQuestionnaireId === selectedPatient.questionnaireId ? '수정할 내용' : '상세 내용'}</span></div>
-                {(editingQuestionnaireId === selectedPatient.questionnaireId ? questionnaireDraftFields : selectedPatient.clinicalDetails).map((detail, index) => <div className={editingQuestionnaireId === selectedPatient.questionnaireId ? 'clinical-detail-row editing' : 'clinical-detail-row'} key={`${detail.label}-${index}`}><strong>{detail.label}</strong>{editingQuestionnaireId === selectedPatient.questionnaireId ? <AutoResizeTextarea value={detail.value} onChange={(event) => updateQuestionnaireDraftField(index, event.target.value)} aria-label={`${detail.label} 수정`} /> : <p>{detail.value}</p>}</div>)}
+                <div className="clinical-detail-table-head"><span>기록 항목</span><span>{editingRecord ? '수정할 내용' : '상세 내용'}</span></div>
+                {(editingRecord ? questionnaireDraftFields : selectedPatient.clinicalDetails).map((detail, index) => <div className={editingRecord ? 'clinical-detail-row editing' : 'clinical-detail-row'} key={`${detail.label}-${index}`}><strong>{detail.label}</strong>{editingRecord ? <AutoResizeTextarea value={detail.value} onChange={(event) => updateQuestionnaireDraftField(index, event.target.value)} aria-label={`${detail.label} 수정`} /> : <p>{detail.value}</p>}</div>)}
               </div>
-              {editingQuestionnaireId === selectedPatient.questionnaireId ? <footer className="questionnaire-inline-edit-footer"><span>환자 제출 원문은 보존되고 의료진 확인 내용만 수정됩니다.</span><div><button className="questionnaire-edit-cancel" onClick={cancelQuestionnaireEdit}>취소</button><button className="questionnaire-edit-save" onClick={() => void saveQuestionnaireReview()} disabled={reviewingId === selectedPatient.questionnaireId}>{reviewingId === selectedPatient.questionnaireId ? '저장 중…' : '수정 저장'}</button></div></footer> : <footer><span>문진 제출일 <b>{selectedPatient.lastVisit}</b></span><span>작성 주체 <b>환자 또는 보호자</b></span><span>의료진 확인 <b>{selectedPatient.approvedAt}</b></span></footer>}
+              {editingRecord ? <footer className="questionnaire-inline-edit-footer"><span>문진 수정 내용도 위의 ‘전체 저장’ 버튼으로 함께 저장됩니다.</span></footer> : <footer><span>문진 제출일 <b>{selectedPatient.lastVisit}</b></span><span>작성 주체 <b>환자 또는 보호자</b></span><span>의료진 확인 <b>{selectedPatient.approvedAt}</b></span></footer>}
             </section>
             {!hasClinicianRecord && <section className="questionnaire-clinical-boundary"><i>진료</i><div><strong>의료진 확정 진료기록은 아직 없습니다</strong><p>아래의 SOAP·검사·치료계획 영역은 진료를 시작하고 의료진이 작성·최종 승인한 뒤 생성됩니다.</p></div><button onClick={() => onStartEncounter(selectedPatient)}>이 문진으로 진료 시작 →</button></section>}
             <div className={hasClinicianRecord ? 'clinician-record-sections' : 'clinician-record-sections empty'}>
@@ -815,41 +918,55 @@ function PatientDirectory({ records, loading, error, onReload, onReview, onStart
               <section className="previous-records-card">
                 <header><div><p className="eyebrow">SOURCE RECORDS</p><h2>날짜별 이전 진료 원본</h2></div><span>눌러서 상세 확인</span></header>
                 <div className="previous-record-list">
-                  {selectedPatient.previousRecords.map((record) => (
+                  {selectedPatient.previousRecords.map((record) => {
+                    const draft = historicalClinicalDrafts[record.recordId];
+                    return (
                     <details key={record.date} open id={`previous-record-${record.date.replace(/\./g, '-')}`}>
                       <summary><span><time>{record.date}</time><b>{record.visitType}</b></span><strong>{record.chiefComplaint}</strong><em>원본 기록 보기</em></summary>
                       <dl>
-                        <div><dt>주호소</dt><dd>{record.chiefComplaint}</dd></div>
-                        <div><dt>평가·진단</dt><dd>{record.assessment}</dd></div>
-                        <div><dt>치료·교육</dt><dd>{record.treatment}</dd></div>
+                        <div><dt>주호소</dt><dd>{editingRecord && draft ? <AutoResizeTextarea value={draft.soap.S} onChange={(event) => updateHistoricalSoapDraft(record.recordId, 'S', event.target.value)} aria-label={`${record.date} 주호소 수정`} /> : record.chiefComplaint}</dd></div>
+                        <div><dt>객관적 소견</dt><dd>{editingRecord && draft ? <AutoResizeTextarea value={draft.soap.O} onChange={(event) => updateHistoricalSoapDraft(record.recordId, 'O', event.target.value)} aria-label={`${record.date} 객관적 소견 수정`} /> : record.objective}</dd></div>
+                        <div><dt>평가·진단</dt><dd>{editingRecord && draft ? <AutoResizeTextarea value={draft.soap.A} onChange={(event) => updateHistoricalSoapDraft(record.recordId, 'A', event.target.value)} aria-label={`${record.date} 평가 수정`} /> : record.assessment}</dd></div>
+                        <div><dt>치료·교육</dt><dd>{editingRecord && draft ? <AutoResizeTextarea value={draft.soap.P} onChange={(event) => updateHistoricalSoapDraft(record.recordId, 'P', event.target.value)} aria-label={`${record.date} 치료 계획 수정`} /> : record.treatment}</dd></div>
                       </dl>
                       <footer><span>작성·승인자</span><b>{record.clinician}</b></footer>
                     </details>
-                  ))}
+                  );})}
                 </div>
               </section>
               )}
             </div>
-            {directoryExaminationRows.length > 0 && <section className="past-test-card stored-examination-card">
-              <header><div><p className="eyebrow">APPROVED EXAMINATION</p><h2>정리된 검사 결과</h2></div><b>전체 {directoryExaminationRows.length}개 항목</b></header>
+            {(visibleExaminationRows.length > 0 || editingRecord) && <section className={`past-test-card stored-examination-card ${editingRecord ? 'editing' : ''}`}>
+              <header><div><p className="eyebrow">APPROVED EXAMINATION</p><h2>정리된 검사 결과</h2></div><b>{editingRecord ? '실제 검사·EMR만 수정' : `전체 ${visibleExaminationRows.length}개 항목`}</b></header>
               <div className="organized-readable-list stored-readable-list">
                 {directoryExaminationGroups.map((group) => <section className={`organized-source-group ${group.tone}`} key={group.source}>
                   <header className="organized-source-heading"><div><i>{group.rows.length}</i><span><strong>{group.label}</strong><small>{group.source}</small></span></div></header>
-                  <div className="organized-result-table"><header><span>항목</span><span>정리된 내용</span></header>{group.rows.map((row, index) => <article key={`${row.source}-${row.title}-${index}`}><strong>{row.title}</strong><p>{row.value}</p></article>)}</div>
+                  <div className={`organized-result-table ${editingRecord ? 'record-result-editing' : ''}`}><header><span>항목</span><span>정리된 내용</span></header>{group.rows.map((row, index) => {
+                    const draftIndex = visibleExaminationRows.indexOf(row);
+                    return <article key={`${row.source}-${index}-${draftIndex}`}>{editingRecord ? <><input value={row.title} onChange={(event) => updateExaminationDraftRow(draftIndex, 'title', event.target.value)} aria-label="검사 항목명 수정" /><AutoResizeTextarea value={row.value} onChange={(event) => updateExaminationDraftRow(draftIndex, 'value', event.target.value)} aria-label={`${row.title || '검사'} 내용 수정`} /><button onClick={() => setExaminationDraftRows((current) => current.filter((_, rowIndex) => rowIndex !== draftIndex))} aria-label={`${row.title || '검사'} 삭제`}>×</button></> : <><strong>{row.title}</strong><p>{row.value}</p></>}</article>;
+                  })}</div>
                 </section>)}
+                {editingRecord && !directoryExaminationGroups.length && <div className="record-result-empty">등록된 실제 검사·EMR 결과가 없습니다.</div>}
               </div>
-              <footer>항목과 정리된 내용만 표시합니다. 환자 안내 PDF에는 이 영역이 포함되지 않습니다.</footer>
+              <footer>{editingRecord ? <button className="record-result-add" onClick={() => setExaminationDraftRows((current) => [...current, { source: 'EMR 붙여넣기', title: '', value: '', status: '의료진 수정' }])}>+ 검사 항목 추가</button> : '사전 문진과 겹치지 않도록 실제 검사·EMR의 항목과 내용만 표시합니다.'}</footer>
             </section>}
-            <div className={`record-detail-grid ${hasAutonomicRecord ? '' : 'single'}`}>
+            <div className={`record-detail-grid ${showCurrentAutonomic ? '' : 'single'}`}>
               <section className="past-soap-card">
-                <header><div><p className="eyebrow">LATEST SOAP</p><h2>최근 SOAP 기록</h2></div><time>{selectedPatient.lastVisit}</time></header>
-                <div>{(['S', 'O', 'A', 'P'] as const).map((letter) => <article key={letter}><i>{letter}</i><p>{selectedPatient.soap[letter]}</p></article>)}</div>
+                <header><div><p className="eyebrow">LATEST SOAP</p><h2>최근 SOAP 기록</h2></div><time>{editingRecord ? '항목별 수정' : selectedPatient.lastVisit}</time></header>
+                <div>{(['S', 'O', 'A', 'P'] as const).map((letter) => <article className={editingRecord && selectedPatient.currentClinicalRecord ? 'editing' : ''} key={letter}><i>{letter}</i>{editingRecord && selectedPatient.currentClinicalRecord ? <AutoResizeTextarea value={soapDraft[letter]} onChange={(event) => setSoapDraft((current) => ({ ...current, [letter]: event.target.value }))} aria-label={`SOAP ${letter} 수정`} /> : <p>{selectedPatient.soap[letter]}</p>}</article>)}</div>
               </section>
-              {hasAutonomicRecord && (
+              {showCurrentAutonomic && (
               <section className="autonomic-record-card">
-                <header><div><p className="eyebrow">AUTONOMIC TEST</p><h2>자율신경검사</h2></div><b>{selectedPatient.autonomic.comparison ? '이전 검사 비교' : '현재 검사만'}</b></header>
+                <header><div><p className="eyebrow">AUTONOMIC TEST</p><h2>자율신경검사</h2></div><b>{editingRecord ? '직접 수정' : selectedPatient.autonomic.comparison ? '이전 검사 비교' : '현재 검사만'}</b></header>
                 <div className="autonomic-record-meta"><span>검사일</span><strong>{selectedPatient.autonomic.date}</strong></div>
-                {selectedPatient.autonomic.comparison ? (
+                {editingRecord && selectedPatient.currentClinicalRecord ? (
+                  <div className={autonomicDraftValues.hasPrevious === 'true' ? 'autonomic-comparison-table patient-autonomic-edit-table' : 'autonomic-current-table patient-autonomic-edit-table'}>
+                    {autonomicDraftValues.hasPrevious === 'true' ? <header><span>지표</span><span>이전</span><span>현재</span><span>변화</span></header> : <header><span>지표</span><span>현재 결과</span><span>상태</span></header>}
+                    {autonomicMetricDefinitions.map(([metric, key]) => autonomicDraftValues.hasPrevious === 'true'
+                      ? <div key={key}><strong>{metric}</strong><input value={autonomicDraftValues[`${key}Previous`] ?? ''} onChange={(event) => setAutonomicDraftValues((current) => ({ ...current, [`${key}Previous`]: event.target.value }))} placeholder="이전값" /><input value={autonomicDraftValues[`${key}Current`] ?? ''} onChange={(event) => setAutonomicDraftValues((current) => ({ ...current, [`${key}Current`]: event.target.value }))} placeholder="현재값" /><input value={autonomicDraftValues[`${key}Change`] ?? ''} onChange={(event) => setAutonomicDraftValues((current) => ({ ...current, [`${key}Change`]: event.target.value }))} placeholder="변화" /></div>
+                      : <div key={key}><strong>{metric}</strong><input value={autonomicDraftValues[`${key}Current`] ?? ''} onChange={(event) => setAutonomicDraftValues((current) => ({ ...current, [`${key}Current`]: event.target.value }))} placeholder="현재값" /><input value={autonomicDraftValues[`${key}Status`] ?? ''} onChange={(event) => setAutonomicDraftValues((current) => ({ ...current, [`${key}Status`]: event.target.value }))} placeholder="판정" /></div>)}
+                  </div>
+                ) : selectedPatient.autonomic.comparison ? (
                   <div className="autonomic-comparison-table">
                     <header><span>지표</span><span>이전</span><span>현재</span><span>변화</span></header>
                     {selectedPatient.autonomic.comparison.map(([metric, previous, current, change]) => {
@@ -863,25 +980,30 @@ function PatientDirectory({ records, loading, error, onReload, onReview, onStart
                     {selectedPatient.autonomic.current.map(([metric, value, status]) => <div key={metric}><strong>{metric}</strong><span>{value}</span><b>{status}</b></div>)}
                   </div>
                 )}
-                {selectedPatient.autonomic.comparison && <div className="autonomic-change-legend"><span><i className="improved" />기준범위에 가까워짐</span><span><i className="worsened" />기준범위에서 멀어짐</span></div>}
-                <div className="autonomic-interpretation"><strong>검사 해석</strong><p>{selectedPatient.autonomic.interpretation}</p></div>
+                {!editingRecord && selectedPatient.autonomic.comparison && <div className="autonomic-change-legend"><span><i className="improved" />기준범위에 가까워짐</span><span><i className="worsened" />기준범위에서 멀어짐</span></div>}
+                <div className={`autonomic-interpretation ${editingRecord ? 'editing' : ''}`}><strong>검사 해석</strong>{editingRecord && selectedPatient.currentClinicalRecord ? <AutoResizeTextarea value={autonomicDraftValues.interpretation ?? ''} onChange={(event) => setAutonomicDraftValues((current) => ({ ...current, interpretation: event.target.value }))} aria-label="자율신경검사 해석 수정" /> : <p>{selectedPatient.autonomic.interpretation}</p>}</div>
               </section>
               )}
             </div>
             <section className="past-test-card autonomic-file-history">
               <header><div><p className="eyebrow">AUTONOMIC FILE HISTORY</p><h2>자율신경검사 이력</h2></div><b>업로드 파일 {availableAutonomicFiles.length}개</b></header>
-              {availableAutonomicFiles.length ? <div>{availableAutonomicFiles.map((record) => (
+              {availableAutonomicFiles.length ? <div>{availableAutonomicFiles.map((record) => {
+                const historyValues = getHistoryAutonomicValues(record);
+                const editableHistory = editingRecord && Boolean(record.sourceRecord);
+                return (
                 <details key={record.id} open>
-                  <summary><time>{record.date}</time><div><strong>자율신경검사</strong><span>{record.summary}</span><small>{record.fileName}</small></div><i>⌄</i></summary>
+                  <summary><time>{record.date}</time><div><strong>자율신경검사</strong><span>{editableHistory ? historyValues.interpretation || '검사 해석을 입력해 주세요.' : record.summary}</span><small>{record.fileName}</small></div><i>⌄</i></summary>
                   <div className="autonomic-file-history-detail">
                     <div className="autonomic-file-history-meta"><span>업로드 파일</span><strong>{record.fileName}</strong><em>{record.fileType}{record.file ? ` · ${formatFileSize(record.file.size)}` : ''}</em></div>
-                    <div className="autonomic-file-history-table"><header><span>지표</span><span>결과</span><span>판정</span></header>{record.metrics.map(([metric, value, status]) => <div key={metric}><strong>{metric}</strong><span>{value}</span><b>{status}</b></div>)}</div>
+                    <div className={`autonomic-file-history-table ${editableHistory ? 'editing' : ''}`}><header><span>지표</span><span>결과</span><span>판정</span></header>{autonomicMetricDefinitions.map(([metric, key], index) => <div key={metric}><strong>{metric}</strong>{editableHistory ? <><input value={historyValues[`${key}Current`] ?? ''} onChange={(event) => updateHistoryAutonomicDraft(record, `${key}Current`, event.target.value)} aria-label={`${record.date} ${metric} 결과 수정`} /><input value={historyValues[`${key}Status`] ?? ''} onChange={(event) => updateHistoryAutonomicDraft(record, `${key}Status`, event.target.value)} aria-label={`${record.date} ${metric} 판정 수정`} /></> : <><span>{record.metrics[index]?.[1] ?? '-'}</span><b>{record.metrics[index]?.[2] ?? '확인 필요'}</b></>}</div>)}</div>
+                    {editableHistory && <label className="autonomic-history-interpretation-edit"><strong>검사 해석</strong><AutoResizeTextarea value={historyValues.interpretation ?? ''} onChange={(event) => updateHistoryAutonomicDraft(record, 'interpretation', event.target.value)} aria-label={`${record.date} 자율신경검사 해석 수정`} /></label>}
                     {record.file && <button onClick={() => openUploadedFile(record)}>원본 파일 열기</button>}
                   </div>
                 </details>
-              ))}</div> : <div className="autonomic-file-empty"><strong>업로드된 자율신경검사 파일이 없습니다</strong><span>진료 중 검사파일을 업로드하고 최종 승인하면 이곳에 표시됩니다.</span></div>}
-              <footer><span>업로드된 자율신경검사 파일과 파일에서 정리한 결과만 표시됩니다.</span></footer>
+              );})}</div> : <div className="autonomic-file-empty"><strong>업로드된 자율신경검사 파일이 없습니다</strong><span>진료 중 검사파일을 업로드하고 최종 승인하면 이곳에 표시됩니다.</span></div>}
+              <footer><span>{editingRecord ? '승인된 자율신경검사 이력은 항목별로 수정할 수 있으며, 기존 승인본은 개정 이력에 보존됩니다.' : '업로드된 자율신경검사 파일과 파일에서 정리한 결과만 표시됩니다.'}</span></footer>
             </section>
+            {editingRecord && <div className="patient-record-edit-bar bottom"><span><strong>수정 내용을 모두 확인하셨나요?</strong><small>전체 저장 시 현재 기록과 수정한 과거 이력이 함께 반영됩니다.</small></span><div><button className="questionnaire-edit-cancel" onClick={cancelPatientRecordEdit}>취소</button><button className="questionnaire-edit-save" onClick={() => void savePatientRecord()} disabled={reviewingId === selectedPatient.questionnaireId}>{reviewingId === selectedPatient.questionnaireId ? '저장 중…' : '전체 저장'}</button></div></div>}
             </div>
           </article>
         )}
@@ -971,7 +1093,6 @@ function TestsStep({
   stepNumber,
   encounterType,
   chartText,
-  questionnaireResults,
   existingResults,
   autonomicFile,
   hasPrevious,
@@ -982,7 +1103,6 @@ function TestsStep({
   stepNumber: number;
   encounterType: EncounterType | null;
   chartText: string;
-  questionnaireResults: [string, string, string][];
   existingResults: [string, string, string][];
   autonomicFile: File | null;
   hasPrevious: boolean | null;
@@ -991,13 +1111,6 @@ function TestsStep({
   onPreviousChange: (value: boolean | null) => void;
 }) {
   const pastedSections = organizeClinicalText(chartText);
-  const questionnaireRows = questionnaireResults.map(([title, value, status], index) => ({
-    id: `questionnaire-${index}`,
-    source: '환자 사전 문진' as const,
-    title,
-    value,
-    status,
-  }));
   const existingRows = existingResults.map(([title, value, status], index) => ({
     id: `existing-${index}`,
     source: '기존 기록' as const,
@@ -1012,9 +1125,8 @@ function TestsStep({
     value: section.lines.join('\n'),
     status: '원문 기반 정리',
   }));
-  const organizedRows = [...questionnaireRows, ...existingRows, ...pastedRows];
+  const organizedRows = [...existingRows, ...pastedRows];
   const organizedGroups = [
-    { source: '환자 사전 문진', label: '환자가 알려준 내용', description: '진료 전 환자가 직접 작성한 증상과 상태', tone: 'questionnaire', rows: questionnaireRows },
     { source: '기존 기록', label: '이전 승인 기록', description: '의료진이 이전 진료에서 확정한 검사 결과', tone: 'existing', rows: existingRows },
     { source: 'EMR 붙여넣기', label: '이번에 추가한 검사', description: '붙여넣은 원문에서 항목별로 정리한 결과', tone: 'emr', rows: pastedRows },
   ].filter((group) => group.rows.length > 0);
@@ -1114,7 +1226,6 @@ function FinalStep({
   clinician,
   soapValues,
   chartText,
-  questionnaireResults,
   existingResults,
   audioFile,
   autonomicFile,
@@ -1132,7 +1243,6 @@ function FinalStep({
   clinician: string;
   soapValues: Record<string, string>;
   chartText: string;
-  questionnaireResults: [string, string, string][];
   existingResults: [string, string, string][];
   audioFile: File | null;
   autonomicFile: File | null;
@@ -1166,17 +1276,8 @@ function FinalStep({
     status: status || '저장된 결과',
     pastedIndex: null,
   }));
-  const questionnaireChartRows = questionnaireResults.map(([label, value, status], index) => ({
-    id: `questionnaire-${index}`,
-    source: '환자 사전 문진' as const,
-    label,
-    value,
-    status,
-    pastedIndex: null,
-  }));
-  const finalChartRows = [...questionnaireChartRows, ...existingChartRows, ...pastedChartRows];
+  const finalChartRows = [...existingChartRows, ...pastedChartRows];
   const finalResultGroups = [
-    { source: '환자 사전 문진', label: '환자가 알려준 내용', tone: 'questionnaire', rows: questionnaireChartRows },
     { source: '기존 기록', label: '이전 승인 기록', tone: 'existing', rows: existingChartRows },
     { source: 'EMR 붙여넣기', label: '이번에 추가한 검사', tone: 'emr', rows: pastedChartRows },
   ].filter((group) => group.rows.length > 0);
@@ -1454,6 +1555,10 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
       await loadQuestionnaires(true, true);
       throw new Error('다른 화면에서 문진이 변경되었습니다. 최신 내용을 불러왔으니 다시 확인해 주세요.');
     }
+  };
+  const updateClinicalRecord = async (questionnaireId: string, body: ClinicalRecordPayload) => {
+    const saved = await pdApi.approveClinicalRecord(questionnaireId, body);
+    setClinicalRecords((current) => [saved, ...current.filter((record) => record.id !== saved.id)]);
   };
 
   const flowSteps = encounterType === 'followup' ? followupVisitSteps : firstVisitSteps;
@@ -1778,9 +1883,6 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
   const approveEncounter = async () => {
     if (!selectedPatient) throw new Error('최종 승인할 환자 문진을 선택해 주세요.');
     const structuredResults = [
-      ...selectedPatient.questionnaireResults.map(([title, value]) => ({
-        source: '환자 사전 문진', title, value, status: '의료진 문진 확인 완료',
-      })),
       ...selectedPatient.tests.map(([title, value, status]) => ({
         source: '기존 기록', title, value, status,
       })),
@@ -1920,7 +2022,7 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
 
         {activeView === 'home' && <HomeScreen onSendQuestionnaire={openQuestionnaireLinks} onOpenPatients={openPatientDirectory} />}
         {activeView === 'links' && <div className="pd-module-view pd-scope"><Links /></div>}
-        {activeView === 'patients' && <PatientDirectory records={patientRecords} loading={questionnairesLoading} error={questionnairesError} onReload={() => void loadQuestionnaires(false, true)} onReview={reviewQuestionnaire} onStartEncounter={startQuestionnaireEncounter} sessionAutonomicFiles={sessionAutonomicFiles} />}
+        {activeView === 'patients' && <PatientDirectory records={patientRecords} loading={questionnairesLoading} error={questionnairesError} onReload={() => void loadQuestionnaires(false, true)} onReview={reviewQuestionnaire} onUpdateClinicalRecord={updateClinicalRecord} onStartEncounter={startQuestionnaireEncounter} sessionAutonomicFiles={sessionAutonomicFiles} />}
         {activeView === 'encounter' && (
           <>
             <div className="encounter-patient-bar">
@@ -1936,10 +2038,10 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
 
             <div className="flow-content">
               {activeStep === 'emr' && <EmrStep stepNumber={currentIndex + 1} encounterType={encounterType} captured={emrCaptured} patient={selectedPatient} onCapture={() => setEmrCaptured(true)} />}
-              {activeStep === 'tests' && <TestsStep stepNumber={currentIndex + 1} encounterType={encounterType} chartText={chartText} questionnaireResults={selectedPatient?.questionnaireResults ?? []} existingResults={selectedPatient?.tests ?? []} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} onChartTextChange={setChartText} onAutonomicFileChange={(file) => { setAutonomicFile(file); setHasPreviousAutonomic(file ? Boolean(selectedPatient) : selectedPatient ? true : null); }} onPreviousChange={setHasPreviousAutonomic} />}
+              {activeStep === 'tests' && <TestsStep stepNumber={currentIndex + 1} encounterType={encounterType} chartText={chartText} existingResults={selectedPatient?.tests ?? []} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} onChartTextChange={setChartText} onAutonomicFileChange={(file) => { setAutonomicFile(file); setHasPreviousAutonomic(file ? Boolean(selectedPatient) : selectedPatient ? true : null); }} onPreviousChange={setHasPreviousAutonomic} />}
               {activeStep === 'audio' && <AudioStep stepNumber={currentIndex + 1} encounterType={encounterType} selectedFile={audioFile} recording={recording} recordingStarted={recordingStarted} recordingSeconds={recordingSeconds} microphoneState={microphoneState} microphoneLabel={microphoneLabel} microphoneError={microphoneError} onSelectedFileChange={setAudioFile} onToggleRecording={toggleRecording} onCheckMicrophone={checkMicrophone} />}
               {activeStep === 'soap' && <SoapStep stepNumber={currentIndex + 1} values={soapValues} hasAudio={Boolean(audioFile || recordingStarted)} hasQuestionnaire={Boolean(selectedPatient)} hasTests={Boolean(chartText.trim() || selectedPatient?.tests.length)} onChange={(letter, value) => setSoapValues({ ...soapValues, [letter]: value })} />}
-              {activeStep === 'final' && <FinalStep stepNumber={currentIndex + 1} approved={approved} patient={selectedPatient} clinician={nickname} soapValues={soapValues} chartText={chartText} questionnaireResults={selectedPatient?.questionnaireResults ?? []} existingResults={selectedPatient?.tests ?? []} audioFile={audioFile} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} autonomicValues={autonomicValues} onSoapChange={(letter, value) => setSoapValues((current) => ({ ...current, [letter]: value }))} onChartTextChange={setChartText} onAutonomicChange={(key, value) => setAutonomicValues((current) => ({ ...current, [key]: value }))} onApprove={approveEncounter} onFinishWithoutPdf={finishEncounterToHome} />}
+              {activeStep === 'final' && <FinalStep stepNumber={currentIndex + 1} approved={approved} patient={selectedPatient} clinician={nickname} soapValues={soapValues} chartText={chartText} existingResults={selectedPatient?.tests ?? []} audioFile={audioFile} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} autonomicValues={autonomicValues} onSoapChange={(letter, value) => setSoapValues((current) => ({ ...current, [letter]: value }))} onChartTextChange={setChartText} onAutonomicChange={(key, value) => setAutonomicValues((current) => ({ ...current, [key]: value }))} onApprove={approveEncounter} onFinishWithoutPdf={finishEncounterToHome} />}
             </div>
 
             <footer className="flow-footer-actions">
