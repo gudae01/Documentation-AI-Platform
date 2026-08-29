@@ -2,10 +2,14 @@ package com.mediflow.backend.pd.stt;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.multipart.MultipartFile;
@@ -32,12 +36,18 @@ public class LocalSttClient {
         try {
             Resource resource = file.getResource();
             MediaType contentType = safeMediaType(file.getContentType());
-            MultipartBodyBuilder body = new MultipartBodyBuilder();
-            body.part("file", resource).contentType(contentType);
+            HttpHeaders partHeaders = new HttpHeaders();
+            partHeaders.setContentType(contentType);
+            partHeaders.setContentDisposition(ContentDisposition.formData()
+                    .name("file")
+                    .filename(safeFilename(file.getOriginalFilename()))
+                    .build());
+            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+            body.add("file", new HttpEntity<>(resource, partHeaders));
             SttResponse response = client.post()
                     .uri("/v1/transcriptions")
                     .contentType(MediaType.MULTIPART_FORM_DATA)
-                    .body(body.build())
+                    .body(body)
                     .retrieve()
                     .body(SttResponse.class);
             if (response == null) {
@@ -57,5 +67,9 @@ public class LocalSttClient {
         } catch (IllegalArgumentException exception) {
             return MediaType.APPLICATION_OCTET_STREAM;
         }
+    }
+
+    private String safeFilename(String value) {
+        return value == null || value.isBlank() ? "audio" : value;
     }
 }
