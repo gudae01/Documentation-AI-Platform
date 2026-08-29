@@ -22,7 +22,7 @@ spring:
   servlet:
     multipart:
       max-file-size: 100MB
-      max-request-size: 100MB
+      max-request-size: 101MB
   security:
     oauth2:
       client:
@@ -66,6 +66,11 @@ app:
     delivery:
       webhook-url: ${QUESTIONNAIRE_DELIVERY_WEBHOOK_URL:}
       webhook-token: ${QUESTIONNAIRE_DELIVERY_WEBHOOK_TOKEN:}
+  stt:
+    base-url: ${STT_BASE_URL:http://localhost:8090}
+    max-audio-size-mb: ${STT_MAX_AUDIO_MB:100}
+    connect-timeout-seconds: ${STT_CONNECT_TIMEOUT_SECONDS:5}
+    read-timeout-seconds: ${STT_READ_TIMEOUT_SECONDS:900}
 
 logging:
   level:

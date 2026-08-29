@@ -1,5 +1,6 @@
 package com.mediflow.backend.common;
 
+import com.mediflow.backend.pd.stt.SttUnavailableException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
@@ -7,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -39,6 +41,18 @@ public class ApiExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     ResponseEntity<ApiError> badRequest(IllegalArgumentException exception, HttpServletRequest request) {
         return error(HttpStatus.BAD_REQUEST, exception.getMessage(), request.getRequestURI(), Map.of());
+    }
+
+    @ExceptionHandler(SttUnavailableException.class)
+    ResponseEntity<ApiError> sttUnavailable(SttUnavailableException exception, HttpServletRequest request) {
+        return error(HttpStatus.SERVICE_UNAVAILABLE, exception.getMessage(), request.getRequestURI(), Map.of());
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    ResponseEntity<ApiError> uploadTooLarge(MaxUploadSizeExceededException exception,
+                                            HttpServletRequest request) {
+        return error(HttpStatus.CONTENT_TOO_LARGE,
+                "업로드 파일은 100MB 이하만 사용할 수 있습니다.", request.getRequestURI(), Map.of());
     }
 
     @ExceptionHandler(ConstraintViolationException.class)

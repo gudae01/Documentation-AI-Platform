@@ -1,6 +1,6 @@
 # MEDIFLOW 파킨슨병 임상 문서 시스템
 
-사전 문진 링크 전송, 환자 문진 검토, 입원 EMR 구조화와 결과 보고서 승인을 제공하는 React + Spring Boot 애플리케이션입니다. AI 생성 기능은 포함하지 않습니다.
+사전 문진 링크 전송, 환자 문진 검토, 자체 음성 전사, 입원 EMR 구조화와 결과 보고서 승인을 제공하는 React + Spring Boot 애플리케이션입니다. LLM 기반 SOAP 자동 생성은 포함하지 않습니다.
 
 ## 제공 기능
 
@@ -8,6 +8,7 @@
 - 전체 모바일 문진, 암호화 자동 임시저장, 의료진 검색·검토
 - 환자 사전 문진·기존 승인 기록·EMR 붙여넣기 원문을 출처별 검사 결과로 통합 표시
 - 데스크톱 마이크 장치 확인과 브라우저 실시간 녹음파일 생성
+- 내부 Faster-Whisper STT와 sherpa-onnx 화자 분리를 통한 한국어 녹취·화자 A/B 자동 구분
 - S/O, 식소대소수, P/I, 첩약·환재, 검사, 특이사항, 퇴원요약 구조화
 - 동일 증상·척도와 동일 검사·단위의 명시값 비교
 - 입원 첨부파일 암호화 저장, 환자용 결과지 검토·승인·PDF·인쇄
@@ -26,6 +27,11 @@ npm run dev
 백엔드:
 
 ```powershell
+# 별도 터미널에서 자체 STT 실행
+docker build -t mediflow-stt:local stt-service
+docker run --rm --name mediflow-stt-local -p 127.0.0.1:8090:8090 -v mediflow-stt-models:/models mediflow-stt:local
+
+# 백엔드 실행
 cd backend
 $env:APP_DATA_ENCRYPTION_KEY="32자 이상 무작위 비밀값"
 $env:KAKAO_REST_API_KEY="카카오 REST API 키"
@@ -34,6 +40,8 @@ $env:CLINICIAN_KAKAO_IDS="허용할 카카오 회원번호"
 $env:QUESTIONNAIRE_PUBLIC_URL="http://localhost:5173"
 .\gradlew.bat bootRun
 ```
+
+Whisper 모델은 첫 전사 때 한 번 내려받아 Docker 볼륨에 보관합니다. 화자 분리 ONNX 모델은 이미지 빌드 시 SHA-256을 확인하여 포함합니다. 이후 녹음 원본은 외부 AI API로 보내지 않고 로컬 STT 컨테이너 안의 임시 파일로만 처리합니다.
 
 링크를 실제 전송하려면 `QUESTIONNAIRE_DELIVERY_WEBHOOK_URL`에 HTTPS 웹훅을 설정합니다. 설정이 없으면 시스템은 전송 성공으로 표시하지 않고 복사용 링크만 제공합니다.
 
@@ -66,7 +74,7 @@ cd backend
 ## GitHub Actions 배포
 
 - `deploy-pages.yml`: React 프론트엔드를 GitHub Pages에 배포합니다.
-- `publish-backend.yml`: Spring Boot 백엔드를 GHCR 컨테이너 이미지로 발행합니다.
+- `publish-backend.yml`: Spring Boot 백엔드와 자체 STT를 각각 GHCR 컨테이너 이미지로 발행합니다.
 - `ci.yml`: 프론트 타입·린트·빌드와 백엔드 테스트를 검증합니다.
 
 저장소 변수 `VITE_API_BASE_URL`에는 외부에서 접근 가능한 HTTPS 백엔드 주소를 설정합니다. 카카오 키와 암호화 키는 Git에 저장하지 않으며, 백엔드 실행 서버의 Secret 저장소나 `compose.production.yml` 환경변수로 전달합니다. H2 데이터는 `/app/data` 영속 볼륨에 보관합니다.

@@ -29,6 +29,7 @@ export type PdClinicalRecord = {
   patientId: string;
   questionnaireId: string;
   rawExaminationText: string;
+  transcript: string | null;
   structuredResults: Array<{ source: string; title: string; value: string; status: string }>;
   soap: { subjective: string; objective: string; assessment: string; plan: string };
   autonomic: Record<string, string>;
@@ -36,6 +37,25 @@ export type PdClinicalRecord = {
   autonomicFileName: string | null;
   clinician: string;
   approvedAt: string;
+};
+export type TranscriptSpeakerRole = '확인 필요' | '의료진' | '환자' | '보호자';
+export type SttTranscript = {
+  text: string;
+  language: string;
+  languageProbability: number;
+  duration: number;
+  model: string;
+  diarizationModel: string;
+  speakerCount: number;
+  segments: Array<{
+    id: number;
+    start: number;
+    end: number;
+    text: string;
+    confidence: number;
+    speaker: string;
+    speakerRole: TranscriptSpeakerRole;
+  }>;
 };
 export type Admission = {
   id: string; patientId: string; name: string; birth6: string; sex: string; parsedJson: string;
@@ -120,6 +140,10 @@ export const pdApi = {
     `/api/pd/questionnaires/${questionnaireId}/clinical-record`,
     { method: 'PUT', body: JSON.stringify(body) },
   ),
+  transcribeAudio: (file: File) => {
+    const body = new FormData(); body.append('file', file);
+    return call<SttTranscript>('/api/pd/stt/transcriptions', { method: 'POST', body });
+  },
   admissions: () => call<Admission[]>('/api/pd/admissions'),
   parseAdmission: (body: object) => call<Admission>('/api/pd/admissions', {
     method: 'POST', body: JSON.stringify(body),

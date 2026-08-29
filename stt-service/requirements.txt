@@ -1,0 +1,5 @@
+fastapi==0.141.1
+faster-whisper==1.2.1
+python-multipart==0.0.32
+sherpa-onnx==1.13.6
+uvicorn==0.52.4

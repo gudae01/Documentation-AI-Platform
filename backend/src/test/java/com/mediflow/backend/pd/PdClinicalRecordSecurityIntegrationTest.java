@@ -42,6 +42,7 @@ class PdClinicalRecordSecurityIntegrationTest {
                 """));
         var request = new PdClinicalRecordController.ApproveRequest(
                 "UPDRS: 18점",
+                "[환자] 오른손 떨림이 있습니다.",
                 List.of(new PdClinicalRecordController.ResultItem(
                         "EMR 붙여넣기", "UPDRS", "18점", "의료진 최종 승인")),
                 new PdClinicalRecordController.Soap("오른손 떨림", "보행 안정", "파킨슨 증상 관찰", "4주 후 추적"),
@@ -53,6 +54,7 @@ class PdClinicalRecordSecurityIntegrationTest {
         var retry = clinicalRecords.approve(questionnaire.getId(), request, "의료진");
         var revisedRequest = new PdClinicalRecordController.ApproveRequest(
                 "UPDRS: 16점",
+                "[환자] 오른손 떨림이 감소했습니다.",
                 List.of(new PdClinicalRecordController.ResultItem(
                         "EMR 붙여넣기", "UPDRS", "16점", "의료진 최종 승인")),
                 new PdClinicalRecordController.Soap("오른손 떨림 감소", "보행 안정", "증상 호전", "8주 후 추적"),
@@ -83,6 +85,7 @@ class PdClinicalRecordSecurityIntegrationTest {
                 """));
         var request = new PdClinicalRecordController.ApproveRequest(
                 "검사: 정상",
+                "[의료진] 검사 결과를 확인했습니다.",
                 List.of(new PdClinicalRecordController.ResultItem("EMR 붙여넣기", "검사", "정상", "승인")),
                 new PdClinicalRecordController.Soap("경직", "검사 정상", "경과 관찰", "재진"),
                 Map.of(), null, null);

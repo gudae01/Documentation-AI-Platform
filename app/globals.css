@@ -653,6 +653,17 @@ button { cursor: pointer; }
 .past-test-card article button { border: 0; background: transparent; color: #4b8e86; font-size: 24px; }
 .past-test-card footer { padding: 13px 15px; background: #eef7f5; color: #527972; font-size: 12px; line-height: 1.5; }
 .stored-examination-card { margin: 16px 20px 0; }
+.patient-transcript-card { margin: 16px 20px 0; border: 1px solid #dce6e5; border-radius: 12px; background: white; overflow: hidden; }
+.patient-transcript-card > header { min-height: 64px; display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid #e5ebeb; }
+.patient-transcript-card > header h2 { margin: 0; color: #345058; font-size: 16px; }
+.patient-transcript-card > header > b { padding: 6px 8px; border-radius: 6px; background: #edf6f3; color: #37796f; font-size: 10px; }
+.patient-transcript-card > pre, .previous-transcript-row pre { margin: 0; color: #4d666c; font-family: inherit; font-size: 12px; line-height: 1.75; white-space: pre-wrap; overflow-wrap: anywhere; }
+.patient-transcript-card > pre { min-height: 72px; padding: 15px 16px; }
+.patient-transcript-card > textarea { width: calc(100% - 28px); min-height: 120px; margin: 14px; padding: 11px 12px; border: 1px solid #c9ddd8; border-radius: 8px; background: #fbfdfc; color: #49636a; font-size: 12px; line-height: 1.7; outline: none; resize: vertical !important; }
+.patient-transcript-card > textarea:focus { border-color: #63a99e; box-shadow: 0 0 0 3px #e3f2ef; }
+.patient-transcript-card > footer { padding: 10px 16px; border-top: 1px solid #e7eded; background: #f8faf9; color: #76898d; font-size: 10px; }
+.previous-transcript-row { align-items: start; }
+.previous-transcript-row pre { max-height: 180px; overflow: auto; }
 .stored-examination-list { max-height: 360px; overflow-y: auto; scrollbar-gutter: stable; }
 .stored-examination-card .stored-examination-list article { min-height: 0; grid-template-columns: minmax(0, 1fr) auto; align-items: start; padding: 12px 15px; }
 .stored-examination-list article > div { min-width: 0; }
@@ -848,6 +859,41 @@ button { cursor: pointer; }
 .upload-audio-card .flow-dropzone { min-height: 330px; padding: 24px; text-align: center; }
 .upload-audio-card .flow-dropzone small { max-width: 390px; line-height: 1.55; }
 .upload-audio-card .flow-file-selected { margin-block: auto; }
+.stt-transcript-card { margin-top: 14px; border: 1px solid #d8e4e2; border-radius: 12px; background: white; overflow: hidden; }
+.stt-transcript-card > header, .final-transcript-review > header { min-height: 70px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 17px; border-bottom: 1px solid #e4ebea; }
+.stt-transcript-card > header h3, .final-transcript-review > header h3 { margin: 0; color: #304e55; font-size: 15px; }
+.stt-transcript-card > header span { display: block; margin-top: 5px; color: #71858a; font-size: 10px; }
+.stt-transcript-card > header > b, .final-transcript-review > header > b { flex: 0 0 auto; padding: 6px 9px; border-radius: 7px; background: #edf5f3; color: #3b786f; font-size: 10px; white-space: nowrap; }
+.stt-transcript-card.transcribing > header > b { background: #edf3fa; color: #4d708d; }
+.stt-transcript-card.error > header > b { background: #fff0ed; color: #a5574b; }
+.stt-transcript-empty, .stt-transcribing, .stt-transcript-error, .final-transcript-message { min-height: 150px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; padding: 24px; color: #75898d; text-align: center; }
+.stt-transcript-empty > i { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 12px; background: #e8f2f0; color: #397b72; font-size: 10px; font-style: normal; font-weight: 850; }
+.stt-transcript-empty strong, .stt-transcribing strong, .stt-transcript-error strong { color: #3f5b61; font-size: 12px; }
+.stt-transcript-empty span, .stt-transcribing span, .stt-transcript-error span { max-width: 580px; font-size: 10px; line-height: 1.6; }
+.stt-transcript-empty button, .stt-transcript-error button { margin-top: 4px; padding: 8px 12px; border: 1px solid #c9ddd9; border-radius: 7px; background: white; color: #337a71; font-size: 10px; font-weight: 800; }
+.stt-transcribing > i { width: 32px; height: 32px; border: 3px solid #dce9f3; border-top-color: #4f819f; border-radius: 50%; animation: stt-spin .9s linear infinite; }
+@keyframes stt-spin { to { transform: rotate(360deg); } }
+.stt-role-guide { display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: center; gap: 10px; margin: 13px; padding: 10px 12px; border: 1px solid #eadfbf; border-radius: 8px; background: #fffaf0; }
+.stt-role-guide > i { width: 27px; height: 27px; display: grid; place-items: center; border-radius: 50%; background: #f5e7bd; color: #8b6b25; font-style: normal; font-weight: 900; }
+.stt-role-guide strong, .stt-role-guide small { display: block; }
+.stt-role-guide strong { color: #705c2f; font-size: 11px; }
+.stt-role-guide small { margin-top: 3px; color: #907f58; font-size: 9px; }
+.stt-speaker-map { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 13px 12px; padding: 11px; border: 1px solid #dce7e5; border-radius: 9px; background: #f7faf9; }
+.stt-speaker-map label { min-width: 220px; display: grid; grid-template-columns: auto auto minmax(105px, 1fr); align-items: center; gap: 8px; flex: 1; }
+.stt-speaker-map label > b { color: #75878b; font-size: 9px; }
+.stt-speaker-label { display: inline-flex; min-height: 30px; align-items: center; justify-content: center; padding: 0 9px; border-radius: 7px; background: #e8f2f0; color: #33786f; font-size: 10px; font-weight: 850; white-space: nowrap; }
+.stt-segment-list { padding: 0 13px 8px; }
+.stt-segment-list article { display: grid; grid-template-columns: 86px 112px minmax(0, 1fr) 86px; align-items: start; gap: 9px; padding: 11px 0; border-bottom: 1px solid #e9eeee; }
+.stt-segment-list article:last-child { border-bottom: 0; }
+.stt-segment-list article > time { padding-top: 10px; color: #74878c; font: 700 10px monospace; white-space: nowrap; }
+.stt-segment-list article > .stt-speaker-label { margin-top: 3px; }
+.stt-segment-list select { width: 100%; min-height: 36px; padding: 0 28px 0 9px; border: 1px solid #c9ded9; border-radius: 7px; background: #eff8f5; color: #326f67; font-size: 11px; font-weight: 800; }
+.stt-segment-list select.unconfirmed { border-color: #e4cf91; background: #fff8e6; color: #846721; }
+.stt-segment-list textarea { width: 100%; min-height: 40px; padding: 9px 10px; border: 1px solid #d6e2e2; border-radius: 7px; background: #fbfcfc; color: #415b62; font-size: 12px; line-height: 1.6; outline: none; resize: vertical !important; }
+.stt-segment-list textarea:focus { border-color: #69aaa1; background: white; box-shadow: 0 0 0 3px #e8f4f1; }
+.stt-segment-list article > small { padding-top: 11px; color: #8b999d; font-size: 9px; white-space: nowrap; }
+.stt-transcript-card > footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-top: 1px solid #e4ebea; background: #f8faf9; color: #74868a; font-size: 9px; }
+.stt-transcript-card > footer button { padding: 7px 10px; border: 1px solid #ccddda; border-radius: 6px; background: white; color: #39786f; font-size: 9px; font-weight: 800; }
 .recording-use-panel > div { padding: 8px 16px; }
 .recording-use-panel article { min-height: 80px; display: grid; grid-template-columns: 34px 1fr; align-items: center; gap: 11px; border-bottom: 1px solid #e9eeee; }
 .recording-use-panel article:last-child { border-bottom: 0; }
@@ -906,6 +952,12 @@ button { cursor: pointer; }
 .final-audio-source strong { color: #405b62; font-size: 12px; }
 .final-audio-source small { margin-top: 4px; color: #7d8d92; font-size: 10px; }
 .final-audio-source > b { color: #477d75; font-size: 10px; }
+.final-transcript-review { margin: 12px 20px 0; border: 1px solid #d9e5e3; border-radius: 10px; background: #fbfcfc; overflow: hidden; }
+.final-transcript-review > header { min-height: 60px; padding-block: 10px; }
+.final-transcript-review .stt-segment-list { padding: 5px 13px; }
+.final-transcript-review .stt-speaker-map { margin: 7px 0 5px; }
+.final-transcript-review .stt-segment-list article { grid-template-columns: 86px 112px minmax(0, 1fr); }
+.final-transcript-message { min-height: 92px; color: #71858a; font-size: 11px; }
 .final-chart-editor > header > span { color: #2f7c73; font-size: 10px; font-weight: 750; }
 .final-chart-editor label { min-width: 0; }
 .final-chart-editor textarea { width: 100%; min-height: 52px; margin-top: 7px; padding: 9px 10px; border: 1px solid #dbe4e5; border-radius: 8px; background: #fbfcfc; color: #455f66; font-size: 11px; line-height: 1.65; outline: none; }
@@ -1451,6 +1503,7 @@ button { cursor: pointer; }
   .previous-record-list summary > em { display: none; }
   .record-detail-grid { padding: 12px; }
   .stored-examination-card { margin: 12px 12px 0; }
+  .patient-transcript-card { margin: 12px 12px 0; }
   .autonomic-file-history { margin: 0 12px 18px; }
   .autonomic-file-history > div { grid-template-columns: 1fr; }
   .autonomic-file-history > div > details { border-right: 0; }
@@ -1460,6 +1513,7 @@ button { cursor: pointer; }
   .final-record-editor-actions > button { margin-left: auto; }
   .final-audio-source { grid-template-columns: 38px 1fr; margin-inline: 12px; }
   .final-audio-source > b { grid-column: 2; }
+  .final-transcript-review { margin-inline: 12px; }
   .final-chart-editor { margin-inline: 12px; }
   .final-test-editor { margin: 0 12px; }
   .final-test-table { min-width: 760px; }
@@ -1483,6 +1537,12 @@ button { cursor: pointer; }
   .soap-generation-notice, .soap-generation-notice.compact { grid-template-columns: 38px minmax(0, 1fr); padding: 12px; }
   .soap-generation-notice > i { width: 37px; height: 37px; }
   .soap-generation-notice > span { grid-column: 2; justify-self: start; }
+  .stt-transcript-card > header { align-items: flex-start; }
+  .stt-transcript-card > header span { max-width: 420px; }
+  .stt-segment-list article { grid-template-columns: 76px 104px minmax(0, 1fr); }
+  .stt-segment-list article > small { display: none; }
+  .stt-transcript-card > footer { align-items: flex-start; flex-direction: column; }
+  .final-transcript-review .stt-segment-list article { grid-template-columns: 76px 104px minmax(0, 1fr); }
   .organized-result-overview, .final-test-overview { grid-template-columns: 1fr 1fr; }
   .organized-result-overview > span:nth-child(2), .final-test-overview > span:nth-child(2) { border-right: 0; }
   .organized-result-overview > span:nth-child(-n+2), .final-test-overview > span:nth-child(-n+2) { border-bottom: 1px solid #e0e9e7; }

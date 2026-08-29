@@ -38,6 +38,10 @@ next-env.d.ts
 /work/
 *.tsbuildinfo
 
+# Python
+__pycache__/
+*.py[cod]
+
 # Spring Boot / Gradle backend
 /backend/.gradle/
 /backend/build/

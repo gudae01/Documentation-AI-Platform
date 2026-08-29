@@ -17,8 +17,35 @@ services:
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-true}
       SESSION_COOKIE_SAME_SITE: ${SESSION_COOKIE_SAME_SITE:-none}
       H2_CONSOLE_ENABLED: "false"
+      STT_BASE_URL: http://mediflow-stt:8090
+      STT_MAX_AUDIO_MB: ${STT_MAX_AUDIO_MB:-100}
+      STT_CONNECT_TIMEOUT_SECONDS: ${STT_CONNECT_TIMEOUT_SECONDS:-5}
+      STT_READ_TIMEOUT_SECONDS: ${STT_READ_TIMEOUT_SECONDS:-900}
+    depends_on:
+      mediflow-stt:
+        condition: service_healthy
     volumes:
       - mediflow-data:/app/data
 
+  mediflow-stt:
+    image: ${MEDIFLOW_STT_IMAGE}
+    restart: unless-stopped
+    environment:
+      STT_MODEL: ${STT_MODEL:-small}
+      STT_LANGUAGE: ${STT_LANGUAGE:-ko}
+      STT_DEVICE: ${STT_DEVICE:-cpu}
+      STT_COMPUTE_TYPE: ${STT_COMPUTE_TYPE:-int8}
+      STT_CPU_THREADS: ${STT_CPU_THREADS:-4}
+      STT_NUM_WORKERS: ${STT_NUM_WORKERS:-1}
+      STT_MAX_AUDIO_MB: ${STT_MAX_AUDIO_MB:-100}
+      STT_MODEL_CACHE: /models
+      DIARIZATION_PROVIDER: ${DIARIZATION_PROVIDER:-cpu}
+      DIARIZATION_THREADS: ${DIARIZATION_THREADS:-4}
+      DIARIZATION_NUM_SPEAKERS: ${DIARIZATION_NUM_SPEAKERS:-0}
+      DIARIZATION_THRESHOLD: ${DIARIZATION_THRESHOLD:-0.9}
+    volumes:
+      - mediflow-stt-models:/models
+
 volumes:
   mediflow-data:
+  mediflow-stt-models:

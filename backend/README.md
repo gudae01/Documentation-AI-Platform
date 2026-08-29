@@ -1,6 +1,6 @@
 # MEDIFLOW Backend
 
-Java 17, Spring Boot 4.1, Spring Security, JPA, H2 기반의 파킨슨병 사전 문진·입원 결과 백엔드입니다. AI 생성 기능은 포함하지 않습니다.
+Java 17, Spring Boot 4.1, Spring Security, JPA, H2 기반의 파킨슨병 사전 문진·입원 결과 백엔드입니다. 자체 STT는 포함하지만 LLM 기반 SOAP 생성은 포함하지 않습니다.
 
 ## 필수 보안 설정
 
@@ -57,6 +57,7 @@ $env:QUESTIONNAIRE_DELIVERY_WEBHOOK_TOKEN="웹훅 Bearer 토큰"
 | POST | `/api/public/questionnaires/{token}/submit` | 토큰 | 문진 제출 |
 | GET | `/api/pd/questionnaires` | 의료진 | 이름·생년월일·성별·예정일·상태 검색 |
 | PUT | `/api/pd/questionnaires/{id}/review` | 의료진 | 검토 문안 저장 |
+| POST | `/api/pd/stt/transcriptions` | 의료진 | 내부 Faster-Whisper 전사와 sherpa-onnx 화자 A/B 분리 |
 | POST | `/api/pd/admissions` | 의료진 | EMR 저장·구조화·비교 |
 | PUT | `/api/pd/admissions/{id}/report` | 의료진 | 보고서 검토 저장 |
 | POST | `/api/pd/admissions/{id}/approve` | 의료진 | 보고서 최종 승인 |
@@ -87,10 +88,12 @@ $env:H2_CONSOLE_ENABLED="true"
 
 ## 컨테이너 실행
 
-`publish-backend.yml`은 `main` push 시 `ghcr.io/<owner>/mediflow-backend` 이미지를 발행합니다. 실행 서버에서는 `.env.production.example`을 복사해 실제 Secret 저장소의 값을 주입하고 다음처럼 시작합니다.
+`publish-backend.yml`은 `main` push 시 `ghcr.io/<owner>/mediflow-backend`와 `ghcr.io/<owner>/mediflow-stt` 이미지를 발행합니다. 실행 서버에서는 `.env.production.example`을 복사해 두 이미지 주소와 실제 Secret 저장소의 값을 주입하고 다음처럼 시작합니다.
 
 ```powershell
 docker compose --env-file .env.production -f compose.production.yml up -d
 ```
+
+STT 컨테이너는 외부 포트를 열지 않으며 백엔드만 내부 Docker 네트워크로 접근합니다. 최초 전사 요청에서는 Whisper 모델을 `mediflow-stt-models` 볼륨에 내려받기 때문에 시간이 더 걸릴 수 있습니다. 화자 분리 모델은 STT 이미지에 포함되며 `DIARIZATION_NUM_SPEAKERS=0`이면 화자 수를 자동 추정합니다. 진료실 환경에 맞춰 `DIARIZATION_THRESHOLD`를 조정할 수 있습니다. 기본 전사 제한시간은 15분(`STT_READ_TIMEOUT_SECONDS=900`)입니다. 녹음 원본은 STT 컨테이너의 임시 파일로만 처리하고 요청 완료 후 삭제합니다.
 
 카카오 REST 키, Client Secret, 데이터 암호화 키, 메시징 웹훅 토큰을 저장소나 Docker 이미지에 넣지 마세요. 카카오 Redirect URI에는 실제 백엔드 HTTPS 주소의 `/login/oauth2/code/kakao`를 등록해야 합니다.

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type TextareaHTMLAttributes } from 'react';
 import './pd-portal.css';
-import { ApiError, pdApi, type AuthResponse, type PdClinicalRecord, type Questionnaire } from './pd-api';
+import { ApiError, pdApi, type AuthResponse, type PdClinicalRecord, type Questionnaire, type SttTranscript, type TranscriptSpeakerRole } from './pd-api';
 import { Links, LoginGate, PublicQuestionnaire } from './pd-portal';
 
 type StepId = 'emr' | 'tests' | 'audio' | 'soap' | 'final';
@@ -82,6 +82,7 @@ type PatientRecord = {
     recordId: string;
     date: string;
     visitType: string;
+    transcript: string;
     chiefComplaint: string;
     objective: string;
     assessment: string;
@@ -101,9 +102,10 @@ type PatientRecord = {
 };
 
 type ClinicalRecordPayload = Pick<PdClinicalRecord,
-  'rawExaminationText' | 'structuredResults' | 'soap' | 'autonomic' | 'audioFileName' | 'autonomicFileName'>;
+  'rawExaminationText' | 'transcript' | 'structuredResults' | 'soap' | 'autonomic' | 'audioFileName' | 'autonomicFileName'>;
 
 type HistoricalClinicalDraft = {
+  transcript: string;
   soap: Record<'S' | 'O' | 'A' | 'P', string>;
   autonomic: Record<string, string>;
 };
@@ -279,6 +281,7 @@ function questionnaireToPatientRecord(questionnaire: Questionnaire, clinicalReco
       recordId: record.id,
       date: dateLabel(record.approvedAt),
       visitType: '문진 기반 진료',
+      transcript: record.transcript ?? '',
       chiefComplaint: record.soap.subjective || patientExplanation,
       objective: record.soap.objective || '기록 없음',
       assessment: record.soap.assessment || '기록 없음',
@@ -315,6 +318,26 @@ function formatRecordingTime(totalSeconds: number) {
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
   return [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(' : ');
+}
+
+const transcriptSpeakerRoles: TranscriptSpeakerRole[] = ['확인 필요', '의료진', '환자', '보호자'];
+
+function formatTranscriptTime(totalSeconds: number) {
+  const seconds = Math.max(0, Math.floor(totalSeconds));
+  return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+}
+
+function serializeTranscript(transcript: SttTranscript | null) {
+  if (!transcript) return null;
+  return transcript.segments
+    .filter((segment) => segment.text.trim())
+    .map((segment) => `[${formatTranscriptTime(segment.start)}] [${segment.speaker} · ${segment.speakerRole}] ${segment.text.trim()}`)
+    .join('\n');
+}
+
+function getTranscriptSpeakers(transcript: SttTranscript | null) {
+  if (!transcript) return [];
+  return Array.from(new Map(transcript.segments.map((segment) => [segment.speaker, segment])).values());
 }
 
 function formatPrintDate(date = new Date()) {
@@ -655,6 +678,7 @@ function PatientDirectory({ records, loading, error, onReload, onReview, onUpdat
   const [editingQuestionnaireId, setEditingQuestionnaireId] = useState('');
   const [questionnaireDraftFields, setQuestionnaireDraftFields] = useState<{ label: string; value: string }[]>([]);
   const [soapDraft, setSoapDraft] = useState<Record<'S' | 'O' | 'A' | 'P', string>>({ S: '', O: '', A: '', P: '' });
+  const [transcriptDraft, setTranscriptDraft] = useState('');
   const [examinationDraftRows, setExaminationDraftRows] = useState<ExaminationResult[]>([]);
   const [autonomicDraftValues, setAutonomicDraftValues] = useState<Record<string, string>>({});
   const [historicalClinicalDrafts, setHistoricalClinicalDrafts] = useState<Record<string, HistoricalClinicalDraft>>({});
@@ -717,11 +741,13 @@ function PatientDirectory({ records, loading, error, onReload, onReview, onUpdat
     if (!selectedPatient) return;
     setQuestionnaireDraftFields(selectedPatient.clinicalDetails.map((detail) => ({ ...detail })));
     setSoapDraft({ ...selectedPatient.soap });
+    setTranscriptDraft(selectedPatient.currentClinicalRecord?.transcript ?? '');
     setExaminationDraftRows(directoryExaminationRows.map((row) => ({ ...row })));
     setAutonomicDraftValues({ ...(selectedPatient.currentClinicalRecord?.autonomic ?? {}) });
     setHistoricalClinicalDrafts(Object.fromEntries(selectedPatient.clinicalRecords
       .filter((record) => record.id !== selectedPatient.currentClinicalRecord?.id)
       .map((record) => [record.id, {
+        transcript: record.transcript ?? '',
         soap: {
           S: record.soap.subjective,
           O: record.soap.objective,
@@ -737,6 +763,7 @@ function PatientDirectory({ records, loading, error, onReload, onReview, onUpdat
   const cancelPatientRecordEdit = () => {
     setEditingQuestionnaireId('');
     setQuestionnaireDraftFields([]);
+    setTranscriptDraft('');
     setExaminationDraftRows([]);
     setAutonomicDraftValues({});
     setHistoricalClinicalDrafts({});
@@ -752,6 +779,12 @@ function PatientDirectory({ records, loading, error, onReload, onReview, onUpdat
     setHistoricalClinicalDrafts((current) => ({
       ...current,
       [recordId]: { ...current[recordId], soap: { ...current[recordId].soap, [letter]: value } },
+    }));
+  };
+  const updateHistoricalTranscriptDraft = (recordId: string, value: string) => {
+    setHistoricalClinicalDrafts((current) => ({
+      ...current,
+      [recordId]: { ...current[recordId], transcript: value },
     }));
   };
   const updateHistoryAutonomicDraft = (record: AutonomicFileRecord, key: string, value: string) => {
@@ -796,6 +829,7 @@ function PatientDirectory({ records, loading, error, onReload, onReview, onUpdat
             .filter((row) => row.source === 'EMR 붙여넣기')
             .map((row) => `${row.title}:\n${row.value}`)
             .join('\n\n'),
+          transcript: transcriptDraft,
           structuredResults,
           soap: {
             subjective: soapDraft.S,
@@ -814,6 +848,7 @@ function PatientDirectory({ records, loading, error, onReload, onReview, onUpdat
         if (!draft) continue;
         await onUpdateClinicalRecord(record.questionnaireId, {
           rawExaminationText: record.rawExaminationText,
+          transcript: draft.transcript,
           structuredResults: record.structuredResults.filter((row) => row.source !== '환자 사전 문진'),
           soap: {
             subjective: draft.soap.S,
@@ -924,6 +959,7 @@ function PatientDirectory({ records, loading, error, onReload, onReview, onUpdat
                     <details key={record.date} open id={`previous-record-${record.date.replace(/\./g, '-')}`}>
                       <summary><span><time>{record.date}</time><b>{record.visitType}</b></span><strong>{record.chiefComplaint}</strong><em>원본 기록 보기</em></summary>
                       <dl>
+                        {(record.transcript || editingRecord) && <div className="previous-transcript-row"><dt>진료 녹취</dt><dd>{editingRecord && draft ? <AutoResizeTextarea value={draft.transcript} onChange={(event) => updateHistoricalTranscriptDraft(record.recordId, event.target.value)} aria-label={`${record.date} 진료 녹취 수정`} /> : <pre>{record.transcript}</pre>}</dd></div>}
                         <div><dt>주호소</dt><dd>{editingRecord && draft ? <AutoResizeTextarea value={draft.soap.S} onChange={(event) => updateHistoricalSoapDraft(record.recordId, 'S', event.target.value)} aria-label={`${record.date} 주호소 수정`} /> : record.chiefComplaint}</dd></div>
                         <div><dt>객관적 소견</dt><dd>{editingRecord && draft ? <AutoResizeTextarea value={draft.soap.O} onChange={(event) => updateHistoricalSoapDraft(record.recordId, 'O', event.target.value)} aria-label={`${record.date} 객관적 소견 수정`} /> : record.objective}</dd></div>
                         <div><dt>평가·진단</dt><dd>{editingRecord && draft ? <AutoResizeTextarea value={draft.soap.A} onChange={(event) => updateHistoricalSoapDraft(record.recordId, 'A', event.target.value)} aria-label={`${record.date} 평가 수정`} /> : record.assessment}</dd></div>
@@ -949,6 +985,11 @@ function PatientDirectory({ records, loading, error, onReload, onReview, onUpdat
                 {editingRecord && !directoryExaminationGroups.length && <div className="record-result-empty">등록된 실제 검사·EMR 결과가 없습니다.</div>}
               </div>
               <footer>{editingRecord ? <button className="record-result-add" onClick={() => setExaminationDraftRows((current) => [...current, { source: 'EMR 붙여넣기', title: '', value: '', status: '의료진 수정' }])}>+ 검사 항목 추가</button> : '사전 문진과 겹치지 않도록 실제 검사·EMR의 항목과 내용만 표시합니다.'}</footer>
+            </section>}
+            {selectedPatient.currentClinicalRecord && (selectedPatient.currentClinicalRecord.transcript || editingRecord) && <section className={`patient-transcript-card ${editingRecord ? 'editing' : ''}`}>
+              <header><div><p className="eyebrow">STT TRANSCRIPT</p><h2>진료 녹취</h2></div><b>{editingRecord ? '문장별 수정' : '승인 기록'}</b></header>
+              {editingRecord ? <AutoResizeTextarea value={transcriptDraft} onChange={(event) => setTranscriptDraft(event.target.value)} aria-label="현재 진료 녹취 수정" placeholder="[00:00] [확인 필요] 녹취 내용을 입력하세요." /> : <pre>{selectedPatient.currentClinicalRecord.transcript}</pre>}
+              <footer>화자 표시는 의료진이 확인한 역할만 기록하며, SOAP와는 별도로 보관됩니다.</footer>
             </section>}
             <div className={`record-detail-grid ${showCurrentAutonomic ? '' : 'single'}`}>
               <section className="past-soap-card">
@@ -1046,8 +1087,28 @@ function EmrStep({ stepNumber, encounterType, captured, patient, onCapture }: { 
   );
 }
 
-function AudioStep({ stepNumber, encounterType, selectedFile, recording, recordingStarted, recordingSeconds, microphoneState, microphoneLabel, microphoneError, onSelectedFileChange, onToggleRecording, onCheckMicrophone }: { stepNumber: number; encounterType: EncounterType; selectedFile: File | null; recording: boolean; recordingStarted: boolean; recordingSeconds: number; microphoneState: MicrophoneState; microphoneLabel: string; microphoneError: string; onSelectedFileChange: (file: File | null) => void; onToggleRecording: () => void | Promise<void>; onCheckMicrophone: () => void | Promise<void> }) {
+function AudioStep({ stepNumber, encounterType, selectedFile, recording, recordingStarted, recordingSeconds, microphoneState, microphoneLabel, microphoneError, transcript, transcriptionState, transcriptionError, onSelectedFileChange, onToggleRecording, onCheckMicrophone, onRetryTranscription, onTranscriptSegmentChange }: {
+  stepNumber: number;
+  encounterType: EncounterType;
+  selectedFile: File | null;
+  recording: boolean;
+  recordingStarted: boolean;
+  recordingSeconds: number;
+  microphoneState: MicrophoneState;
+  microphoneLabel: string;
+  microphoneError: string;
+  transcript: SttTranscript | null;
+  transcriptionState: 'idle' | 'transcribing' | 'ready' | 'error';
+  transcriptionError: string;
+  onSelectedFileChange: (file: File | null) => void;
+  onToggleRecording: () => void | Promise<void>;
+  onCheckMicrophone: () => void | Promise<void>;
+  onRetryTranscription: () => void;
+  onTranscriptSegmentChange: (segmentId: number, patch: { text?: string; speakerRole?: TranscriptSpeakerRole }) => void;
+}) {
   const fileExtension = selectedFile?.name.split('.').pop()?.toUpperCase() || 'AUDIO';
+  const transcriptSpeakers = getTranscriptSpeakers(transcript);
+  const unconfirmedSpeakerCount = transcriptSpeakers.filter((segment) => segment.speakerRole === '확인 필요').length;
   const recordingStatus = recording ? '녹음 중' : recordingStarted ? '녹음 완료' : '대기';
   const microphoneStatus = microphoneState === 'recording' ? '마이크 사용 중'
     : microphoneState === 'available' ? '마이크 연결됨'
@@ -1061,9 +1122,9 @@ function AudioStep({ stepNumber, encounterType, selectedFile, recording, recordi
       <header className="step-heading"><div><p className="eyebrow">STEP {stepNumber} · AUDIO INPUT</p><h2>진료 녹음 입력</h2><span>{encounterType === 'new' ? '실시간으로 진료를 녹음하거나, 진료 후 스마트폰·녹음기의 파일을 바로 추가할 수 있습니다.' : '오늘 진료의 실시간 녹음과 녹음파일을 기존 환자기록과 함께 차트 근거로 사용할 수 있습니다.'}</span></div></header>
       <div className="audio-to-chart-route"><span><i>1</i>진료 녹음·파일</span><b>→</b><span><i>2</i>검사자료 확인</span><b>→</b><span><i>3</i>SOAP 직접 작성</span><b>→</b><span><i>4</i>최종 검토·승인</span></div>
       <section className="soap-generation-notice" aria-label="SOAP 생성 방식 안내">
-        <i>AI</i>
-        <div><strong>현재는 녹음 후 SOAP가 자동으로 작성되지 않습니다</strong><p>녹음은 진료기록의 근거 파일로 연결됩니다. 자동 초안을 사용하려면 음성 전사(STT)와 의료 문서 AI를 추가로 연동해야 하며, 현재 화면에서는 의료진이 SOAP를 직접 작성합니다.</p></div>
-        <span>직접 작성</span>
+        <i>A/B</i>
+        <div><strong>자체 STT와 화자 분리가 녹취를 자동으로 만듭니다</strong><p>목소리 특징으로 화자 A·B를 나누고 음성을 글로 옮깁니다. A·B가 의료진·환자 중 누구인지만 한 번 확인해 주세요.</p></div>
+        <span>내부 처리</span>
       </section>
       <div className="audio-flow-layout">
         <section className="audio-input-panel live-audio-card">
@@ -1079,12 +1140,32 @@ function AudioStep({ stepNumber, encounterType, selectedFile, recording, recordi
         <section className="audio-input-panel upload-audio-card">
           <header><div><p className="eyebrow">AUDIO FILE</p><h3>녹음파일 업로드</h3></div><span>{selectedFile ? '파일 연결됨' : '선택 대기'}</span></header>
           {!selectedFile ? (
-            <div className="flow-dropzone"><i /><strong>진료 후 녹음파일 넣기</strong><span>스마트폰·녹음기 파일 · M4A · MP3 · WAV · AAC</span><label><input type="file" accept=".m4a,.mp3,.wav,.aac,audio/*" onChange={(event) => onSelectedFileChange(event.target.files?.[0] ?? null)} /><b>녹음파일 선택</b></label><small>현재는 파일을 진료기록 근거로 연결합니다. STT·AI 연동 후에는 이 파일로 SOAP 초안을 만들 수 있습니다.</small></div>
+            <div className="flow-dropzone"><i /><strong>진료 후 녹음파일 넣기</strong><span>스마트폰·녹음기 파일 · M4A · MP3 · WAV · AAC</span><label><input type="file" accept=".m4a,.mp3,.wav,.aac,.ogg,.flac,.mp4,.webm,audio/*" onChange={(event) => onSelectedFileChange(event.target.files?.[0] ?? null)} /><b>녹음파일 선택</b></label><small>파일을 선택하면 병원 내부 STT가 자동으로 녹취를 시작합니다.</small></div>
           ) : (
             <div className="flow-file-selected"><i>{fileExtension}</i><div><strong>{selectedFile.name}</strong><span>{formatFileSize(selectedFile.size)} · {selectedFile.type || 'MIME type 확인 필요'}</span><small>이 파일은 최종 진료기록의 근거로 연결되며, SOAP는 다음 단계에서 직접 작성합니다.</small></div><button onClick={() => onSelectedFileChange(null)}>×</button></div>
           )}
         </section>
       </div>
+      <section className={`stt-transcript-card ${transcriptionState}`}>
+        <header><div><p className="eyebrow">LOCAL SPEECH TO TEXT</p><h3>진료 녹취 및 화자 확인</h3><span>같은 목소리나 불확실한 구간은 자동으로 역할을 정하지 않습니다.</span></div><b>{transcriptionState === 'transcribing' ? '음성 변환 중' : transcriptionState === 'ready' && unconfirmedSpeakerCount ? `화자 ${unconfirmedSpeakerCount}개 확인 필요` : transcriptionState === 'ready' ? '녹취 완료' : transcriptionState === 'error' ? '변환 실패' : '파일 대기'}</b></header>
+        {!selectedFile && <div className="stt-transcript-empty"><i>STT</i><strong>녹음을 완료하거나 파일을 선택해 주세요</strong><span>음성파일이 준비되면 자체 STT가 한국어 문장과 시간 구간을 생성합니다.</span></div>}
+        {selectedFile && transcriptionState === 'transcribing' && <div className="stt-transcribing"><i /><strong>화자를 나누고 음성을 텍스트로 바꾸고 있습니다</strong><span>녹음 길이에 따라 시간이 걸릴 수 있습니다. 이 화면을 닫지 말아 주세요.</span></div>}
+        {selectedFile && transcriptionState === 'error' && <div className="stt-transcript-error"><strong>녹취를 만들지 못했습니다</strong><span>{transcriptionError}</span><button onClick={onRetryTranscription}>다시 시도</button></div>}
+        {selectedFile && transcriptionState === 'ready' && transcript && transcript.segments.length === 0 && <div className="stt-transcript-empty"><i>—</i><strong>인식된 음성이 없습니다</strong><span>녹음 음량과 파일 내용을 확인한 뒤 다시 시도해 주세요.</span><button onClick={onRetryTranscription}>다시 변환</button></div>}
+        {transcript && transcript.segments.length > 0 && <div className="stt-segment-list">
+          <div className="stt-role-guide"><i>✓</i><span><strong>목소리별 역할을 한 번만 확인해 주세요</strong><small>화자 A·B는 자동 분리되지만, 누가 의료진·환자·보호자인지는 직접 지정해야 합니다.</small></span></div>
+          <div className="stt-speaker-map">{transcriptSpeakers.map((segment) => <label key={segment.speaker}><span className="stt-speaker-label">{segment.speaker}</span><b>역할</b><select className={segment.speakerRole === '확인 필요' ? 'unconfirmed' : ''} value={segment.speakerRole} onChange={(event) => onTranscriptSegmentChange(segment.id, { speakerRole: event.target.value as TranscriptSpeakerRole })} aria-label={`${segment.speaker} 역할`}>
+            {transcriptSpeakerRoles.map((role) => <option value={role} key={role}>{role}</option>)}
+          </select></label>)}</div>
+          {transcript.segments.map((segment) => <article key={segment.id}>
+            <time>{formatTranscriptTime(segment.start)}–{formatTranscriptTime(segment.end)}</time>
+            <span className="stt-speaker-label">{segment.speaker}</span>
+            <AutoResizeTextarea value={segment.text} onChange={(event) => onTranscriptSegmentChange(segment.id, { text: event.target.value })} aria-label={`${formatTranscriptTime(segment.start)} 구간 녹취 수정`} />
+            <small>인식 신뢰도 {Math.round(segment.confidence * 100)}%</small>
+          </article>)}
+        </div>}
+        {transcript && transcript.segments.length > 0 && <footer><span>화자 {transcript.speakerCount}명 · STT {transcript.model} · {formatRecordingTime(Math.round(transcript.duration))}</span><button onClick={onRetryTranscription}>원본으로 다시 변환</button></footer>}
+      </section>
     </div>
   );
 }
@@ -1228,11 +1309,14 @@ function FinalStep({
   chartText,
   existingResults,
   audioFile,
+  transcript,
+  transcriptionState,
   autonomicFile,
   hasPrevious,
   autonomicValues,
   onSoapChange,
   onChartTextChange,
+  onTranscriptSegmentChange,
   onAutonomicChange,
   onApprove,
   onFinishWithoutPdf,
@@ -1245,11 +1329,14 @@ function FinalStep({
   chartText: string;
   existingResults: [string, string, string][];
   audioFile: File | null;
+  transcript: SttTranscript | null;
+  transcriptionState: 'idle' | 'transcribing' | 'ready' | 'error';
   autonomicFile: File | null;
   hasPrevious: boolean | null;
   autonomicValues: Record<string, string>;
   onSoapChange: (letter: string, value: string) => void;
   onChartTextChange: (value: string) => void;
+  onTranscriptSegmentChange: (segmentId: number, patch: { text?: string; speakerRole?: TranscriptSpeakerRole }) => void;
   onAutonomicChange: (key: string, value: string) => void;
   onApprove: () => Promise<void>;
   onFinishWithoutPdf: () => void;
@@ -1277,6 +1364,9 @@ function FinalStep({
     pastedIndex: null,
   }));
   const finalChartRows = [...existingChartRows, ...pastedChartRows];
+  const transcriptSpeakers = getTranscriptSpeakers(transcript);
+  const unconfirmedSpeakerCount = transcriptSpeakers.filter((segment) => segment.speakerRole === '확인 필요').length;
+  const transcriptReadyForApproval = !audioFile || (transcriptionState === 'ready' && unconfirmedSpeakerCount === 0);
   const finalResultGroups = [
     { source: '기존 기록', label: '이전 승인 기록', tone: 'existing', rows: existingChartRows },
     { source: 'EMR 붙여넣기', label: '이번에 추가한 검사', tone: 'emr', rows: pastedChartRows },
@@ -1352,6 +1442,18 @@ function FinalStep({
         <div className={audioFile ? 'final-audio-source connected' : 'final-audio-source'}>
           <i>음성</i><span><strong>{audioFile ? '진료 녹음파일이 기록 근거로 연결되었습니다' : '연결된 진료 녹음파일 없음'}</strong><small>{audioFile ? `${audioFile.name} · ${formatFileSize(audioFile.size)}` : '진료 녹음 입력 단계에서 파일을 추가하면 차트와 SOAP의 근거로 연결됩니다.'}</small></span><b>{audioFile ? '원본 연결' : '선택 입력'}</b>
         </div>
+        {audioFile && <section className="final-transcript-review">
+          <header><div><p className="eyebrow">STT TRANSCRIPT</p><h3>진료 녹취</h3></div><b>{transcriptionState === 'transcribing' ? '변환 중' : unconfirmedSpeakerCount ? `화자 ${unconfirmedSpeakerCount}개 확인 필요` : transcript ? `${transcript.segments.length}개 구간` : '녹취 없음'}</b></header>
+          {transcriptionState === 'transcribing' ? <div className="final-transcript-message">자체 STT 변환이 끝난 뒤 최종 승인할 수 있습니다.</div>
+            : transcript?.segments.length ? <div className="stt-segment-list compact"><div className="stt-speaker-map">{transcriptSpeakers.map((segment) => <label key={segment.speaker}><span className="stt-speaker-label">{segment.speaker}</span><b>역할</b><select disabled={approved} className={segment.speakerRole === '확인 필요' ? 'unconfirmed' : ''} value={segment.speakerRole} onChange={(event) => onTranscriptSegmentChange(segment.id, { speakerRole: event.target.value as TranscriptSpeakerRole })} aria-label={`${segment.speaker} 역할`}>
+              {transcriptSpeakerRoles.map((role) => <option value={role} key={role}>{role}</option>)}
+            </select></label>)}</div>{transcript.segments.map((segment) => <article key={segment.id}>
+              <time>{formatTranscriptTime(segment.start)}–{formatTranscriptTime(segment.end)}</time>
+              <span className="stt-speaker-label">{segment.speaker}</span>
+              <AutoResizeTextarea disabled={approved} value={segment.text} onChange={(event) => onTranscriptSegmentChange(segment.id, { text: event.target.value })} aria-label={`${formatTranscriptTime(segment.start)} 구간 녹취 수정`} />
+            </article>)}</div>
+              : <div className="final-transcript-message">녹취가 없거나 변환에 실패했습니다. 필요하면 녹음 단계로 돌아가 다시 시도해 주세요.</div>}
+        </section>}
         <section className="record-chart-card final-chart-editor">
           <header><div><p className="eyebrow">CLINICAL CHART</p><h2>진료 차트</h2></div><span>직접 편집</span></header>
           <div className="chart-narrative-grid">
@@ -1430,7 +1532,7 @@ function FinalStep({
       )}
       <div className="final-approval-only">
         {approvalError && <span className="final-approval-error">{approvalError}</span>}
-        <button disabled={approved || approving} onClick={approveAndChooseNext}>{approved ? '최종 승인 완료' : approving ? 'H2에 안전하게 저장 중…' : '내용을 확인하고 최종 승인'} <b>✓</b></button>
+        <button disabled={approved || approving || !transcriptReadyForApproval} onClick={approveAndChooseNext}>{approved ? '최종 승인 완료' : approving ? 'H2에 안전하게 저장 중…' : transcriptionState === 'transcribing' ? '녹취 완료 대기 중…' : transcriptionState === 'error' ? '녹취를 다시 시도해 주세요' : unconfirmedSpeakerCount ? `화자 ${unconfirmedSpeakerCount}개를 확인해 주세요` : '내용을 확인하고 최종 승인'} <b>✓</b></button>
       </div>
     </div>
   );
@@ -1447,6 +1549,9 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
   const [soapValues, setSoapValues] = useState<Record<string, string>>({ S: '', O: '', A: '', P: '' });
   const [chartText, setChartText] = useState('');
   const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [transcript, setTranscript] = useState<SttTranscript | null>(null);
+  const [transcriptionState, setTranscriptionState] = useState<'idle' | 'transcribing' | 'ready' | 'error'>('idle');
+  const [transcriptionError, setTranscriptionError] = useState('');
   const [autonomicFile, setAutonomicFile] = useState<File | null>(null);
   const [hasPreviousAutonomic, setHasPreviousAutonomic] = useState<boolean | null>(null);
   const [autonomicValues, setAutonomicValues] = useState<Record<string, string>>({});
@@ -1466,12 +1571,65 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const microphoneStreamRef = useRef<MediaStream | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
+  const transcriptionRequestRef = useRef(0);
   const deferredDraftWidgetRef = useRef<HTMLDivElement>(null);
   const questionnaireLoadPromiseRef = useRef<Promise<void> | null>(null);
   const [questionnaires, setQuestionnaires] = useState<Questionnaire[]>([]);
   const [clinicalRecords, setClinicalRecords] = useState<PdClinicalRecord[]>([]);
   const [questionnairesLoading, setQuestionnairesLoading] = useState(true);
   const [questionnairesError, setQuestionnairesError] = useState('');
+
+  const transcribeAudioFile = useCallback(async (file: File) => {
+    const requestId = ++transcriptionRequestRef.current;
+    setTranscript(null);
+    setTranscriptionState('transcribing');
+    setTranscriptionError('');
+    try {
+      const result = await pdApi.transcribeAudio(file);
+      if (transcriptionRequestRef.current !== requestId) return;
+      setTranscript(result);
+      setTranscriptionState('ready');
+    } catch (reason) {
+      if (transcriptionRequestRef.current !== requestId) return;
+      setTranscriptionState('error');
+      setTranscriptionError(reason instanceof Error ? reason.message : '자체 STT 음성 변환에 실패했습니다.');
+    }
+  }, []);
+
+  const selectAudioFile = useCallback((file: File | null) => {
+    setAudioFile(file);
+    if (!file) {
+      transcriptionRequestRef.current += 1;
+      setTranscript(null);
+      setTranscriptionState('idle');
+      setTranscriptionError('');
+      return;
+    }
+    if (file.size > 100 * 1024 * 1024) {
+      transcriptionRequestRef.current += 1;
+      setTranscript(null);
+      setTranscriptionState('error');
+      setTranscriptionError('녹음파일은 100MB 이하만 변환할 수 있습니다.');
+      return;
+    }
+    void transcribeAudioFile(file);
+  }, [transcribeAudioFile]);
+
+  const updateTranscriptSegment = (segmentId: number, patch: { text?: string; speakerRole?: TranscriptSpeakerRole }) => {
+    setTranscript((current) => {
+      if (!current) return current;
+      const target = current.segments.find((candidate) => candidate.id === segmentId);
+      return {
+        ...current,
+        segments: current.segments.map((segment) => {
+          if (patch.speakerRole && target && segment.speaker === target.speaker) {
+            return { ...segment, speakerRole: patch.speakerRole };
+          }
+          return segment.id === segmentId ? { ...segment, ...patch } : segment;
+        }),
+      };
+    });
+  };
 
   const loadQuestionnaires = useCallback(async (silent = false, refreshAfterCurrent = false) => {
     const activeLoad = questionnaireLoadPromiseRef.current;
@@ -1577,7 +1735,7 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
     setEmrCaptured(true);
     setSoapValues({ ...patient.soap });
     setChartText('');
-    setAudioFile(null);
+    selectAudioFile(null);
     setAutonomicFile(null);
     setHasPreviousAutonomic(patient.autonomicFiles.length ? true : null);
     setAutonomicValues({});
@@ -1710,6 +1868,7 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
       await checkMicrophone();
       return;
     }
+    selectAudioFile(null);
     setMicrophoneState('requesting');
     setMicrophoneError('');
     try {
@@ -1731,7 +1890,7 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
         const blob = new Blob(recordedChunksRef.current, { type: mimeType });
         if (blob.size > 0) {
           const timestamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '_').slice(0, 13);
-          setAudioFile(new File([blob], `진료녹음_${timestamp}.${extension}`, { type: mimeType, lastModified: Date.now() }));
+          selectAudioFile(new File([blob], `진료녹음_${timestamp}.${extension}`, { type: mimeType, lastModified: Date.now() }));
         }
         recordedChunksRef.current = [];
         mediaRecorderRef.current = null;
@@ -1863,7 +2022,7 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
     setEmrCaptured(Boolean(draft.emrCaptured));
     setSoapValues({ S: '', O: '', A: '', P: '', ...draft.soapValues });
     setChartText(draft.chartText ?? '');
-    setAudioFile(null);
+    selectAudioFile(null);
     setAutonomicFile(null);
     setHasPreviousAutonomic(draft.hasPreviousAutonomic ?? null);
     setAutonomicValues(draft.autonomicValues ?? {});
@@ -1896,6 +2055,7 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
     try {
       await pdApi.approveClinicalRecord(selectedPatient.questionnaireId, {
         rawExaminationText: chartText,
+        transcript: serializeTranscript(transcript),
         structuredResults,
         soap: {
           subjective: soapValues.S ?? '',
@@ -1955,7 +2115,7 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
     setEmrCaptured(false);
     setSoapValues({ S: '', O: '', A: '', P: '' });
     setChartText('');
-    setAudioFile(null);
+    selectAudioFile(null);
     setAutonomicFile(null);
     setHasPreviousAutonomic(null);
     setAutonomicValues({});
@@ -2039,9 +2199,9 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
             <div className="flow-content">
               {activeStep === 'emr' && <EmrStep stepNumber={currentIndex + 1} encounterType={encounterType} captured={emrCaptured} patient={selectedPatient} onCapture={() => setEmrCaptured(true)} />}
               {activeStep === 'tests' && <TestsStep stepNumber={currentIndex + 1} encounterType={encounterType} chartText={chartText} existingResults={selectedPatient?.tests ?? []} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} onChartTextChange={setChartText} onAutonomicFileChange={(file) => { setAutonomicFile(file); setHasPreviousAutonomic(file ? Boolean(selectedPatient) : selectedPatient ? true : null); }} onPreviousChange={setHasPreviousAutonomic} />}
-              {activeStep === 'audio' && <AudioStep stepNumber={currentIndex + 1} encounterType={encounterType} selectedFile={audioFile} recording={recording} recordingStarted={recordingStarted} recordingSeconds={recordingSeconds} microphoneState={microphoneState} microphoneLabel={microphoneLabel} microphoneError={microphoneError} onSelectedFileChange={setAudioFile} onToggleRecording={toggleRecording} onCheckMicrophone={checkMicrophone} />}
+              {activeStep === 'audio' && <AudioStep stepNumber={currentIndex + 1} encounterType={encounterType} selectedFile={audioFile} recording={recording} recordingStarted={recordingStarted} recordingSeconds={recordingSeconds} microphoneState={microphoneState} microphoneLabel={microphoneLabel} microphoneError={microphoneError} transcript={transcript} transcriptionState={transcriptionState} transcriptionError={transcriptionError} onSelectedFileChange={selectAudioFile} onToggleRecording={toggleRecording} onCheckMicrophone={checkMicrophone} onRetryTranscription={() => { if (audioFile) void transcribeAudioFile(audioFile); }} onTranscriptSegmentChange={updateTranscriptSegment} />}
               {activeStep === 'soap' && <SoapStep stepNumber={currentIndex + 1} values={soapValues} hasAudio={Boolean(audioFile || recordingStarted)} hasQuestionnaire={Boolean(selectedPatient)} hasTests={Boolean(chartText.trim() || selectedPatient?.tests.length)} onChange={(letter, value) => setSoapValues({ ...soapValues, [letter]: value })} />}
-              {activeStep === 'final' && <FinalStep stepNumber={currentIndex + 1} approved={approved} patient={selectedPatient} clinician={nickname} soapValues={soapValues} chartText={chartText} existingResults={selectedPatient?.tests ?? []} audioFile={audioFile} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} autonomicValues={autonomicValues} onSoapChange={(letter, value) => setSoapValues((current) => ({ ...current, [letter]: value }))} onChartTextChange={setChartText} onAutonomicChange={(key, value) => setAutonomicValues((current) => ({ ...current, [key]: value }))} onApprove={approveEncounter} onFinishWithoutPdf={finishEncounterToHome} />}
+              {activeStep === 'final' && <FinalStep stepNumber={currentIndex + 1} approved={approved} patient={selectedPatient} clinician={nickname} soapValues={soapValues} chartText={chartText} existingResults={selectedPatient?.tests ?? []} audioFile={audioFile} transcript={transcript} transcriptionState={transcriptionState} autonomicFile={autonomicFile} hasPrevious={hasPreviousAutonomic} autonomicValues={autonomicValues} onSoapChange={(letter, value) => setSoapValues((current) => ({ ...current, [letter]: value }))} onChartTextChange={setChartText} onTranscriptSegmentChange={updateTranscriptSegment} onAutonomicChange={(key, value) => setAutonomicValues((current) => ({ ...current, [key]: value }))} onApprove={approveEncounter} onFinishWithoutPdf={finishEncounterToHome} />}
             </div>
 
             <footer className="flow-footer-actions">

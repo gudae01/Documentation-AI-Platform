@@ -68,12 +68,13 @@ public class PdClinicalRecordController {
     private Response response(PdClinicalRecord record) {
         ApproveRequest payload = service.read(record);
         return new Response(record.getId(), record.getPatient().getId(), record.getQuestionnaire().getId(),
-                payload.rawExaminationText(), payload.structuredResults(), payload.soap(), payload.autonomic(),
+                payload.rawExaminationText(), payload.transcript(), payload.structuredResults(), payload.soap(), payload.autonomic(),
                 payload.audioFileName(), payload.autonomicFileName(), record.getClinician(), record.getApprovedAt());
     }
 
     public record ApproveRequest(
             @Size(max = 30000) String rawExaminationText,
+            @Size(max = 200000) String transcript,
             @NotNull @Size(max = 200) List<@Valid ResultItem> structuredResults,
             @NotNull @Valid Soap soap,
             @NotNull @Size(max = 60) Map<@Size(max = 80) String, @Size(max = 2000) String> autonomic,
@@ -92,7 +93,7 @@ public class PdClinicalRecordController {
             @Size(max = 30000) String assessment,
             @Size(max = 30000) String plan) { }
 
-    public record Response(UUID id, UUID patientId, UUID questionnaireId, String rawExaminationText,
+    public record Response(UUID id, UUID patientId, UUID questionnaireId, String rawExaminationText, String transcript,
                            List<ResultItem> structuredResults, Soap soap, Map<String, String> autonomic,
                            String audioFileName, String autonomicFileName, String clinician,
                            Instant approvedAt) { }
