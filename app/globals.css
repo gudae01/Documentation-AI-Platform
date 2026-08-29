@@ -860,19 +860,32 @@ button { cursor: pointer; }
 .upload-audio-card .flow-dropzone small { max-width: 390px; line-height: 1.55; }
 .upload-audio-card .flow-file-selected { margin-block: auto; }
 .stt-transcript-card { margin-top: 14px; border: 1px solid #d8e4e2; border-radius: 12px; background: white; overflow: hidden; }
-.stt-transcript-card > header, .final-transcript-review > header { min-height: 70px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 17px; border-bottom: 1px solid #e4ebea; }
-.stt-transcript-card > header h3, .final-transcript-review > header h3 { margin: 0; color: #304e55; font-size: 15px; }
+.stt-transcript-card > header { min-height: 70px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 17px; }
+.stt-transcript-card > header h3 { margin: 0; color: #304e55; font-size: 15px; }
 .stt-transcript-card > header span { display: block; margin-top: 5px; color: #71858a; font-size: 10px; }
-.stt-transcript-card > header > b, .final-transcript-review > header > b { flex: 0 0 auto; padding: 6px 9px; border-radius: 7px; background: #edf5f3; color: #3b786f; font-size: 10px; white-space: nowrap; }
+.stt-transcript-card > header > b { flex: 0 0 auto; padding: 6px 9px; border-radius: 7px; background: #edf5f3; color: #3b786f; font-size: 10px; white-space: nowrap; }
 .stt-transcript-card.transcribing > header > b { background: #edf3fa; color: #4d708d; }
 .stt-transcript-card.error > header > b { background: #fff0ed; color: #a5574b; }
 .stt-transcript-empty, .stt-transcribing, .stt-transcript-error, .final-transcript-message { min-height: 150px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; padding: 24px; color: #75898d; text-align: center; }
+.stt-status-message { min-height: 92px; border-top: 1px solid #e4ebea; }
 .stt-transcript-empty > i { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 12px; background: #e8f2f0; color: #397b72; font-size: 10px; font-style: normal; font-weight: 850; }
 .stt-transcript-empty strong, .stt-transcribing strong, .stt-transcript-error strong { color: #3f5b61; font-size: 12px; }
 .stt-transcript-empty span, .stt-transcribing span, .stt-transcript-error span { max-width: 580px; font-size: 10px; line-height: 1.6; }
 .stt-transcript-empty button, .stt-transcript-error button { margin-top: 4px; padding: 8px 12px; border: 1px solid #c9ddd9; border-radius: 7px; background: white; color: #337a71; font-size: 10px; font-weight: 800; }
 .stt-transcribing > i { width: 32px; height: 32px; border: 3px solid #dce9f3; border-top-color: #4f819f; border-radius: 50%; animation: stt-spin .9s linear infinite; }
 @keyframes stt-spin { to { transform: rotate(360deg); } }
+.transcript-evidence-details { border-top: 1px solid #e4ebea; }
+.transcript-evidence-details > summary, .final-transcript-review > summary { min-height: 64px; display: grid; grid-template-columns: minmax(0, 1fr) auto 18px; align-items: center; gap: 12px; padding: 12px 16px; color: #49636a; cursor: pointer; list-style: none; }
+.transcript-evidence-details > summary::-webkit-details-marker, .final-transcript-review > summary::-webkit-details-marker { display: none; }
+.transcript-evidence-details > summary span, .transcript-evidence-details > summary strong, .transcript-evidence-details > summary small, .final-transcript-review > summary span, .final-transcript-review > summary strong, .final-transcript-review > summary small { display: block; }
+.transcript-evidence-details > summary strong, .final-transcript-review > summary strong { color: #365860; font-size: 12px; }
+.transcript-evidence-details > summary small, .final-transcript-review > summary small { margin-top: 4px; color: #819095; font-size: 9px; line-height: 1.45; }
+.transcript-evidence-details > summary > b, .final-transcript-review > summary > b { padding: 6px 9px; border-radius: 7px; background: #edf5f3; color: #39776f; font-size: 9px; white-space: nowrap; }
+.transcript-evidence-details > summary > i, .final-transcript-review > summary > i { color: #6f8589; font-size: 16px; font-style: normal; transition: transform .18s ease; }
+.transcript-evidence-details[open] > summary > i, .final-transcript-review[open] > summary > i { transform: rotate(180deg); }
+.transcript-evidence-details[open] > summary, .final-transcript-review[open] > summary { border-bottom: 1px solid #e4ebea; background: #fafcfb; }
+.final-transcript-review.transcribing > summary > b { background: #edf3fa; color: #4d708d; }
+.final-transcript-review.error > summary > b { background: #fff0ed; color: #a5574b; }
 .stt-role-guide { display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: center; gap: 10px; margin: 13px; padding: 10px 12px; border: 1px solid #eadfbf; border-radius: 8px; background: #fffaf0; }
 .stt-role-guide > i { width: 27px; height: 27px; display: grid; place-items: center; border-radius: 50%; background: #f5e7bd; color: #8b6b25; font-style: normal; font-weight: 900; }
 .stt-role-guide strong, .stt-role-guide small { display: block; }
@@ -892,8 +905,8 @@ button { cursor: pointer; }
 .stt-segment-list textarea { width: 100%; min-height: 40px; padding: 9px 10px; border: 1px solid #d6e2e2; border-radius: 7px; background: #fbfcfc; color: #415b62; font-size: 12px; line-height: 1.6; outline: none; resize: vertical !important; }
 .stt-segment-list textarea:focus { border-color: #69aaa1; background: white; box-shadow: 0 0 0 3px #e8f4f1; }
 .stt-segment-list article > small { padding-top: 11px; color: #8b999d; font-size: 9px; white-space: nowrap; }
-.stt-transcript-card > footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-top: 1px solid #e4ebea; background: #f8faf9; color: #74868a; font-size: 9px; }
-.stt-transcript-card > footer button { padding: 7px 10px; border: 1px solid #ccddda; border-radius: 6px; background: white; color: #39786f; font-size: 9px; font-weight: 800; }
+.transcript-evidence-details > footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-top: 1px solid #e4ebea; background: #f8faf9; color: #74868a; font-size: 9px; }
+.transcript-evidence-details > footer button { padding: 7px 10px; border: 1px solid #ccddda; border-radius: 6px; background: white; color: #39786f; font-size: 9px; font-weight: 800; }
 .recording-use-panel > div { padding: 8px 16px; }
 .recording-use-panel article { min-height: 80px; display: grid; grid-template-columns: 34px 1fr; align-items: center; gap: 11px; border-bottom: 1px solid #e9eeee; }
 .recording-use-panel article:last-child { border-bottom: 0; }
@@ -953,7 +966,6 @@ button { cursor: pointer; }
 .final-audio-source small { margin-top: 4px; color: #7d8d92; font-size: 10px; }
 .final-audio-source > b { color: #477d75; font-size: 10px; }
 .final-transcript-review { margin: 12px 20px 0; border: 1px solid #d9e5e3; border-radius: 10px; background: #fbfcfc; overflow: hidden; }
-.final-transcript-review > header { min-height: 60px; padding-block: 10px; }
 .final-transcript-review .stt-segment-list { padding: 5px 13px; }
 .final-transcript-review .stt-speaker-map { margin: 7px 0 5px; }
 .final-transcript-review .stt-segment-list article { grid-template-columns: 86px 112px minmax(0, 1fr); }
@@ -1539,9 +1551,11 @@ button { cursor: pointer; }
   .soap-generation-notice > span { grid-column: 2; justify-self: start; }
   .stt-transcript-card > header { align-items: flex-start; }
   .stt-transcript-card > header span { max-width: 420px; }
+  .transcript-evidence-details > summary, .final-transcript-review > summary { grid-template-columns: minmax(0, 1fr) auto 16px; gap: 8px; padding-inline: 12px; }
+  .transcript-evidence-details > summary small, .final-transcript-review > summary small { display: none; }
   .stt-segment-list article { grid-template-columns: 76px 104px minmax(0, 1fr); }
   .stt-segment-list article > small { display: none; }
-  .stt-transcript-card > footer { align-items: flex-start; flex-direction: column; }
+  .transcript-evidence-details > footer { align-items: flex-start; flex-direction: column; }
   .final-transcript-review .stt-segment-list article { grid-template-columns: 76px 104px minmax(0, 1fr); }
   .organized-result-overview, .final-test-overview { grid-template-columns: 1fr 1fr; }
   .organized-result-overview > span:nth-child(2), .final-test-overview > span:nth-child(2) { border-right: 0; }

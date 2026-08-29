@@ -1108,7 +1108,6 @@ function AudioStep({ stepNumber, encounterType, selectedFile, recording, recordi
 }) {
   const fileExtension = selectedFile?.name.split('.').pop()?.toUpperCase() || 'AUDIO';
   const transcriptSpeakers = getTranscriptSpeakers(transcript);
-  const unconfirmedSpeakerCount = transcriptSpeakers.filter((segment) => segment.speakerRole === '확인 필요').length;
   const recordingStatus = recording ? '녹음 중' : recordingStarted ? '녹음 완료' : '대기';
   const microphoneStatus = microphoneState === 'recording' ? '마이크 사용 중'
     : microphoneState === 'available' ? '마이크 연결됨'
@@ -1123,8 +1122,8 @@ function AudioStep({ stepNumber, encounterType, selectedFile, recording, recordi
       <div className="audio-to-chart-route"><span><i>1</i>진료 녹음·파일</span><b>→</b><span><i>2</i>검사자료 확인</span><b>→</b><span><i>3</i>SOAP 직접 작성</span><b>→</b><span><i>4</i>최종 검토·승인</span></div>
       <section className="soap-generation-notice" aria-label="SOAP 생성 방식 안내">
         <i>A/B</i>
-        <div><strong>자체 STT와 화자 분리가 녹취를 자동으로 만듭니다</strong><p>목소리 특징으로 화자 A·B를 나누고 음성을 글로 옮깁니다. A·B가 의료진·환자 중 누구인지만 한 번 확인해 주세요.</p></div>
-        <span>내부 처리</span>
+        <div><strong>녹음 내용은 자체 STT가 백그라운드에서 정리합니다</strong><p>진료 흐름에는 결과만 사용하고, 전체 녹취와 화자 정보는 필요할 때만 근거 기록에서 확인할 수 있습니다.</p></div>
+        <span>자동 처리</span>
       </section>
       <div className="audio-flow-layout">
         <section className="audio-input-panel live-audio-card">
@@ -1147,24 +1146,26 @@ function AudioStep({ stepNumber, encounterType, selectedFile, recording, recordi
         </section>
       </div>
       <section className={`stt-transcript-card ${transcriptionState}`}>
-        <header><div><p className="eyebrow">LOCAL SPEECH TO TEXT</p><h3>진료 녹취 및 화자 확인</h3><span>같은 목소리나 불확실한 구간은 자동으로 역할을 정하지 않습니다.</span></div><b>{transcriptionState === 'transcribing' ? '음성 변환 중' : transcriptionState === 'ready' && unconfirmedSpeakerCount ? `화자 ${unconfirmedSpeakerCount}개 확인 필요` : transcriptionState === 'ready' ? '녹취 완료' : transcriptionState === 'error' ? '변환 실패' : '파일 대기'}</b></header>
-        {!selectedFile && <div className="stt-transcript-empty"><i>STT</i><strong>녹음을 완료하거나 파일을 선택해 주세요</strong><span>음성파일이 준비되면 자체 STT가 한국어 문장과 시간 구간을 생성합니다.</span></div>}
-        {selectedFile && transcriptionState === 'transcribing' && <div className="stt-transcribing"><i /><strong>화자를 나누고 음성을 텍스트로 바꾸고 있습니다</strong><span>녹음 길이에 따라 시간이 걸릴 수 있습니다. 이 화면을 닫지 말아 주세요.</span></div>}
-        {selectedFile && transcriptionState === 'error' && <div className="stt-transcript-error"><strong>녹취를 만들지 못했습니다</strong><span>{transcriptionError}</span><button onClick={onRetryTranscription}>다시 시도</button></div>}
-        {selectedFile && transcriptionState === 'ready' && transcript && transcript.segments.length === 0 && <div className="stt-transcript-empty"><i>—</i><strong>인식된 음성이 없습니다</strong><span>녹음 음량과 파일 내용을 확인한 뒤 다시 시도해 주세요.</span><button onClick={onRetryTranscription}>다시 변환</button></div>}
-        {transcript && transcript.segments.length > 0 && <div className="stt-segment-list">
-          <div className="stt-role-guide"><i>✓</i><span><strong>목소리별 역할을 한 번만 확인해 주세요</strong><small>화자 A·B는 자동 분리되지만, 누가 의료진·환자·보호자인지는 직접 지정해야 합니다.</small></span></div>
-          <div className="stt-speaker-map">{transcriptSpeakers.map((segment) => <label key={segment.speaker}><span className="stt-speaker-label">{segment.speaker}</span><b>역할</b><select className={segment.speakerRole === '확인 필요' ? 'unconfirmed' : ''} value={segment.speakerRole} onChange={(event) => onTranscriptSegmentChange(segment.id, { speakerRole: event.target.value as TranscriptSpeakerRole })} aria-label={`${segment.speaker} 역할`}>
-            {transcriptSpeakerRoles.map((role) => <option value={role} key={role}>{role}</option>)}
-          </select></label>)}</div>
-          {transcript.segments.map((segment) => <article key={segment.id}>
-            <time>{formatTranscriptTime(segment.start)}–{formatTranscriptTime(segment.end)}</time>
-            <span className="stt-speaker-label">{segment.speaker}</span>
-            <AutoResizeTextarea value={segment.text} onChange={(event) => onTranscriptSegmentChange(segment.id, { text: event.target.value })} aria-label={`${formatTranscriptTime(segment.start)} 구간 녹취 수정`} />
-            <small>인식 신뢰도 {Math.round(segment.confidence * 100)}%</small>
-          </article>)}
-        </div>}
-        {transcript && transcript.segments.length > 0 && <footer><span>화자 {transcript.speakerCount}명 · STT {transcript.model} · {formatRecordingTime(Math.round(transcript.duration))}</span><button onClick={onRetryTranscription}>원본으로 다시 변환</button></footer>}
+        <header><div><p className="eyebrow">BACKGROUND SPEECH PROCESSING</p><h3>녹음 내용 자동 정리</h3><span>녹취 원문과 화자 선택은 기본 화면에서 숨기고 근거 기록으로 보관합니다.</span></div><b>{transcriptionState === 'transcribing' ? '정리 중' : transcriptionState === 'ready' ? '정리 완료' : transcriptionState === 'error' ? '확인 필요' : '파일 대기'}</b></header>
+        {selectedFile && transcriptionState === 'transcribing' && <div className="stt-transcribing stt-status-message"><i /><strong>녹음 내용을 정리하고 있습니다</strong><span>완료되면 근거 녹취로 자동 보관됩니다.</span></div>}
+        {selectedFile && transcriptionState === 'error' && <div className="stt-transcript-error stt-status-message"><strong>녹취를 만들지 못했습니다</strong><span>{transcriptionError}</span><button onClick={onRetryTranscription}>다시 시도</button></div>}
+        {selectedFile && transcriptionState === 'ready' && transcript && transcript.segments.length === 0 && <div className="stt-transcript-empty stt-status-message"><i>—</i><strong>인식된 음성이 없습니다</strong><span>필요하면 녹음 음량과 파일을 확인해 주세요.</span><button onClick={onRetryTranscription}>다시 변환</button></div>}
+        {transcript && transcript.segments.length > 0 && <details className="transcript-evidence-details">
+          <summary><span><strong>근거 녹취 보기·수정</strong><small>원문 확인이나 화자 역할 수정이 필요할 때만 열어보세요.</small></span><b>{transcript.segments.length}개 구간</b><i>⌄</i></summary>
+          <div className="stt-segment-list">
+            <div className="stt-role-guide"><i>i</i><span><strong>화자 역할은 선택 사항입니다</strong><small>기록 검증이 필요할 때만 의료진·환자·보호자 역할을 지정하세요.</small></span></div>
+            <div className="stt-speaker-map">{transcriptSpeakers.map((segment) => <label key={segment.speaker}><span className="stt-speaker-label">{segment.speaker}</span><b>역할</b><select className={segment.speakerRole === '확인 필요' ? 'unconfirmed' : ''} value={segment.speakerRole} onChange={(event) => onTranscriptSegmentChange(segment.id, { speakerRole: event.target.value as TranscriptSpeakerRole })} aria-label={`${segment.speaker} 역할`}>
+              {transcriptSpeakerRoles.map((role) => <option value={role} key={role}>{role}</option>)}
+            </select></label>)}</div>
+            {transcript.segments.map((segment) => <article key={segment.id}>
+              <time>{formatTranscriptTime(segment.start)}–{formatTranscriptTime(segment.end)}</time>
+              <span className="stt-speaker-label">{segment.speaker}</span>
+              <AutoResizeTextarea value={segment.text} onChange={(event) => onTranscriptSegmentChange(segment.id, { text: event.target.value })} aria-label={`${formatTranscriptTime(segment.start)} 구간 녹취 수정`} />
+              <small>인식 신뢰도 {Math.round(segment.confidence * 100)}%</small>
+            </article>)}
+          </div>
+          <footer><span>화자 {transcript.speakerCount}명 · STT {transcript.model} · {formatRecordingTime(Math.round(transcript.duration))}</span><button onClick={onRetryTranscription}>원본으로 다시 변환</button></footer>
+        </details>}
       </section>
     </div>
   );
@@ -1365,8 +1366,7 @@ function FinalStep({
   }));
   const finalChartRows = [...existingChartRows, ...pastedChartRows];
   const transcriptSpeakers = getTranscriptSpeakers(transcript);
-  const unconfirmedSpeakerCount = transcriptSpeakers.filter((segment) => segment.speakerRole === '확인 필요').length;
-  const transcriptReadyForApproval = !audioFile || (transcriptionState === 'ready' && unconfirmedSpeakerCount === 0);
+  const transcriptReadyForApproval = transcriptionState !== 'transcribing';
   const finalResultGroups = [
     { source: '기존 기록', label: '이전 승인 기록', tone: 'existing', rows: existingChartRows },
     { source: 'EMR 붙여넣기', label: '이번에 추가한 검사', tone: 'emr', rows: pastedChartRows },
@@ -1442,10 +1442,10 @@ function FinalStep({
         <div className={audioFile ? 'final-audio-source connected' : 'final-audio-source'}>
           <i>음성</i><span><strong>{audioFile ? '진료 녹음파일이 기록 근거로 연결되었습니다' : '연결된 진료 녹음파일 없음'}</strong><small>{audioFile ? `${audioFile.name} · ${formatFileSize(audioFile.size)}` : '진료 녹음 입력 단계에서 파일을 추가하면 차트와 SOAP의 근거로 연결됩니다.'}</small></span><b>{audioFile ? '원본 연결' : '선택 입력'}</b>
         </div>
-        {audioFile && <section className="final-transcript-review">
-          <header><div><p className="eyebrow">STT TRANSCRIPT</p><h3>진료 녹취</h3></div><b>{transcriptionState === 'transcribing' ? '변환 중' : unconfirmedSpeakerCount ? `화자 ${unconfirmedSpeakerCount}개 확인 필요` : transcript ? `${transcript.segments.length}개 구간` : '녹취 없음'}</b></header>
+        {audioFile && <details className={`final-transcript-review ${transcriptionState}`}>
+          <summary><span><strong>근거 녹취</strong><small>원문이나 화자 정보 확인이 필요할 때만 펼쳐보세요.</small></span><b>{transcriptionState === 'transcribing' ? '정리 중' : transcript?.segments.length ? `${transcript.segments.length}개 구간` : transcriptionState === 'error' ? '확인 필요' : '녹취 없음'}</b><i>⌄</i></summary>
           {transcriptionState === 'transcribing' ? <div className="final-transcript-message">자체 STT 변환이 끝난 뒤 최종 승인할 수 있습니다.</div>
-            : transcript?.segments.length ? <div className="stt-segment-list compact"><div className="stt-speaker-map">{transcriptSpeakers.map((segment) => <label key={segment.speaker}><span className="stt-speaker-label">{segment.speaker}</span><b>역할</b><select disabled={approved} className={segment.speakerRole === '확인 필요' ? 'unconfirmed' : ''} value={segment.speakerRole} onChange={(event) => onTranscriptSegmentChange(segment.id, { speakerRole: event.target.value as TranscriptSpeakerRole })} aria-label={`${segment.speaker} 역할`}>
+            : transcript?.segments.length ? <div className="stt-segment-list compact"><div className="stt-role-guide"><i>i</i><span><strong>필요한 경우에만 원문과 화자 역할을 수정하세요</strong><small>화자 역할을 지정하지 않아도 최종 승인할 수 있습니다.</small></span></div><div className="stt-speaker-map">{transcriptSpeakers.map((segment) => <label key={segment.speaker}><span className="stt-speaker-label">{segment.speaker}</span><b>역할</b><select disabled={approved} className={segment.speakerRole === '확인 필요' ? 'unconfirmed' : ''} value={segment.speakerRole} onChange={(event) => onTranscriptSegmentChange(segment.id, { speakerRole: event.target.value as TranscriptSpeakerRole })} aria-label={`${segment.speaker} 역할`}>
               {transcriptSpeakerRoles.map((role) => <option value={role} key={role}>{role}</option>)}
             </select></label>)}</div>{transcript.segments.map((segment) => <article key={segment.id}>
               <time>{formatTranscriptTime(segment.start)}–{formatTranscriptTime(segment.end)}</time>
@@ -1453,7 +1453,7 @@ function FinalStep({
               <AutoResizeTextarea disabled={approved} value={segment.text} onChange={(event) => onTranscriptSegmentChange(segment.id, { text: event.target.value })} aria-label={`${formatTranscriptTime(segment.start)} 구간 녹취 수정`} />
             </article>)}</div>
               : <div className="final-transcript-message">녹취가 없거나 변환에 실패했습니다. 필요하면 녹음 단계로 돌아가 다시 시도해 주세요.</div>}
-        </section>}
+        </details>}
         <section className="record-chart-card final-chart-editor">
           <header><div><p className="eyebrow">CLINICAL CHART</p><h2>진료 차트</h2></div><span>직접 편집</span></header>
           <div className="chart-narrative-grid">
@@ -1532,7 +1532,7 @@ function FinalStep({
       )}
       <div className="final-approval-only">
         {approvalError && <span className="final-approval-error">{approvalError}</span>}
-        <button disabled={approved || approving || !transcriptReadyForApproval} onClick={approveAndChooseNext}>{approved ? '최종 승인 완료' : approving ? 'H2에 안전하게 저장 중…' : transcriptionState === 'transcribing' ? '녹취 완료 대기 중…' : transcriptionState === 'error' ? '녹취를 다시 시도해 주세요' : unconfirmedSpeakerCount ? `화자 ${unconfirmedSpeakerCount}개를 확인해 주세요` : '내용을 확인하고 최종 승인'} <b>✓</b></button>
+        <button disabled={approved || approving || !transcriptReadyForApproval} onClick={approveAndChooseNext}>{approved ? '최종 승인 완료' : approving ? 'H2에 안전하게 저장 중…' : transcriptionState === 'transcribing' ? '녹음 내용 정리 대기 중…' : '내용을 확인하고 최종 승인'} <b>✓</b></button>
       </div>
     </div>
   );
