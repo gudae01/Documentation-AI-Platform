@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type TextareaHTMLAttributes } from 'react';
 import './pd-portal.css';
 import { ApiError, pdApi, type AuthResponse, type PdClinicalRecord, type Questionnaire, type SttTranscript, type TranscriptSpeakerRole } from './pd-api';
-import { Links, LoginGate, PublicQuestionnaire } from './pd-portal';
+import { DirectQuestionnaire, Links, LoginGate, PublicQuestionnaire } from './pd-portal';
 
 type StepId = 'emr' | 'tests' | 'audio' | 'soap' | 'final';
 type EncounterType = 'new' | 'followup';
@@ -601,8 +601,9 @@ function organizeClinicalText(text: string) {
   return sections.filter((section) => section.lines.length > 0);
 }
 
-function HomeScreen({ onSendQuestionnaire, onOpenPatients }: {
+function HomeScreen({ onSendQuestionnaire, onWriteQuestionnaire, onOpenPatients }: {
   onSendQuestionnaire: () => void;
+  onWriteQuestionnaire: () => void;
   onOpenPatients: () => void;
 }) {
   const journey = [
@@ -621,6 +622,7 @@ function HomeScreen({ onSendQuestionnaire, onOpenPatients }: {
           <p>환자가 방문 전에 작성한 사전 문진을 시작점으로, 기존 환자 기록과 진료·승인 과정을 한 흐름에서 관리합니다.</p>
           <div className="home-primary-actions">
             <button className="hero-start" onClick={onSendQuestionnaire}><i>＋</i><span><strong>사전 문진 보내기</strong><small>1회용 보안 링크 생성</small></span><b>→</b></button>
+            <button className="questionnaire-write-start" onClick={onWriteQuestionnaire}><i>작성</i><span><strong>사전 문진 작성</strong><small>고정 URL에서 바로 입력</small></span><b>↗</b></button>
             <button className="patient-history-start" onClick={onOpenPatients}><i>기록</i><span><strong>제출 문진 확인</strong><small>기존 환자 기록 화면에서 검토</small></span><b>→</b></button>
           </div>
         </div>
@@ -634,7 +636,7 @@ function HomeScreen({ onSendQuestionnaire, onOpenPatients }: {
         <header><div><p className="eyebrow">CLINICAL DOCUMENT JOURNEY</p><h2>사전 문진부터 진료 승인까지</h2></div><span>제출된 사전 문진 환자 기록에서 진료 시작</span></header>
         <div className="journey-steps">
           {journey.map(([label, description], index) => (
-            <button key={label} onClick={index < 2 ? onSendQuestionnaire : onOpenPatients}>
+            <button key={label} onClick={index === 0 ? onSendQuestionnaire : index === 1 ? onWriteQuestionnaire : onOpenPatients}>
               <i>{index + 1}</i>
               <span><strong>{label}</strong><small>{description}</small></span>
               {index < journey.length - 1 && <b>→</b>}
@@ -1725,6 +1727,12 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
   const resetScroll = () => window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: 'auto' }));
   const goHome = () => { setActiveView('home'); resetScroll(); };
   const openQuestionnaireLinks = () => { setActiveView('links'); resetScroll(); };
+  const openDirectQuestionnaire = () => {
+    const url = new URL(window.location.href);
+    url.search = '';
+    url.searchParams.set('questionnaire', 'write');
+    window.open(url.toString(), '_blank', 'noopener,noreferrer');
+  };
   const openPatientDirectory = () => { setActiveView('patients'); resetScroll(); };
   const startQuestionnaireEncounter = (patient: PatientRecord) => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop();
@@ -2180,7 +2188,7 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
           </div>
         </header>
 
-        {activeView === 'home' && <HomeScreen onSendQuestionnaire={openQuestionnaireLinks} onOpenPatients={openPatientDirectory} />}
+        {activeView === 'home' && <HomeScreen onSendQuestionnaire={openQuestionnaireLinks} onWriteQuestionnaire={openDirectQuestionnaire} onOpenPatients={openPatientDirectory} />}
         {activeView === 'links' && <div className="pd-module-view pd-scope"><Links /></div>}
         {activeView === 'patients' && <PatientDirectory records={patientRecords} loading={questionnairesLoading} error={questionnairesError} onReload={() => void loadQuestionnaires(false, true)} onReview={reviewQuestionnaire} onUpdateClinicalRecord={updateClinicalRecord} onStartEncounter={startQuestionnaireEncounter} sessionAutonomicFiles={sessionAutonomicFiles} />}
         {activeView === 'encounter' && (
@@ -2277,6 +2285,9 @@ function AuthenticatedApplication() {
 }
 
 export default function Page() {
-  const token = typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('questionnaireToken') || '';
-  return token ? <PublicQuestionnaire token={token} /> : <AuthenticatedApplication />;
+  const parameters = typeof window === 'undefined' ? new URLSearchParams() : new URLSearchParams(window.location.search);
+  const token = parameters.get('questionnaireToken') || '';
+  if (token) return <PublicQuestionnaire token={token} />;
+  if (parameters.get('questionnaire') === 'write') return <DirectQuestionnaire />;
+  return <AuthenticatedApplication />;
 }

@@ -51,9 +51,7 @@ public class QuestionnaireService {
 
     @Transactional
     public Created create(String recipient, String channel, LocalDate plannedDate, int hours, String actor) {
-        byte[] bytes = new byte[32];
-        random.nextBytes(bytes);
-        String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        String token = newToken();
         QuestionnaireInvitation invitation = invitations.save(new QuestionnaireInvitation(
                 crypto.tokenHash(token), crypto.encrypt(recipient), channel, plannedDate,
                 Instant.now().plus(Duration.ofHours(hours)), actor));
@@ -61,6 +59,15 @@ public class QuestionnaireService {
         QuestionnaireDeliveryService.Result result = delivery.send(channel, recipient, link);
         invitation.delivery(result.status(), result.message());
         return new Created(invitation, link);
+    }
+
+    @Transactional
+    public DirectCreated createDirect() {
+        String token = newToken();
+        QuestionnaireInvitation invitation = invitations.save(new QuestionnaireInvitation(
+                crypto.tokenHash(token), crypto.encrypt("고정 URL 직접 작성"), "DIRECT", null,
+                Instant.now().plus(Duration.ofHours(24)), "PUBLIC_DIRECT"));
+        return new DirectCreated(invitation, token);
     }
 
     @Transactional
@@ -206,6 +213,13 @@ public class QuestionnaireService {
         catch (DateTimeException exception) { throw new IllegalArgumentException("예정일 형식을 확인해 주세요."); }
     }
 
+    private String newToken() {
+        byte[] bytes = new byte[32];
+        random.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
     public record Created(QuestionnaireInvitation invitation, String link) { }
+    public record DirectCreated(QuestionnaireInvitation invitation, String token) { }
     public record PublicDraft(QuestionnaireInvitation invitation, String draftJson) { }
 }

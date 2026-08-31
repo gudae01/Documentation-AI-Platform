@@ -19,6 +19,7 @@ export type Invite = {
 export type PublicMeta = {
   expiresAt: string; plannedDate: string | null; draftJson: string | null; draftSavedAt: string | null;
 };
+export type DirectQuestionnaireAccess = { token: string; expiresAt: string };
 export type Questionnaire = {
   id: string; patientId: string; name: string; birth6: string; sex: string; plannedDate: string;
   respondentType: string; rawJson: string; structuredJson: string; chart: string; status: string;
@@ -118,6 +119,9 @@ export const pdApi = {
   }),
   invites: () => call<Invite[]>('/api/pd/questionnaire-invitations'),
   revoke: (id: string) => call<void>(`/api/pd/questionnaire-invitations/${id}`, { method: 'DELETE' }),
+  directQuestionnaire: () => call<DirectQuestionnaireAccess>('/api/public/questionnaires/direct', {
+    method: 'POST',
+  }),
   publicMeta: (token: string) => call<PublicMeta>(`/api/public/questionnaires/${encodeURIComponent(token)}`),
   saveDraft: (token: string, body: object) => call<PublicMeta>(
     `/api/public/questionnaires/${encodeURIComponent(token)}/draft`,

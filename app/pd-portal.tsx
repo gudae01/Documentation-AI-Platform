@@ -21,6 +21,8 @@ const EMPTY_FORM: FormDataState = {
   bodyFacts: '', brainFacts: '',
 };
 
+let directQuestionnaireRequest: ReturnType<typeof pdApi.directQuestionnaire> | null = null;
+
 export default function Page() {
   const token = new URLSearchParams(typeof location === 'undefined' ? '' : location.search)
     .get('questionnaireToken');
@@ -158,6 +160,27 @@ export function PublicQuestionnaire({ token }: { token: string }) {
       {error && <p className="error">{error}</p>}
     </form>
   </main>;
+}
+
+export function DirectQuestionnaire() {
+  const [token, setToken] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    directQuestionnaireRequest ??= pdApi.directQuestionnaire();
+    directQuestionnaireRequest
+      .then((access) => { if (active) setToken(access.token); })
+      .catch((reason: Error) => {
+        directQuestionnaireRequest = null;
+        if (active) setError(reason.message);
+      });
+    return () => { active = false; };
+  }, []);
+
+  if (error) return <Centered title="문진을 시작할 수 없습니다" text={error} />;
+  if (!token) return <Centered title="사전 문진 준비 중" text="안전한 작성 공간을 만들고 있습니다." />;
+  return <PublicQuestionnaire token={token} />;
 }
 
 function ClinicianApp() {
@@ -480,7 +503,7 @@ function saveBlob(blob: Blob, fileName: string) {
 }
 function statusText(value: string) {
   return ({ ISSUED: '발급', SENT: '전송완료', IN_PROGRESS: '작성중', SUBMITTED: '제출완료',
-    REVOKED: '철회', EXPIRED: '만료', NOT_CONFIGURED: '전송설정 없음', FAILED: '실패',
+    REVOKED: '철회', EXPIRED: '만료', NOT_REQUESTED: '직접 작성', NOT_CONFIGURED: '전송설정 없음', FAILED: '실패',
     UNREVIEWED: '미검토', REVIEWED: '검토완료', APPROVED: '승인완료', DRAFT: '초안' } as Record<string, string>)[value] || value;
 }
 const format = (value: string | null) => value ? new Date(value).toLocaleString('ko-KR') : '-';

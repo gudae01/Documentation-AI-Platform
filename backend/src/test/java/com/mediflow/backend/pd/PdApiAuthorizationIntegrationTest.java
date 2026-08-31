@@ -45,6 +45,14 @@ class PdApiAuthorizationIntegrationTest {
     }
 
     @Test
+    void directQuestionnaireEntryIsPublicButRequiresCsrf() throws Exception {
+        mockMvc.perform(post("/api/public/questionnaires/direct"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/public/questionnaires/direct").with(csrf()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void blocksUnauthenticatedSttUpload() throws Exception {
         var audio = new MockMultipartFile("file", "recording.webm", "audio/webm", new byte[]{1, 2, 3});
         mockMvc.perform(multipart("/api/pd/stt/transcriptions").file(audio).with(csrf()))

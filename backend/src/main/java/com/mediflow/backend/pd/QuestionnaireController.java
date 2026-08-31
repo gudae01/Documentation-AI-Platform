@@ -72,6 +72,14 @@ public class QuestionnaireController {
                 opened.draftJson(), opened.invitation().getDraftSavedAt());
     }
 
+    @PostMapping("/api/public/questionnaires/direct")
+    public DirectAccess direct(HttpServletRequest servletRequest) {
+        QuestionnaireService.DirectCreated created = service.createDirect();
+        audit.record("PUBLIC", servletRequest, "CREATE_DIRECT", "QUESTIONNAIRE_INVITATION",
+                created.invitation().getId(), true);
+        return new DirectAccess(created.token(), created.invitation().getExpiresAt());
+    }
+
     @PutMapping("/api/public/questionnaires/{token}/draft")
     public PublicMeta draft(@PathVariable String token, @RequestBody JsonNode payload,
                             HttpServletRequest servletRequest) {
@@ -142,6 +150,8 @@ public class QuestionnaireController {
 
     public record PublicMeta(Instant expiresAt, LocalDate plannedDate, String draftJson,
                              Instant draftSavedAt) { }
+
+    public record DirectAccess(String token, Instant expiresAt) { }
 
     public record SubmitResponse(UUID id, String status, Instant submittedAt) { }
 

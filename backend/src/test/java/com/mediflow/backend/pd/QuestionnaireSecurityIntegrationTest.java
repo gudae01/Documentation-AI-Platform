@@ -29,6 +29,28 @@ class QuestionnaireSecurityIntegrationTest {
     }
 
     @Test
+    void directEntryCreatesOneTimeInvitationAndSubmissionAppearsInSearch() throws Exception {
+        var created = service.createDirect();
+        var stored = invitations.findById(created.invitation().getId()).orElseThrow();
+
+        assertThat(stored.getChannel()).isEqualTo("DIRECT");
+        assertThat(stored.getDeliveryStatus()).isEqualTo(QuestionnaireInvitation.DeliveryStatus.NOT_REQUESTED);
+        assertThat(stored.getTokenHash()).doesNotContain(created.token());
+
+        var submitted = service.submit(created.token(), json.readTree(
+                "{\"name\":\"회의환자\",\"birth6\":\"800101\",\"sex\":\"M\","
+                        + "\"plannedDate\":\"2026-09-01\",\"chiefComplaint\":\"떨림\"}"));
+
+        assertThat(service.search("회의환자", null, null, null, null))
+                .extracting(QuestionnaireSubmission::getId)
+                .contains(submitted.getId());
+        assertThatThrownBy(() -> service.submit(created.token(), json.readTree(
+                "{\"name\":\"회의환자\",\"birth6\":\"800101\",\"sex\":\"M\","
+                        + "\"plannedDate\":\"2026-09-01\",\"chiefComplaint\":\"떨림\"}")))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
     void repeatedReviewReturnsAlreadyReviewedSubmissionInsteadOfVersionConflict() throws Exception {
         var created = service.create("01099998888", "SMS", LocalDate.of(2026, 9, 2), 24, "doctor");
         String token = created.link().substring(created.link().indexOf("questionnaireToken=") + 19);
