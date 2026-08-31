@@ -26,7 +26,16 @@
 .pd-scope .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .pd-scope .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
-.public-page { max-width: 860px; margin: auto; padding: 24px; }
+.public-page {
+  width: 100%;
+  max-width: 860px;
+  min-width: 0;
+  margin: auto;
+  padding: 24px;
+  padding-left: max(24px, env(safe-area-inset-left));
+  padding-right: max(24px, env(safe-area-inset-right));
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
+}
 .public-header { display: flex; justify-content: space-between; margin-bottom: 18px; }
 .public-header b { color: #087b70; }
 .questionnaire-form { display: grid; gap: 20px; }
@@ -108,8 +117,38 @@
   .invite-form, .search-form, .split-layout { grid-template-columns: 1fr; }
   .clinical-test-form { grid-template-columns: 1fr 1fr; }
 }
+@media (min-width: 761px) and (max-width: 1200px) {
+  .public-page { max-width: 1040px; }
+}
+@media (min-width: 761px) and (max-width: 900px) {
+  .public-page {
+    padding-left: max(18px, env(safe-area-inset-left));
+    padding-right: max(18px, env(safe-area-inset-right));
+  }
+  .questionnaire-form .grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (pointer: coarse) {
+  .questionnaire-form input,
+  .questionnaire-form select,
+  .questionnaire-form button { min-height: 44px; }
+}
 @media (max-width: 760px) {
   .pd-scope .grid-2, .pd-scope .grid-3 { grid-template-columns: 1fr; }
+  .public-page {
+    padding-top: 18px;
+    padding-left: max(14px, env(safe-area-inset-left));
+    padding-right: max(14px, env(safe-area-inset-right));
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+  }
+  .public-header { align-items: center; gap: 12px; margin-bottom: 14px; }
+  .public-header span { font-size: 14px; text-align: right; }
+  .pd-scope .questionnaire-form { padding: 16px; }
+  .questionnaire-form { gap: 16px; }
+  .questionnaire-form fieldset { gap: 12px; padding: 14px; }
+  .questionnaire-form legend { font-size: 15px; }
+  .questionnaire-form .notice { font-size: 13px; line-height: 1.65; }
+  .form-footer { align-items: stretch; flex-direction: column; gap: 10px; }
+  .form-footer .primary { width: 100%; }
   .shell { grid-template-columns: 1fr; }
   .shell aside { position: static; flex-direction: row; align-items: center; overflow: auto; padding: 10px; }
   .shell aside .logo { margin: 0; }
