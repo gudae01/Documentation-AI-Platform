@@ -1616,7 +1616,7 @@ button { cursor: pointer; }
 }
 
 @media print {
-  @page { size: A4 portrait; margin: 12mm; }
+  @page { size: A4 portrait; margin: 8mm; }
   html, body { width: auto !important; min-width: 0 !important; margin: 0 !important; padding: 0 !important; background: white !important; }
   body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
   body * { box-sizing: border-box !important; }
@@ -1644,6 +1644,32 @@ button { cursor: pointer; }
   body.printing-patient-guide .report-result-grid, body.printing-patient-guide .report-result-grid.single { grid-template-columns: 1fr !important; }
   body.printing-patient-guide .report-prescription { grid-template-columns: 190px minmax(0, 1fr) !important; }
   body.printing-patient-guide .report-document-footer { grid-template-columns: minmax(0, 1fr) auto !important; }
+  body.printing-patient-guide .patient-report-paper p,
+  body.printing-patient-guide .patient-report-paper dd { orphans: 1; widows: 1; }
+  body.printing-patient-guide .report-document-head { padding-bottom: 12px !important; }
+  body.printing-patient-guide .report-document-head span { margin-bottom: 4px !important; }
+  body.printing-patient-guide .report-document-head small { margin-top: 3px !important; }
+  body.printing-patient-guide .report-patient-info > div { padding-block: 8px !important; }
+  body.printing-patient-guide .report-patient-info dd { margin-top: 3px !important; }
+  body.printing-patient-guide .report-overview { margin: 12px 0 10px !important; padding: 12px 15px !important; }
+  body.printing-patient-guide .report-overview h4,
+  body.printing-patient-guide .report-overview p { margin-top: 5px !important; line-height: 1.45 !important; }
+  body.printing-patient-guide .report-clinical-grid { gap: 7px !important; }
+  body.printing-patient-guide .report-clinical-grid > section { min-height: 96px !important; gap: 9px !important; padding: 10px !important; }
+  body.printing-patient-guide .report-clinical-grid p { margin-top: 4px !important; line-height: 1.45 !important; }
+  body.printing-patient-guide .report-result-grid { gap: 7px !important; margin-top: 7px !important; }
+  body.printing-patient-guide .report-result-grid > section { min-height: 128px !important; padding: 11px !important; }
+  body.printing-patient-guide .report-result-grid header { padding-bottom: 7px !important; }
+  body.printing-patient-guide .report-result-grid > section > p { margin-top: 7px !important; line-height: 1.45 !important; }
+  body.printing-patient-guide .report-result-grid > section > small,
+  body.printing-patient-guide .report-autonomic-table { margin-top: 7px !important; }
+  body.printing-patient-guide .report-autonomic-table th,
+  body.printing-patient-guide .report-autonomic-table td { padding: 5px 6px !important; line-height: 1.35 !important; }
+  body.printing-patient-guide .report-prescription { gap: 12px !important; margin-top: 7px !important; padding: 10px 12px !important; }
+  body.printing-patient-guide .report-prescription p { line-height: 1.45 !important; }
+  body.printing-patient-guide .report-document-footer { gap: 16px !important; margin-top: 10px !important; padding-top: 9px !important; }
+  body.printing-patient-guide .report-document-footer > div { padding: 7px 9px !important; }
+  body.printing-patient-guide .report-document-footer b { margin-top: 3px !important; }
   body.printing-patient-guide .report-overview, body.printing-patient-guide .report-clinical-grid > section, body.printing-patient-guide .report-result-grid > section, body.printing-patient-guide .report-prescription, body.printing-patient-guide .report-document-footer { break-inside: avoid-page; page-break-inside: avoid; }
   body.printing-patient-guide .report-examination-results { break-before: auto; break-inside: auto; page-break-inside: auto; }
   body.printing-patient-guide .report-examination-results > header { break-after: avoid-page; page-break-after: avoid; }

@@ -274,7 +274,9 @@ export function Links() {
   const [items, setItems] = useState<Invite[]>([]);
   const [result, setResult] = useState<Invite | null>(null);
   const [error, setError] = useState('');
-  const load = () => pdApi.invites().then(setItems).catch((reason: Error) => setError(reason.message));
+  const load = () => pdApi.invites()
+    .then((invites) => setItems(invites.filter((invite) => invite.channel !== 'DIRECT')))
+    .catch((reason: Error) => setError(reason.message));
   useEffect(() => { load(); }, []);
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError(''); const form = new FormData(event.currentTarget);
