@@ -12,8 +12,9 @@
 .pd-scope button, .pd-scope input, .pd-scope select, .pd-scope textarea { font: inherit; }
 .pd-scope button { cursor: pointer; }
 .pd-scope input, .pd-scope select, .pd-scope textarea {
-  width: 100%; border: 1px solid #ccd9d7; border-radius: 8px; padding: 10px; background: white;
+  width: 100%; min-width: 0; border: 1px solid #ccd9d7; border-radius: 8px; padding: 10px; background: white;
 }
+.pd-scope input[type="date"] { width: auto; justify-self: stretch; }
 .pd-scope textarea { resize: vertical; line-height: 1.55; }
 .questionnaire-form textarea.auto-grow-textarea { height: auto; min-height: 82px; overflow: hidden !important; resize: none !important; }
 .pd-scope button:disabled { cursor: not-allowed; opacity: .5; }
@@ -21,8 +22,9 @@
 .pd-scope .primary { width: auto; border: 0; border-radius: 8px; padding: 10px 16px; background: var(--teal); color: white; font-weight: 700; }
 .pd-scope .error { color: #b3261e; }
 .pd-scope .notice { padding: 13px; background: #eaf8f5; border-left: 4px solid #20a294; color: #285b55; }
-.pd-scope label { display: grid; gap: 6px; color: #405858; font-size: 13px; font-weight: 700; }
+.pd-scope label { min-width: 0; display: grid; gap: 6px; color: #405858; font-size: 13px; font-weight: 700; }
 .pd-scope .grid { display: grid; gap: 12px; }
+.pd-scope .grid > * { min-width: 0; }
 .pd-scope .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .pd-scope .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
