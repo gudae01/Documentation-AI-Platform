@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPoi
 import './pd-portal.css';
 import { ApiError, pdApi, type AuthResponse, type PdClinicalRecord, type Questionnaire, type SttTranscript, type TranscriptSpeakerRole } from './pd-api';
 import { DirectQuestionnaire, Links, LoginGate, PublicQuestionnaire } from './pd-portal';
+import { organizeClinicalText } from './clinical-text';
 
 type StepId = 'emr' | 'tests' | 'audio' | 'soap' | 'final';
 type EncounterType = 'new' | 'followup';
@@ -560,47 +561,6 @@ function AutoResizeTextarea({ value, onChange, style, ...props }: TextareaHTMLAt
   }} />;
 }
 
-function organizeClinicalText(text: string) {
-  const aliases: Record<string, string> = {
-    '주소': '주호소', '주 증상': '주호소', '과거 병력': '과거력', '기왕력': '과거력',
-    '복용 약': '복용약', '투약': '복용약', '처방약': '복용약', '의사소견': '의사 소견',
-  };
-  const sections: { title: string; lines: string[] }[] = [];
-  let currentSection: { title: string; lines: string[] } | null = null;
-  const getSection = (rawTitle: string) => {
-    const cleanedTitle = rawTitle.trim();
-    const title = aliases[cleanedTitle] ?? cleanedTitle;
-    const existing = sections.find((section) => section.title === title);
-    if (existing) return existing;
-    const section = { title, lines: [] as string[] };
-    sections.push(section);
-    return section;
-  };
-
-  text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).forEach((line) => {
-    const headingOnly = line.match(/^([^:]{1,40}):\s*$/);
-    if (headingOnly) {
-      currentSection = getSection(headingOnly[1]);
-      return;
-    }
-    const inlineField = line.match(/^([^:]{1,40}):\s*(.+)$/);
-    if (inlineField) {
-      currentSection = getSection(inlineField[1]);
-      currentSection.lines.push(inlineField[2].replace(/^[-•]\s*/, ''));
-      return;
-    }
-    if (!currentSection) {
-      const inferredTitle = /mmHg|bpm|혈압|맥박|체온|혈당|Hb|WBC|Glucose/i.test(line)
-        ? '검사 및 활력징후'
-        : /mg|복용|투약|약물|처방/i.test(line) ? '복용약' : '기타 진료 정보';
-      currentSection = getSection(inferredTitle);
-    }
-    currentSection.lines.push(line.replace(/^[-•]\s*/, ''));
-  });
-
-  return sections.filter((section) => section.lines.length > 0);
-}
-
 function HomeScreen({ onSendQuestionnaire, onWriteQuestionnaire, onOpenPatients }: {
   onSendQuestionnaire: () => void;
   onWriteQuestionnaire: () => void;
@@ -978,7 +938,7 @@ function PatientDirectory({ records, loading, error, onReload, onReview, onUpdat
               <header><div><p className="eyebrow">APPROVED EXAMINATION</p><h2>정리된 검사 결과</h2></div><b>{editingRecord ? '실제 검사·EMR만 수정' : `전체 ${visibleExaminationRows.length}개 항목`}</b></header>
               <div className="organized-readable-list stored-readable-list">
                 {directoryExaminationGroups.map((group) => <section className={`organized-source-group ${group.tone}`} key={group.source}>
-                  <header className="organized-source-heading"><div><i>{group.rows.length}</i><span><strong>{group.label}</strong><small>{group.source}</small></span></div></header>
+                  <header className="organized-source-heading"><div><span><strong>{group.label}</strong><small>{group.source}</small></span></div></header>
                   <div className={`organized-result-table ${editingRecord ? 'record-result-editing' : ''}`}><header><span>항목</span><span>정리된 내용</span></header>{group.rows.map((row, index) => {
                     const draftIndex = visibleExaminationRows.indexOf(row);
                     return <article key={`${row.source}-${index}-${draftIndex}`}>{editingRecord ? <><input value={row.title} onChange={(event) => updateExaminationDraftRow(draftIndex, 'title', event.target.value)} aria-label="검사 항목명 수정" /><AutoResizeTextarea value={row.value} onChange={(event) => updateExaminationDraftRow(draftIndex, 'value', event.target.value)} aria-label={`${row.title || '검사'} 내용 수정`} /><button onClick={() => setExaminationDraftRows((current) => current.filter((_, rowIndex) => rowIndex !== draftIndex))} aria-label={`${row.title || '검사'} 삭제`}>×</button></> : <><strong>{row.title}</strong><p>{row.value}</p></>}</article>;
@@ -1240,7 +1200,7 @@ function TestsStep({
               <div className="organized-readable-list">
                 {organizedGroups.map((group) => (
                   <section className={`organized-source-group ${group.tone}`} key={group.source}>
-                    <header className="organized-source-heading"><div><i>{group.rows.length}</i><span><strong>{group.label}</strong><small>{group.description}</small></span></div><b>{group.source}</b></header>
+                    <header className="organized-source-heading"><div><span><strong>{group.label}</strong><small>{group.description}</small></span></div><b>{group.source}</b></header>
                     <div className="organized-result-table">
                       <header><span>항목</span><span>정리된 내용</span></header>
                       {group.rows.map((row) => <article key={row.id}><strong>{row.title}</strong><p>{row.value || '입력된 결과값이 없습니다.'}</p></article>)}
@@ -1494,7 +1454,7 @@ function FinalStep({
               <div className="organized-readable-list final-readable-list">
                 {finalResultGroups.map((group) => (
                   <section className={`organized-source-group ${group.tone}`} key={group.source}>
-                    <header className="organized-source-heading"><div><i>{group.rows.length}</i><span><strong>{group.label}</strong><small>{group.source}</small></span></div><b>{approved ? '승인 완료' : group.tone === 'emr' ? '수정 가능' : '원본 확인'}</b></header>
+                    <header className="organized-source-heading"><div><span><strong>{group.label}</strong><small>{group.source}</small></span></div><b>{approved ? '승인 완료' : group.tone === 'emr' ? '수정 가능' : '원본 확인'}</b></header>
                     <div className="organized-result-table editable">
                       <header><span>항목</span><span>정리된 내용</span></header>
                       {group.rows.map((row) => (
