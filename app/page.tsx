@@ -204,17 +204,32 @@ function questionnaireToPatientRecord(questionnaire: Questionnaire, clinicalReco
   ] as [string, string, string]);
   const storedApprovedResults = currentClinicalRecord ? clinicalRecordExaminationRows(currentClinicalRecord) : [];
   const approvedExaminationResults: ExaminationResult[] = currentClinicalRecord ? storedApprovedResults : [];
-  const examinationHistory: DatedExaminationResults[] = [...clinicalRecords]
-    .sort((a, b) => a.approvedAt.localeCompare(b.approvedAt))
-    .map((record, index) => ({
+  const recordsByApprovalDate = [...clinicalRecords]
+    .sort((a, b) => a.approvedAt.localeCompare(b.approvedAt));
+  const examinationHistoryByDate: DatedExaminationResults[] = recordsByApprovalDate
+    .map((record) => ({
       recordId: record.id,
       date: dateLabel(record.approvedAt),
       clinician: record.clinician,
-      // 이후 승인본의 '기존 기록'은 앞선 승인본에서 복사된 항목이므로
-      // 원래 승인 날짜에만 표시하고, 이 날짜에 추가된 EMR 결과만 남깁니다.
-      rows: clinicalRecordExaminationRows(record)
-        .filter((row) => index === 0 || row.source !== '기존 기록'),
-    }))
+      rows: [] as ExaminationResult[],
+    }));
+  recordsByApprovalDate.forEach((record, recordIndex) => {
+    const rows = clinicalRecordExaminationRows(record);
+    rows.forEach((row) => {
+      if (recordIndex === 0 || row.source !== '기존 기록') {
+        examinationHistoryByDate[recordIndex].rows.push(row);
+        return;
+      }
+
+      const alreadyPlacedOnEarlierDate = examinationHistoryByDate
+        .slice(0, recordIndex)
+        .some((group) => group.rows.some((previousRow) => previousRow.title === row.title && previousRow.value === row.value));
+      if (!alreadyPlacedOnEarlierDate) {
+        examinationHistoryByDate[recordIndex - 1].rows.push(row);
+      }
+    });
+  });
+  const examinationHistory = examinationHistoryByDate
     .filter((record) => record.rows.length > 0)
     .sort((a, b) => b.date.localeCompare(a.date));
   const persistedAutonomicFiles: AutonomicFileRecord[] = clinicalRecords
