@@ -204,12 +204,16 @@ function questionnaireToPatientRecord(questionnaire: Questionnaire, clinicalReco
   ] as [string, string, string]);
   const storedApprovedResults = currentClinicalRecord ? clinicalRecordExaminationRows(currentClinicalRecord) : [];
   const approvedExaminationResults: ExaminationResult[] = currentClinicalRecord ? storedApprovedResults : [];
-  const examinationHistory: DatedExaminationResults[] = clinicalRecords
-    .map((record) => ({
+  const examinationHistory: DatedExaminationResults[] = [...clinicalRecords]
+    .sort((a, b) => a.approvedAt.localeCompare(b.approvedAt))
+    .map((record, index) => ({
       recordId: record.id,
       date: dateLabel(record.approvedAt),
       clinician: record.clinician,
-      rows: clinicalRecordExaminationRows(record),
+      // 이후 승인본의 '기존 기록'은 앞선 승인본에서 복사된 항목이므로
+      // 원래 승인 날짜에만 표시하고, 이 날짜에 추가된 EMR 결과만 남깁니다.
+      rows: clinicalRecordExaminationRows(record)
+        .filter((row) => index === 0 || row.source !== '기존 기록'),
     }))
     .filter((record) => record.rows.length > 0)
     .sort((a, b) => b.date.localeCompare(a.date));
@@ -708,11 +712,6 @@ function PatientDirectory({ records, loading, error, onReload, onReview, onUpdat
     }]
     : selectedPatient?.examinationHistory.length ? selectedPatient.examinationHistory : fallbackExaminationHistory;
   const visibleExaminationCount = examinationDateGroups.reduce((total, group) => total + group.rows.length, 0);
-  const getExaminationSourceGroups = (rows: ExaminationResult[]) => [
-    { source: '기존 기록' as const, label: '이전 승인 기록', tone: 'existing' },
-    { source: 'EMR 붙여넣기' as const, label: '이번에 추가한 검사', tone: 'emr' },
-  ].map((group) => ({ ...group, rows: rows.filter((row) => row.source === group.source) }))
-    .filter((group) => group.rows.length > 0);
   const directoryAutonomicMetrics = selectedPatient?.autonomic.comparison
     ? selectedPatient.autonomic.comparison.map(([metric, previous, current, changeOrStatus]) => ({ metric, previous, current, changeOrStatus }))
     : selectedPatient?.autonomic.current.map(([metric, current, changeOrStatus]) => ({ metric, previous: '-', current, changeOrStatus })) ?? [];
@@ -973,22 +972,16 @@ function PatientDirectory({ records, loading, error, onReload, onReview, onUpdat
             {(visibleExaminationCount > 0 || editingRecord) && <section className={`past-test-card stored-examination-card ${editingRecord ? 'editing' : ''}`}>
               <header><div><p className="eyebrow">APPROVED EXAMINATION</p><h2>정리된 검사 결과</h2></div><b>{editingRecord ? '현재 승인 기록 수정' : '날짜별 승인 기록'}</b></header>
               <div className="organized-readable-list stored-readable-list">
-                {examinationDateGroups.map((dateGroup, dateIndex) => {
-                  const sourceGroups = getExaminationSourceGroups(dateGroup.rows);
-                  return <details className="examination-date-group" key={dateGroup.recordId} open={editingRecord || dateIndex === 0 || undefined}>
-                    <summary><div><time>{dateGroup.date}</time><span><strong>{dateIndex === 0 ? '최근 승인 검사' : '이전 승인 검사'}</strong><small>{dateGroup.clinician}</small></span></div><em>{editingRecord ? '수정 중' : '상세 확인'}</em><i>⌄</i></summary>
+                {examinationDateGroups.map((dateGroup, dateIndex) => (
+                  <details className="examination-date-group" key={dateGroup.recordId} open={editingRecord || dateIndex === 0 || undefined}>
+                    <summary><div><time>{dateGroup.date}</time><small>승인자 {dateGroup.clinician}</small></div><em>{editingRecord ? '수정 중' : '상세 확인'}</em><i>⌄</i></summary>
                     <div className="examination-date-content">
-                      {sourceGroups.map((group) => <section className={`organized-source-group ${group.tone}`} key={group.source}>
-                        <header className="organized-source-heading"><div><span><strong>{group.label}</strong><small>{group.source}</small></span></div></header>
-                        <div className={`organized-result-table ${editingRecord ? 'record-result-editing' : ''}`}><header><span>항목</span><span>정리된 내용</span></header>{group.rows.map((row, index) => {
-                          const draftIndex = dateGroup.rows.indexOf(row);
-                          return <article key={`${dateGroup.recordId}-${row.source}-${index}-${draftIndex}`}>{editingRecord ? <><input value={row.title} onChange={(event) => updateExaminationDraftRow(draftIndex, 'title', event.target.value)} aria-label="검사 항목명 수정" /><AutoResizeTextarea value={row.value} onChange={(event) => updateExaminationDraftRow(draftIndex, 'value', event.target.value)} aria-label={`${row.title || '검사'} 내용 수정`} /><button onClick={() => setExaminationDraftRows((current) => current.filter((_, rowIndex) => rowIndex !== draftIndex))} aria-label={`${row.title || '검사'} 삭제`}>×</button></> : <><strong>{row.title}</strong><p>{row.value}</p></>}</article>;
-                        })}</div>
-                      </section>)}
-                      {editingRecord && !sourceGroups.length && <div className="record-result-empty">등록된 실제 검사·EMR 결과가 없습니다.</div>}
+                      {dateGroup.rows.length ? <div className={`organized-result-table ${editingRecord ? 'record-result-editing' : ''}`}><header><span>항목</span><span>정리된 내용</span></header>{dateGroup.rows.map((row, index) => (
+                        <article key={`${dateGroup.recordId}-${row.source}-${index}`}>{editingRecord ? <><input value={row.title} onChange={(event) => updateExaminationDraftRow(index, 'title', event.target.value)} aria-label="검사 항목명 수정" /><AutoResizeTextarea value={row.value} onChange={(event) => updateExaminationDraftRow(index, 'value', event.target.value)} aria-label={`${row.title || '검사'} 내용 수정`} /><button onClick={() => setExaminationDraftRows((current) => current.filter((_, rowIndex) => rowIndex !== index))} aria-label={`${row.title || '검사'} 삭제`}>×</button></> : <><strong>{row.title}</strong><p>{row.value}</p></>}</article>
+                      ))}</div> : <div className="record-result-empty">등록된 실제 검사·EMR 결과가 없습니다.</div>}
                     </div>
-                  </details>;
-                })}
+                  </details>
+                ))}
               </div>
               <footer>{editingRecord ? <button className="record-result-add" onClick={() => setExaminationDraftRows((current) => [...current, { source: 'EMR 붙여넣기', title: '', value: '', status: '의료진 수정' }])}>+ 검사 항목 추가</button> : '사전 문진과 겹치지 않도록 실제 검사·EMR의 항목과 내용만 표시합니다.'}</footer>
             </section>}

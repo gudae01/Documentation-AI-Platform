@@ -667,10 +667,7 @@ button { cursor: pointer; }
 .examination-date-group[open] > summary { border-bottom: 1px solid #dfe8e6; }
 .examination-date-group > summary > div { min-width: 0; display: flex; align-items: center; gap: 13px; }
 .examination-date-group > summary time { min-width: 82px; color: #315f59; font-size: 13px; font-weight: 800; }
-.examination-date-group > summary span { min-width: 0; }
-.examination-date-group > summary strong, .examination-date-group > summary small { display: block; }
-.examination-date-group > summary strong { color: #405c62; font-size: 13px; }
-.examination-date-group > summary small { margin-top: 3px; color: #819196; font-size: 10px; }
+.examination-date-group > summary small { min-width: 0; color: #819196; font-size: 10px; }
 .examination-date-group > summary > em { color: #397d74; font-size: 10px; font-style: normal; white-space: nowrap; }
 .examination-date-group > summary > i { color: #43887f; font-size: 17px; font-style: normal; transition: transform .2s ease; }
 .examination-date-group[open] > summary > i { transform: rotate(180deg); }
