@@ -311,7 +311,7 @@ export function PublicQuestionnaire({ token }: { token: string }) {
           <TextField label="복용 시간과 식사 관계" name="medicationTiming" value={data.medicationTiming} update={update} />
           <ChoiceField label="복용 후 효과" name="medicationEffect" value={data.medicationEffect} update={update}
                        options={['효과 있음', '효과가 적음', '효과 없음', '모름']} multiline />
-          <ChoiceField label="Wearing-off 또는 다음 복용 전 증상" name="wearingOff" value={data.wearingOff} update={update}
+          <ChoiceField label="다음 약 전 증상" name="wearingOff" value={data.wearingOff} update={update}
                        options={['없음', '있음', '모름']} multiline />
           <ChoiceField label="이상운동·어지럼·환각 등 부작용" name="medicationSideEffects" value={data.medicationSideEffects} update={update}
                        options={['없음', '있음', '모름']} multiline />
