@@ -355,12 +355,6 @@ export function PublicQuestionnaire({ token }: { token: string }) {
         </div>
       </FormSection>
 
-      <FormSection title="추가 사실">
-        <div className="grid grid-2">
-          <TextField label="Body facts" name="bodyFacts" value={data.bodyFacts} update={update} />
-          <TextField label="Brain facts" name="brainFacts" value={data.brainFacts} update={update} />
-        </div>
-      </FormSection>
       <div className="form-footer"><span>{saveState}</span><button className="primary" disabled={voice.busy}>{voice.busy ? '음성 입력 완료 후 제출' : '안전하게 제출'}</button></div>
       {error && <p className="error">{error}</p>}
       </form>
