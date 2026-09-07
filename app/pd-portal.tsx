@@ -270,7 +270,7 @@ export function PublicQuestionnaire({ token }: { token: string }) {
           <Field label="생년월일 앞 6자리" name="birth6" value={data.birth6} update={update}
                  pattern="[0-9]{6}" inputMode="numeric" required />
           <SelectField label="성별" name="sex" value={data.sex} update={update}
-                       options={[['', '선택'], ['M', '남성'], ['F', '여성']]} required />
+                       options={[['M', '남성'], ['F', '여성']]} required />
           <Field label="진료/입원 예정일" name="plannedDate" value={data.plannedDate}
                  update={update} type="date" required />
           <SelectField label="작성자" name="respondent" value={data.respondent} update={update}
@@ -330,10 +330,7 @@ export function PublicQuestionnaire({ token }: { token: string }) {
           <Field label="악화 요인" name="aggravatingFactors" value={data.aggravatingFactors} update={update} />
           <Field label="완화 요인" name="relievingFactors" value={data.relievingFactors} update={update} />
           <SelectField label="직접 선택한 통증 NRS" name="painNrs" value={data.painNrs} update={update}
-                       options={[
-                         ['', '선택'],
-                         ...Array.from({ length: 11 }, (_, score): [string, string] => [String(score), `${score}점`]),
-                       ]} />
+                       options={Array.from({ length: 11 }, (_, score): [string, string] => [String(score), `${score}점`])} />
         </div>
         <ChoiceField label="낙상·보행·운전·연하 등 안전 문제" name="fallSafety" value={data.fallSafety} update={update}
                      options={['없음', '있음', '모름']} multiline />
@@ -765,7 +762,7 @@ function ChoiceField({ label, name, value, update, options, disabled = false, mu
     <select id={`questionnaire-choice-${name}`} name={custom ? undefined : name}
       value={custom ? customOption : value} disabled={locked}
       onChange={(event) => select(event.target.value)}>
-      <option value="">선택</option>
+      <option value="" disabled hidden />
       {options.map((option) => <option key={option} value={option}>{option}</option>)}
       <option value={customOption}>기타 / 직접 작성</option>
     </select>
@@ -783,6 +780,7 @@ function SelectField({ label, name, value, update, options, required }: {
 }) {
   return <label>{label}<select name={name} value={value} required={required}
     onChange={(event) => update(name, event.target.value)}>
+    <option value="" disabled hidden />
     {value && !options.some(([key]) => key === value) && <option value={value}>{value} (기존 답변)</option>}
     {options.map(([key, text]) =>
       <option key={key} value={key}>{text}</option>)}</select></label>;
