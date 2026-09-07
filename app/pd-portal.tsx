@@ -37,7 +37,6 @@ function loadPublicQuestionnaireMeta(token: string) {
 }
 
 type QuestionnaireVoicePhase = 'idle' | 'requesting' | 'recording' | 'transcribing' | 'done' | 'error';
-type QuestionnaireInputMode = 'keyboard' | 'voice';
 type QuestionnaireVoiceController = {
   activeField: string | null;
   phase: QuestionnaireVoicePhase;
@@ -47,11 +46,7 @@ type QuestionnaireVoiceController = {
     apply: (value: string) => void) => void;
 };
 
-type QuestionnaireInputContextValue = QuestionnaireVoiceController & {
-  inputMode: QuestionnaireInputMode;
-};
-
-const QuestionnaireVoiceContext = createContext<QuestionnaireInputContextValue | null>(null);
+const QuestionnaireVoiceContext = createContext<QuestionnaireVoiceController | null>(null);
 const QUESTIONNAIRE_VOICE_MAX_MS = 60_000;
 
 function useQuestionnaireVoice(token: string): QuestionnaireVoiceController {
@@ -212,7 +207,6 @@ export default function Page() {
 
 export function PublicQuestionnaire({ token }: { token: string }) {
   const [data, setData] = useState<FormDataState>(EMPTY_FORM);
-  const [inputMode, setInputMode] = useState<QuestionnaireInputMode>('keyboard');
   const [loaded, setLoaded] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [done, setDone] = useState(false);
@@ -262,31 +256,13 @@ export function PublicQuestionnaire({ token }: { token: string }) {
 
   return <main className="public-page pd-scope">
     <header className="public-header"><b>MEDIFLOW</b><span>파킨슨병 사전 문진</span></header>
-    <QuestionnaireVoiceContext.Provider value={{ ...voice, inputMode }}>
+    <QuestionnaireVoiceContext.Provider value={voice}>
       <form className="card questionnaire-form" onSubmit={submit}>
       <div className="notice">환자 표현은 임의로 고치거나 추론하지 않고 전달합니다. 주민등록번호 뒷자리는 입력하지 마세요.</div>
-      <div className={`input-mode-panel ${inputMode}`}>
-        <div className="input-mode-copy">
-          <strong>입력 방식을 선택해 주세요</strong>
-          <small>{inputMode === 'voice'
-            ? '입력할 항목의 마이크 아이콘을 누른 뒤 말씀해 주세요.'
-            : '키보드로 내용을 직접 작성합니다.'}</small>
-        </div>
-        <div className="input-mode-picker" role="group" aria-label="문진 입력 방식">
-          <button type="button" className={inputMode === 'keyboard' ? 'active' : ''}
-            aria-pressed={inputMode === 'keyboard'} disabled={voice.busy}
-            onClick={() => setInputMode('keyboard')}>
-            <i className="keyboard-icon" aria-hidden="true" /><span>직접 입력</span>
-          </button>
-          <button type="button" className={inputMode === 'voice' ? 'active' : ''}
-            aria-pressed={inputMode === 'voice'} disabled={voice.busy}
-            onClick={() => setInputMode('voice')}>
-            <i className="microphone-icon" aria-hidden="true" /><span>음성 입력</span>
-          </button>
-        </div>
-        {inputMode === 'voice' && <p className="voice-privacy-note">
-          음성 원본은 저장하지 않고 변환된 글만 입력됩니다. 한 번에 최대 60초까지 녹음할 수 있습니다.
-        </p>}
+      <div className="questionnaire-entry-guide">
+        <strong>해당하는 답변을 선택해 주세요</strong>
+        <p>보기에 없거나 자세한 설명이 필요하면 직접 작성할 수 있습니다. 글 입력란 옆 마이크 아이콘으로 말해서 입력할 수도 있습니다.</p>
+        <small>마이크를 누르고 말씀한 뒤 정지 아이콘을 누르세요. 한 번에 최대 60초까지 녹음하며, 음성 원본은 저장하지 않습니다.</small>
       </div>
       <FormSection title="기본정보와 안전정보">
         <div className="grid grid-3">
@@ -299,15 +275,18 @@ export function PublicQuestionnaire({ token }: { token: string }) {
                  update={update} type="date" required />
           <SelectField label="작성자" name="respondent" value={data.respondent} update={update}
                        options={[['본인', '본인'], ['보호자', '보호자']]} />
-          <Field label="보호자 관계" name="relationship" value={data.relationship} update={update}
+          <ChoiceField label="보호자 관계" name="relationship" value={data.relationship} update={update}
+                 options={['배우자', '자녀', '부모', '형제자매', '친척', '간병인']}
                  disabled={data.respondent !== '보호자'} />
         </div>
         <div className="grid grid-3">
           <TriState label="약물 알레르기" name="allergy" value={data.allergy} update={update} />
           <TriState label="음식 알레르기" name="foodAllergy" value={data.foodAllergy} update={update} />
-          <Field label="기타 알레르기" name="otherAllergy" value={data.otherAllergy} update={update} />
+          <ChoiceField label="기타 알레르기" name="otherAllergy" value={data.otherAllergy} update={update}
+                       options={['없음', '있음', '모름']} />
         </div>
-        <TextField label="현재 비-PD 복용약" name="nonPdMedications" value={data.nonPdMedications} update={update} />
+        <ChoiceField label="현재 비-PD 복용약" name="nonPdMedications" value={data.nonPdMedications} update={update}
+                     options={['없음', '모름']} multiline />
       </FormSection>
 
       <FormSection title="파킨슨병 병력">
@@ -315,21 +294,27 @@ export function PublicQuestionnaire({ token }: { token: string }) {
           <Field label="증상 발병 시기" name="pdOnset" value={data.pdOnset} update={update} />
           <Field label="진단 시기" name="pdDiagnosis" value={data.pdDiagnosis} update={update} />
           <Field label="진단 기관" name="pdDiagnosisHospital" value={data.pdDiagnosisHospital} update={update} />
-          <Field label="발병 측" name="onsetSide" value={data.onsetSide} update={update} placeholder="오른쪽/왼쪽/모름" />
+          <ChoiceField label="발병 측" name="onsetSide" value={data.onsetSide} update={update}
+                       options={['오른쪽', '왼쪽', '양쪽', '모름']} />
           <Field label="현재 단계 또는 상태" name="currentStage" value={data.currentStage} update={update} />
-          <Field label="DBS·수술력" name="dbsHistory" value={data.dbsHistory} update={update} />
+          <ChoiceField label="DBS·수술력" name="dbsHistory" value={data.dbsHistory} update={update}
+                       options={['없음', '있음', '모름']} />
         </div>
         <TextField label="진단 당시 증상" name="initialSymptoms" value={data.initialSymptoms} update={update} />
-        <TextField label="재활치료력" name="rehabilitationHistory" value={data.rehabilitationHistory} update={update} />
+        <ChoiceField label="재활치료력" name="rehabilitationHistory" value={data.rehabilitationHistory} update={update}
+                     options={['없음', '현재 치료 중', '과거에 치료받음', '모름']} multiline />
       </FormSection>
 
       <FormSection title="파킨슨병 약물">
         <TextField label="제품명·성분·1회 용량·횟수" name="pdMedication" value={data.pdMedication} update={update} />
         <div className="grid grid-2">
           <TextField label="복용 시간과 식사 관계" name="medicationTiming" value={data.medicationTiming} update={update} />
-          <TextField label="복용 후 효과" name="medicationEffect" value={data.medicationEffect} update={update} />
-          <TextField label="Wearing-off 또는 다음 복용 전 증상" name="wearingOff" value={data.wearingOff} update={update} />
-          <TextField label="이상운동·어지럼·환각 등 부작용" name="medicationSideEffects" value={data.medicationSideEffects} update={update} />
+          <ChoiceField label="복용 후 효과" name="medicationEffect" value={data.medicationEffect} update={update}
+                       options={['효과 있음', '효과가 적음', '효과 없음', '모름']} multiline />
+          <ChoiceField label="Wearing-off 또는 다음 복용 전 증상" name="wearingOff" value={data.wearingOff} update={update}
+                       options={['없음', '있음', '모름']} multiline />
+          <ChoiceField label="이상운동·어지럼·환각 등 부작용" name="medicationSideEffects" value={data.medicationSideEffects} update={update}
+                       options={['없음', '있음', '모름']} multiline />
         </div>
       </FormSection>
 
@@ -338,25 +323,38 @@ export function PublicQuestionnaire({ token }: { token: string }) {
         <TextField label="환자 설명" name="symptomDetail" value={data.symptomDetail} update={update} required />
         <div className="grid grid-3">
           <Field label="발생 시점·지속시간" name="symptomTiming" value={data.symptomTiming} update={update} />
-          <Field label="좌우·부위" name="laterality" value={data.laterality} update={update} />
-          <Field label="ON/OFF 관계" name="onOffRelation" value={data.onOffRelation} update={update} />
+          <ChoiceField label="좌우·부위" name="laterality" value={data.laterality} update={update}
+                       options={['오른쪽', '왼쪽', '양쪽', '전신', '모름']} />
+          <ChoiceField label="ON/OFF 관계" name="onOffRelation" value={data.onOffRelation} update={update}
+                       options={['약효가 있을 때 불편함', '약효가 떨어질 때 불편함', '약효와 무관', '모름']} />
           <Field label="악화 요인" name="aggravatingFactors" value={data.aggravatingFactors} update={update} />
           <Field label="완화 요인" name="relievingFactors" value={data.relievingFactors} update={update} />
-          <Field label="직접 선택한 통증 NRS" name="painNrs" value={data.painNrs} update={update}
-                 type="number" min="0" max="10" />
+          <SelectField label="직접 선택한 통증 NRS" name="painNrs" value={data.painNrs} update={update}
+                       options={[
+                         ['', '선택'],
+                         ...Array.from({ length: 11 }, (_, score): [string, string] => [String(score), `${score}점`]),
+                       ]} />
         </div>
-        <TextField label="낙상·보행·운전·연하 등 안전 문제" name="fallSafety" value={data.fallSafety} update={update} />
+        <ChoiceField label="낙상·보행·운전·연하 등 안전 문제" name="fallSafety" value={data.fallSafety} update={update}
+                     options={['없음', '있음', '모름']} multiline />
       </FormSection>
 
       <FormSection title="과거력과 일상생활">
         <div className="grid grid-2">
-          <TextField label="과거력" name="pastHistory" value={data.pastHistory} update={update} />
-          <TextField label="가족력" name="familyHistory" value={data.familyHistory} update={update} />
-          <TextField label="식사·식욕" name="diet" value={data.diet} update={update} />
-          <TextField label="소화" name="digestion" value={data.digestion} update={update} />
-          <TextField label="대변" name="bowel" value={data.bowel} update={update} />
-          <TextField label="소변" name="urine" value={data.urine} update={update} />
-          <TextField label="수면" name="sleep" value={data.sleep} update={update} />
+          <ChoiceField label="과거력" name="pastHistory" value={data.pastHistory} update={update}
+                       options={['없음', '있음', '모름']} multiline />
+          <ChoiceField label="가족력" name="familyHistory" value={data.familyHistory} update={update}
+                       options={['없음', '있음', '모름']} multiline />
+          <ChoiceField label="식사·식욕" name="diet" value={data.diet} update={update}
+                       options={['불편함 없음', '식욕 감소', '식욕 증가', '모름']} multiline />
+          <ChoiceField label="소화" name="digestion" value={data.digestion} update={update}
+                       options={['불편함 없음', '소화불량', '속쓰림', '메스꺼움', '모름']} multiline />
+          <ChoiceField label="대변" name="bowel" value={data.bowel} update={update}
+                       options={['불편함 없음', '변비', '설사', '모름']} multiline />
+          <ChoiceField label="소변" name="urine" value={data.urine} update={update}
+                       options={['불편함 없음', '잦은 소변', '밤에 자주 소변을 봄', '소변보기 어려움', '소변이 샘', '모름']} multiline />
+          <ChoiceField label="수면" name="sleep" value={data.sleep} update={update}
+                       options={['불편함 없음', '잠들기 어려움', '자주 깸', '낮에 심하게 졸림', '모름']} multiline />
         </div>
       </FormSection>
 
@@ -669,7 +667,7 @@ function VoiceInputControl({ fieldName, fieldLabel, value, multiline, update }: 
   update: (name: string, value: string) => void;
 }) {
   const voice = useContext(QuestionnaireVoiceContext);
-  if (!voice || voice.inputMode !== 'voice') return null;
+  if (!voice) return null;
 
   const active = voice.activeField === fieldName;
   const phase = active ? voice.phase : 'idle';
@@ -680,8 +678,8 @@ function VoiceInputControl({ fieldName, fieldLabel, value, multiline, update }: 
           : phase === 'error' ? '다시 입력'
             : '음성 입력';
   const statusText = phase === 'requesting' ? '마이크 권한을 확인하고 있습니다.'
-    : phase === 'recording' ? '말씀하신 뒤 입력 완료를 눌러 주세요.'
-      : phase === 'transcribing' ? '자체 STT가 음성을 글로 바꾸고 있습니다.'
+    : phase === 'recording' ? '말씀하신 뒤 정지 아이콘을 눌러 주세요.'
+      : phase === 'transcribing' ? '음성을 글로 바꾸고 있습니다.'
         : phase === 'done' ? '말씀하신 내용이 입력되었습니다. 직접 수정할 수도 있습니다.'
           : phase === 'error' ? voice.error
             : '';
@@ -702,7 +700,6 @@ function Field({ label, name, value, update, required, ...props }: {
   label: string; name: string; value: string; update: (name: string, value: string) => void;
   required?: boolean; [key: string]: unknown;
 }) {
-  const inputMode = useContext(QuestionnaireVoiceContext)?.inputMode ?? 'keyboard';
   const inputId = `questionnaire-${name}`;
   const type = typeof props.type === 'string' ? props.type : 'text';
   const supportsVoice = type === 'text' && props.disabled !== true && props.inputMode !== 'numeric';
@@ -712,7 +709,7 @@ function Field({ label, name, value, update, required, ...props }: {
   }
   return <div className="questionnaire-input-field">
     <label htmlFor={inputId}>{label}</label>
-    <div className={`voice-entry single-line ${inputMode}`}>
+    <div className="voice-entry single-line">
       <input id={inputId} name={name} value={value} required={required}
         onChange={(event) => update(name, event.target.value)} {...props} />
       <VoiceInputControl fieldName={name} fieldLabel={label} value={value} multiline={false} update={update} />
@@ -722,7 +719,6 @@ function Field({ label, name, value, update, required, ...props }: {
 function TextField({ label, name, value, update, required }: {
   label: string; name: string; value: string; update: (name: string, value: string) => void; required?: boolean;
 }) {
-  const inputMode = useContext(QuestionnaireVoiceContext)?.inputMode ?? 'keyboard';
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -733,19 +729,62 @@ function TextField({ label, name, value, update, required }: {
   const textareaId = `questionnaire-${name}`;
   return <div className="questionnaire-input-field">
     <label htmlFor={textareaId}>{label}</label>
-    <div className={`voice-entry multiline ${inputMode}`}>
+    <div className="voice-entry multiline">
       <textarea id={textareaId} ref={textareaRef} className="auto-grow-textarea" name={name} rows={3} maxLength={2000} value={value} required={required}
         onChange={(event) => update(name, event.target.value)} />
       <VoiceInputControl fieldName={name} fieldLabel={label} value={value} multiline update={update} />
     </div>
   </div>;
 }
+function ChoiceField({ label, name, value, update, options, disabled = false, multiline = false }: {
+  label: string; name: string; value: string; update: (name: string, value: string) => void;
+  options: string[]; disabled?: boolean; multiline?: boolean;
+}) {
+  const voice = useContext(QuestionnaireVoiceContext);
+  const [customSelected, setCustomSelected] = useState(false);
+  const customDraftRef = useRef<string | null>(null);
+  const custom = customSelected || (value !== '' && !options.includes(value));
+  const locked = disabled || (voice?.busy === true && voice.activeField === name);
+  const customOption = '__custom__';
+
+  function select(next: string) {
+    if (custom) customDraftRef.current = value;
+    setCustomSelected(next === customOption);
+    // Keep free-form answers verbatim; the UI-only option must never be saved.
+    update(name, next === customOption ? customDraftRef.current ?? value : next);
+  }
+
+  const updateCustom = (fieldName: string, next: string) => {
+    setCustomSelected(true);
+    customDraftRef.current = next;
+    update(fieldName, next);
+  };
+
+  return <div className="questionnaire-choice-field">
+    <label htmlFor={`questionnaire-choice-${name}`}>{label}</label>
+    <select id={`questionnaire-choice-${name}`} name={custom ? undefined : name}
+      value={custom ? customOption : value} disabled={locked}
+      onChange={(event) => select(event.target.value)}>
+      <option value="">선택</option>
+      {options.map((option) => <option key={option} value={option}>{option}</option>)}
+      <option value={customOption}>기타 / 직접 작성</option>
+    </select>
+    {custom && !disabled && (multiline
+      ? <TextField label={`${label} 상세 내용`} name={name} value={value} update={updateCustom} />
+      : <Field label={`${label} 상세 내용`} name={name} value={value} update={updateCustom} />)}
+    {!custom && value && !disabled && <button type="button" className="choice-detail-button" disabled={locked}
+      onClick={() => setCustomSelected(true)}>선택한 답변에 설명 추가</button>}
+  </div>;
+}
+
 function SelectField({ label, name, value, update, options, required }: {
   label: string; name: string; value: string; update: (name: string, value: string) => void;
   options: [string, string][]; required?: boolean;
 }) {
   return <label>{label}<select name={name} value={value} required={required}
-    onChange={(event) => update(name, event.target.value)}>{options.map(([key, text]) =>
+    onChange={(event) => update(name, event.target.value)}>
+    {value && !options.some(([key]) => key === value) && <option value={value}>{value} (기존 답변)</option>}
+    {options.map(([key, text]) =>
       <option key={key} value={key}>{text}</option>)}</select></label>;
 }
 function TriState(props: Omit<Parameters<typeof SelectField>[0], 'options'>) {
