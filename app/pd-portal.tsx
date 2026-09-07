@@ -258,7 +258,6 @@ export function PublicQuestionnaire({ token }: { token: string }) {
     <header className="public-header"><b>MEDIFLOW</b><span>파킨슨병 사전 문진</span></header>
     <QuestionnaireVoiceContext.Provider value={voice}>
       <form className="card questionnaire-form" onSubmit={submit}>
-      <div className="notice">환자 표현은 임의로 고치거나 추론하지 않고 전달합니다. 주민등록번호 뒷자리는 입력하지 마세요.</div>
       <div className="questionnaire-entry-guide">
         <strong>해당하는 답변을 선택해 주세요</strong>
         <p>보기에 없거나 자세한 설명이 필요하면 직접 작성할 수 있습니다. 글 입력란 옆 마이크 아이콘으로 말해서 입력할 수도 있습니다.</p>
