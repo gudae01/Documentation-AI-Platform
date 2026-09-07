@@ -1,6 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import {
+  createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
+  type FormEvent, type ReactNode,
+} from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   pdApi, type Admission, type AdmissionAttachment, type ClinicalTestBundle, type Invite, type Questionnaire,
@@ -22,6 +25,179 @@ const EMPTY_FORM: FormDataState = {
 };
 
 let directQuestionnaireRequest: ReturnType<typeof pdApi.directQuestionnaire> | null = null;
+const publicQuestionnaireMetaRequests = new Map<string, ReturnType<typeof pdApi.publicMeta>>();
+
+function loadPublicQuestionnaireMeta(token: string) {
+  const existing = publicQuestionnaireMetaRequests.get(token);
+  if (existing) return existing;
+  const request = pdApi.publicMeta(token);
+  publicQuestionnaireMetaRequests.set(token, request);
+  void request.catch(() => publicQuestionnaireMetaRequests.delete(token));
+  return request;
+}
+
+type QuestionnaireVoicePhase = 'idle' | 'requesting' | 'recording' | 'transcribing' | 'done' | 'error';
+type QuestionnaireVoiceController = {
+  activeField: string | null;
+  phase: QuestionnaireVoicePhase;
+  error: string;
+  busy: boolean;
+  toggle: (fieldName: string, currentValue: string, multiline: boolean,
+    apply: (value: string) => void) => void;
+};
+
+const QuestionnaireVoiceContext = createContext<QuestionnaireVoiceController | null>(null);
+const QUESTIONNAIRE_VOICE_MAX_MS = 60_000;
+
+function useQuestionnaireVoice(token: string): QuestionnaireVoiceController {
+  const [activeField, setActiveField] = useState<string | null>(null);
+  const [phase, setPhase] = useState<QuestionnaireVoicePhase>('idle');
+  const [error, setError] = useState('');
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const recordingTimerRef = useRef<number | null>(null);
+  const feedbackTimerRef = useRef<number | null>(null);
+  const disposedRef = useRef(false);
+
+  const clearRecordingTimer = useCallback(() => {
+    if (recordingTimerRef.current !== null) {
+      window.clearTimeout(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+  }, []);
+
+  const releaseStream = useCallback(() => {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+  }, []);
+
+  const stopRecording = useCallback(() => {
+    const recorder = recorderRef.current;
+    if (!recorder || recorder.state === 'inactive') return;
+    clearRecordingTimer();
+    setPhase('transcribing');
+    recorder.stop();
+  }, [clearRecordingTimer]);
+
+  useEffect(() => {
+    disposedRef.current = false;
+    return () => {
+      disposedRef.current = true;
+      clearRecordingTimer();
+      if (feedbackTimerRef.current !== null) window.clearTimeout(feedbackTimerRef.current);
+      const recorder = recorderRef.current;
+      if (recorder && recorder.state !== 'inactive') {
+        recorder.onstop = null;
+        recorder.stop();
+      }
+      releaseStream();
+    };
+  }, [clearRecordingTimer, releaseStream]);
+
+  const toggle = useCallback((fieldName: string, currentValue: string, multiline: boolean,
+    apply: (value: string) => void) => {
+    if (phase === 'recording' && activeField === fieldName) {
+      stopRecording();
+      return;
+    }
+    if (phase === 'requesting' || phase === 'recording' || phase === 'transcribing') return;
+
+    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia
+      || typeof MediaRecorder === 'undefined') {
+      setActiveField(fieldName);
+      setPhase('error');
+      setError('이 기기에서는 음성 입력을 사용할 수 없습니다. HTTPS 접속과 브라우저 마이크 지원을 확인해 주세요.');
+      return;
+    }
+
+    if (feedbackTimerRef.current !== null) window.clearTimeout(feedbackTimerRef.current);
+    setActiveField(fieldName);
+    setPhase('requesting');
+    setError('');
+
+    void navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    }).then((stream) => {
+      if (disposedRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      const supportedType = [
+        'audio/webm;codecs=opus', 'audio/mp4', 'audio/webm', 'audio/ogg;codecs=opus',
+      ].find((type) => MediaRecorder.isTypeSupported(type));
+      const recorder = supportedType ? new MediaRecorder(stream, { mimeType: supportedType }) : new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+      let recorderFailed = false;
+
+      streamRef.current = stream;
+      recorderRef.current = recorder;
+      recorder.ondataavailable = (event) => { if (event.data.size > 0) chunks.push(event.data); };
+      recorder.onerror = () => {
+        recorderFailed = true;
+        clearRecordingTimer();
+        releaseStream();
+        if (!disposedRef.current) {
+          setPhase('error');
+          setError('녹음을 완료하지 못했습니다. 마이크 상태를 확인하고 다시 시도해 주세요.');
+        }
+      };
+      recorder.onstop = () => {
+        clearRecordingTimer();
+        releaseStream();
+        recorderRef.current = null;
+        if (recorderFailed || disposedRef.current) return;
+
+        const mimeType = recorder.mimeType || supportedType || 'audio/webm';
+        const extension = mimeType.includes('mp4') ? 'm4a' : mimeType.includes('ogg') ? 'ogg' : 'webm';
+        const audio = new File(chunks, `questionnaire-voice-${Date.now()}.${extension}`, { type: mimeType });
+        if (audio.size === 0) {
+          setPhase('error');
+          setError('녹음된 음성이 없습니다. 다시 눌러 천천히 말씀해 주세요.');
+          return;
+        }
+
+        void pdApi.transcribeQuestionnaireAudio(token, audio).then((result) => {
+          if (disposedRef.current) return;
+          const transcript = result.text.trim()
+            || result.segments.map((segment) => segment.text.trim()).filter(Boolean).join(' ');
+          if (!transcript) throw new Error('인식된 음성이 없습니다. 조금 더 가까이에서 다시 말씀해 주세요.');
+          const normalized = multiline ? transcript : transcript.replace(/\s+/g, ' ');
+          const previous = currentValue.trimEnd();
+          apply(previous ? `${previous}${multiline ? '\n' : ' '}${normalized}` : normalized);
+          setPhase('done');
+          setError('');
+          feedbackTimerRef.current = window.setTimeout(() => {
+            setActiveField(null);
+            setPhase('idle');
+          }, 2500);
+        }).catch((reason: Error) => {
+          if (disposedRef.current) return;
+          setPhase('error');
+          setError(reason.message || '음성을 글로 바꾸지 못했습니다. 다시 시도해 주세요.');
+        });
+      };
+      recorder.start(250);
+      setPhase('recording');
+      recordingTimerRef.current = window.setTimeout(stopRecording, QUESTIONNAIRE_VOICE_MAX_MS);
+    }).catch((reason: DOMException) => {
+      if (disposedRef.current) return;
+      setPhase('error');
+      setError(reason.name === 'NotAllowedError'
+        ? '마이크 권한이 필요합니다. 브라우저 설정에서 이 사이트의 마이크를 허용해 주세요.'
+        : reason.name === 'NotFoundError'
+          ? '사용 가능한 마이크를 찾을 수 없습니다.'
+          : '마이크를 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    });
+  }, [activeField, clearRecordingTimer, phase, releaseStream, stopRecording, token]);
+
+  return {
+    activeField,
+    phase,
+    error,
+    busy: phase === 'requesting' || phase === 'recording' || phase === 'transcribing',
+    toggle,
+  };
+}
 
 export default function Page() {
   const token = new URLSearchParams(typeof location === 'undefined' ? '' : location.search)
@@ -36,16 +212,20 @@ export function PublicQuestionnaire({ token }: { token: string }) {
   const [done, setDone] = useState(false);
   const [saveState, setSaveState] = useState('');
   const [error, setError] = useState('');
+  const voice = useQuestionnaireVoice(token);
 
   useEffect(() => {
-    pdApi.publicMeta(token).then((meta) => {
+    let active = true;
+    loadPublicQuestionnaireMeta(token).then((meta) => {
+      if (!active) return;
       let restored: FormDataState = {};
       if (meta.draftJson) {
         try { restored = JSON.parse(meta.draftJson) as FormDataState; } catch { restored = {}; }
       }
       setData({ ...EMPTY_FORM, ...restored, plannedDate: restored.plannedDate || meta.plannedDate || '' });
       setLoaded(true);
-    }).catch((reason: Error) => setError(reason.message));
+    }).catch((reason: Error) => { if (active) setError(reason.message); });
+    return () => { active = false; };
   }, [token]);
 
   useEffect(() => {
@@ -76,8 +256,14 @@ export function PublicQuestionnaire({ token }: { token: string }) {
 
   return <main className="public-page pd-scope">
     <header className="public-header"><b>MEDIFLOW</b><span>파킨슨병 사전 문진</span></header>
-    <form className="card questionnaire-form" onSubmit={submit}>
+    <QuestionnaireVoiceContext.Provider value={voice}>
+      <form className="card questionnaire-form" onSubmit={submit}>
       <div className="notice">환자 표현은 임의로 고치거나 추론하지 않고 전달합니다. 주민등록번호 뒷자리는 입력하지 마세요.</div>
+      <div className="voice-input-guide">
+        <i aria-hidden="true">음성</i>
+        <span><strong>텍스트 입력란은 말로도 작성할 수 있습니다</strong><small>‘음성 입력’을 누르고 말씀한 뒤 ‘입력 완료’를 누르세요. 음성 원본은 저장하지 않고 변환된 글만 입력됩니다.</small></span>
+        <b>최대 60초</b>
+      </div>
       <FormSection title="기본정보와 안전정보">
         <div className="grid grid-3">
           <Field label="성명" name="name" value={data.name} update={update} required />
@@ -156,9 +342,10 @@ export function PublicQuestionnaire({ token }: { token: string }) {
           <TextField label="Brain facts" name="brainFacts" value={data.brainFacts} update={update} />
         </div>
       </FormSection>
-      <div className="form-footer"><span>{saveState}</span><button className="primary">안전하게 제출</button></div>
+      <div className="form-footer"><span>{saveState}</span><button className="primary" disabled={voice.busy}>{voice.busy ? '음성 입력 완료 후 제출' : '안전하게 제출'}</button></div>
       {error && <p className="error">{error}</p>}
-    </form>
+      </form>
+    </QuestionnaireVoiceContext.Provider>
   </main>;
 }
 
@@ -449,12 +636,62 @@ function ParsedSummary({ json }: { json: string }) {
 function FormSection({ title, children }: { title: string; children: ReactNode }) {
   return <fieldset><legend>{title}</legend>{children}</fieldset>;
 }
+
+function VoiceInputControl({ fieldName, fieldLabel, value, multiline, update }: {
+  fieldName: string;
+  fieldLabel: string;
+  value: string;
+  multiline: boolean;
+  update: (name: string, value: string) => void;
+}) {
+  const voice = useContext(QuestionnaireVoiceContext);
+  if (!voice) return null;
+
+  const active = voice.activeField === fieldName;
+  const phase = active ? voice.phase : 'idle';
+  const buttonText = phase === 'requesting' ? '연결 중'
+    : phase === 'recording' ? '입력 완료'
+      : phase === 'transcribing' ? '변환 중'
+        : phase === 'done' ? '입력됨'
+          : phase === 'error' ? '다시 입력'
+            : '음성 입력';
+  const statusText = phase === 'requesting' ? '마이크 권한을 확인하고 있습니다.'
+    : phase === 'recording' ? '말씀하신 뒤 입력 완료를 눌러 주세요.'
+      : phase === 'transcribing' ? '자체 STT가 음성을 글로 바꾸고 있습니다.'
+        : phase === 'done' ? '말씀하신 내용이 입력되었습니다. 직접 수정할 수도 있습니다.'
+          : phase === 'error' ? voice.error
+            : '';
+  const disabled = (voice.busy && !active) || phase === 'requesting' || phase === 'transcribing';
+
+  return <>
+    <button type="button" className={`voice-input-button ${phase}`} disabled={disabled}
+      aria-label={`${fieldLabel} ${buttonText}`} aria-pressed={phase === 'recording'}
+      onClick={() => voice.toggle(fieldName, value, multiline, (next) => update(fieldName, next))}>
+      <i aria-hidden="true" /><span>{buttonText}</span>
+    </button>
+    {active && statusText && <small className={`voice-input-status ${phase}`} role="status" aria-live="polite">{statusText}</small>}
+  </>;
+}
+
 function Field({ label, name, value, update, required, ...props }: {
   label: string; name: string; value: string; update: (name: string, value: string) => void;
   required?: boolean; [key: string]: unknown;
 }) {
-  return <label>{label}<input name={name} value={value} required={required}
-    onChange={(event) => update(name, event.target.value)} {...props} /></label>;
+  const inputId = `questionnaire-${name}`;
+  const type = typeof props.type === 'string' ? props.type : 'text';
+  const supportsVoice = type === 'text' && props.disabled !== true && props.inputMode !== 'numeric';
+  if (!supportsVoice) {
+    return <label>{label}<input name={name} value={value} required={required}
+      onChange={(event) => update(name, event.target.value)} {...props} /></label>;
+  }
+  return <div className="questionnaire-input-field">
+    <label htmlFor={inputId}>{label}</label>
+    <div className="voice-entry single-line">
+      <input id={inputId} name={name} value={value} required={required}
+        onChange={(event) => update(name, event.target.value)} {...props} />
+      <VoiceInputControl fieldName={name} fieldLabel={label} value={value} multiline={false} update={update} />
+    </div>
+  </div>;
 }
 function TextField({ label, name, value, update, required }: {
   label: string; name: string; value: string; update: (name: string, value: string) => void; required?: boolean;
@@ -466,8 +703,15 @@ function TextField({ label, name, value, update, required }: {
     textarea.style.height = '0px';
     textarea.style.height = `${textarea.scrollHeight}px`;
   }, [value]);
-  return <label>{label}<textarea ref={textareaRef} className="auto-grow-textarea" name={name} rows={3} maxLength={2000} value={value} required={required}
-    onChange={(event) => update(name, event.target.value)} /></label>;
+  const textareaId = `questionnaire-${name}`;
+  return <div className="questionnaire-input-field">
+    <label htmlFor={textareaId}>{label}</label>
+    <div className="voice-entry multiline">
+      <textarea id={textareaId} ref={textareaRef} className="auto-grow-textarea" name={name} rows={3} maxLength={2000} value={value} required={required}
+        onChange={(event) => update(name, event.target.value)} />
+      <VoiceInputControl fieldName={name} fieldLabel={label} value={value} multiline update={update} />
+    </div>
+  </div>;
 }
 function SelectField({ label, name, value, update, options, required }: {
   label: string; name: string; value: string; update: (name: string, value: string) => void;

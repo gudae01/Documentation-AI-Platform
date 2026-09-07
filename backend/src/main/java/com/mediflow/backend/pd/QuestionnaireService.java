@@ -120,6 +120,13 @@ public class QuestionnaireService {
                 .orElseThrow(() -> new NotFoundException("문진 링크를 찾을 수 없습니다."));
     }
 
+    @Transactional
+    public QuestionnaireInvitation authorizeVoiceInput(String token) {
+        QuestionnaireInvitation invitation = find(token);
+        invitation.assertUsable();
+        return invitation;
+    }
+
     @Transactional(readOnly = true)
     public List<QuestionnaireSubmission> search(String name, String birth6, String sex,
                                                 LocalDate plannedDate, String status) {

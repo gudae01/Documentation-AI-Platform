@@ -131,6 +131,12 @@ export const pdApi = {
     `/api/public/questionnaires/${encodeURIComponent(token)}/submit`,
     { method: 'POST', body: JSON.stringify(body) },
   ),
+  transcribeQuestionnaireAudio: (token: string, file: File) => {
+    const body = new FormData(); body.append('file', file);
+    return call<SttTranscript>(`/api/public/questionnaires/${encodeURIComponent(token)}/transcriptions`, {
+      method: 'POST', body,
+    });
+  },
   questionnaires: (filters: Record<string, string> = {}) => {
     const query = new URLSearchParams(Object.entries(filters).filter(([, value]) => value)).toString();
     return call<Questionnaire[]>(`/api/pd/questionnaires${query ? `?${query}` : ''}`);

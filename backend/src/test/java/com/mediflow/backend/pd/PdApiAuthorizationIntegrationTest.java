@@ -58,4 +58,14 @@ class PdApiAuthorizationIntegrationTest {
         mockMvc.perform(multipart("/api/pd/stt/transcriptions").file(audio).with(csrf()))
                 .andExpect(status().isUnauthorized());
     }
+
+    @Test
+    void publicQuestionnaireVoiceInputRequiresCsrfAndAValidToken() throws Exception {
+        var audio = new MockMultipartFile("file", "questionnaire.webm", "audio/webm", new byte[]{1, 2, 3});
+        mockMvc.perform(multipart("/api/public/questionnaires/not-a-token/transcriptions").file(audio))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(multipart("/api/public/questionnaires/not-a-token/transcriptions")
+                        .file(audio).with(csrf()))
+                .andExpect(status().isNotFound());
+    }
 }

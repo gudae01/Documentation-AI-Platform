@@ -2,6 +2,8 @@ package com.mediflow.backend.pd;
 
 import com.mediflow.backend.audit.AuditService;
 import com.mediflow.backend.common.NotFoundException;
+import com.mediflow.backend.pd.stt.SttResponse;
+import com.mediflow.backend.pd.stt.SttService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
@@ -11,6 +13,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import org.springframework.web.multipart.MultipartFile;
 import tools.jackson.databind.JsonNode;
 
 import java.time.Instant;
@@ -19,19 +22,24 @@ import java.util.*;
 
 @RestController
 public class QuestionnaireController {
+    private static final long QUESTIONNAIRE_VOICE_MAX_BYTES = 15L * 1024 * 1024;
+
     private final QuestionnaireService service;
     private final QuestionnaireInvitationRepository invitations;
     private final AuditService audit;
     private final QuestionnaireChangePublisher changePublisher;
+    private final SttService stt;
 
     public QuestionnaireController(QuestionnaireService service,
                                    QuestionnaireInvitationRepository invitations,
                                    AuditService audit,
-                                   QuestionnaireChangePublisher changePublisher) {
+                                   QuestionnaireChangePublisher changePublisher,
+                                   SttService stt) {
         this.service = service;
         this.invitations = invitations;
         this.audit = audit;
         this.changePublisher = changePublisher;
+        this.stt = stt;
     }
 
     @PostMapping("/api/pd/questionnaire-invitations")
@@ -88,6 +96,20 @@ public class QuestionnaireController {
                 saved.invitation().getId(), true);
         return new PublicMeta(saved.invitation().getExpiresAt(), saved.invitation().getPlannedDate(),
                 saved.draftJson(), saved.invitation().getDraftSavedAt());
+    }
+
+    @PostMapping("/api/public/questionnaires/{token}/transcriptions")
+    public SttResponse transcribeVoiceInput(@PathVariable String token,
+                                            @RequestPart("file") MultipartFile file,
+                                            HttpServletRequest servletRequest) {
+        QuestionnaireInvitation invitation = service.authorizeVoiceInput(token);
+        if (file.getSize() > QUESTIONNAIRE_VOICE_MAX_BYTES) {
+            throw new IllegalArgumentException("문진 음성 입력은 한 번에 15MB 이하로 녹음해 주세요.");
+        }
+        SttResponse response = stt.transcribe(file);
+        audit.record("PUBLIC", servletRequest, "TRANSCRIBE", "QUESTIONNAIRE_VOICE",
+                invitation.getId(), true);
+        return response;
     }
 
     @PostMapping("/api/public/questionnaires/{token}/submit")
