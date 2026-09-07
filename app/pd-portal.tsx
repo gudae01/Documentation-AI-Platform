@@ -37,6 +37,7 @@ function loadPublicQuestionnaireMeta(token: string) {
 }
 
 type QuestionnaireVoicePhase = 'idle' | 'requesting' | 'recording' | 'transcribing' | 'done' | 'error';
+type QuestionnaireInputMode = 'keyboard' | 'voice';
 type QuestionnaireVoiceController = {
   activeField: string | null;
   phase: QuestionnaireVoicePhase;
@@ -46,7 +47,11 @@ type QuestionnaireVoiceController = {
     apply: (value: string) => void) => void;
 };
 
-const QuestionnaireVoiceContext = createContext<QuestionnaireVoiceController | null>(null);
+type QuestionnaireInputContextValue = QuestionnaireVoiceController & {
+  inputMode: QuestionnaireInputMode;
+};
+
+const QuestionnaireVoiceContext = createContext<QuestionnaireInputContextValue | null>(null);
 const QUESTIONNAIRE_VOICE_MAX_MS = 60_000;
 
 function useQuestionnaireVoice(token: string): QuestionnaireVoiceController {
@@ -207,6 +212,7 @@ export default function Page() {
 
 export function PublicQuestionnaire({ token }: { token: string }) {
   const [data, setData] = useState<FormDataState>(EMPTY_FORM);
+  const [inputMode, setInputMode] = useState<QuestionnaireInputMode>('keyboard');
   const [loaded, setLoaded] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [done, setDone] = useState(false);
@@ -256,13 +262,31 @@ export function PublicQuestionnaire({ token }: { token: string }) {
 
   return <main className="public-page pd-scope">
     <header className="public-header"><b>MEDIFLOW</b><span>파킨슨병 사전 문진</span></header>
-    <QuestionnaireVoiceContext.Provider value={voice}>
+    <QuestionnaireVoiceContext.Provider value={{ ...voice, inputMode }}>
       <form className="card questionnaire-form" onSubmit={submit}>
       <div className="notice">환자 표현은 임의로 고치거나 추론하지 않고 전달합니다. 주민등록번호 뒷자리는 입력하지 마세요.</div>
-      <div className="voice-input-guide">
-        <i aria-hidden="true">음성</i>
-        <span><strong>텍스트 입력란은 말로도 작성할 수 있습니다</strong><small>‘음성 입력’을 누르고 말씀한 뒤 ‘입력 완료’를 누르세요. 음성 원본은 저장하지 않고 변환된 글만 입력됩니다.</small></span>
-        <b>최대 60초</b>
+      <div className={`input-mode-panel ${inputMode}`}>
+        <div className="input-mode-copy">
+          <strong>입력 방식을 선택해 주세요</strong>
+          <small>{inputMode === 'voice'
+            ? '입력할 항목의 마이크 아이콘을 누른 뒤 말씀해 주세요.'
+            : '키보드로 내용을 직접 작성합니다.'}</small>
+        </div>
+        <div className="input-mode-picker" role="group" aria-label="문진 입력 방식">
+          <button type="button" className={inputMode === 'keyboard' ? 'active' : ''}
+            aria-pressed={inputMode === 'keyboard'} disabled={voice.busy}
+            onClick={() => setInputMode('keyboard')}>
+            <i className="keyboard-icon" aria-hidden="true" /><span>직접 입력</span>
+          </button>
+          <button type="button" className={inputMode === 'voice' ? 'active' : ''}
+            aria-pressed={inputMode === 'voice'} disabled={voice.busy}
+            onClick={() => setInputMode('voice')}>
+            <i className="microphone-icon" aria-hidden="true" /><span>음성 입력</span>
+          </button>
+        </div>
+        {inputMode === 'voice' && <p className="voice-privacy-note">
+          음성 원본은 저장하지 않고 변환된 글만 입력됩니다. 한 번에 최대 60초까지 녹음할 수 있습니다.
+        </p>}
       </div>
       <FormSection title="기본정보와 안전정보">
         <div className="grid grid-3">
@@ -645,7 +669,7 @@ function VoiceInputControl({ fieldName, fieldLabel, value, multiline, update }: 
   update: (name: string, value: string) => void;
 }) {
   const voice = useContext(QuestionnaireVoiceContext);
-  if (!voice) return null;
+  if (!voice || voice.inputMode !== 'voice') return null;
 
   const active = voice.activeField === fieldName;
   const phase = active ? voice.phase : 'idle';
@@ -665,9 +689,10 @@ function VoiceInputControl({ fieldName, fieldLabel, value, multiline, update }: 
 
   return <>
     <button type="button" className={`voice-input-button ${phase}`} disabled={disabled}
-      aria-label={`${fieldLabel} ${buttonText}`} aria-pressed={phase === 'recording'}
+      aria-label={`${fieldLabel} ${buttonText}`} title={`${fieldLabel} ${buttonText}`}
+      aria-pressed={phase === 'recording'}
       onClick={() => voice.toggle(fieldName, value, multiline, (next) => update(fieldName, next))}>
-      <i aria-hidden="true" /><span>{buttonText}</span>
+      <i aria-hidden="true" />
     </button>
     {active && statusText && <small className={`voice-input-status ${phase}`} role="status" aria-live="polite">{statusText}</small>}
   </>;
@@ -677,6 +702,7 @@ function Field({ label, name, value, update, required, ...props }: {
   label: string; name: string; value: string; update: (name: string, value: string) => void;
   required?: boolean; [key: string]: unknown;
 }) {
+  const inputMode = useContext(QuestionnaireVoiceContext)?.inputMode ?? 'keyboard';
   const inputId = `questionnaire-${name}`;
   const type = typeof props.type === 'string' ? props.type : 'text';
   const supportsVoice = type === 'text' && props.disabled !== true && props.inputMode !== 'numeric';
@@ -686,7 +712,7 @@ function Field({ label, name, value, update, required, ...props }: {
   }
   return <div className="questionnaire-input-field">
     <label htmlFor={inputId}>{label}</label>
-    <div className="voice-entry single-line">
+    <div className={`voice-entry single-line ${inputMode}`}>
       <input id={inputId} name={name} value={value} required={required}
         onChange={(event) => update(name, event.target.value)} {...props} />
       <VoiceInputControl fieldName={name} fieldLabel={label} value={value} multiline={false} update={update} />
@@ -696,6 +722,7 @@ function Field({ label, name, value, update, required, ...props }: {
 function TextField({ label, name, value, update, required }: {
   label: string; name: string; value: string; update: (name: string, value: string) => void; required?: boolean;
 }) {
+  const inputMode = useContext(QuestionnaireVoiceContext)?.inputMode ?? 'keyboard';
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -706,7 +733,7 @@ function TextField({ label, name, value, update, required }: {
   const textareaId = `questionnaire-${name}`;
   return <div className="questionnaire-input-field">
     <label htmlFor={textareaId}>{label}</label>
-    <div className="voice-entry multiline">
+    <div className={`voice-entry multiline ${inputMode}`}>
       <textarea id={textareaId} ref={textareaRef} className="auto-grow-textarea" name={name} rows={3} maxLength={2000} value={value} required={required}
         onChange={(event) => update(name, event.target.value)} />
       <VoiceInputControl fieldName={name} fieldLabel={label} value={value} multiline update={update} />
