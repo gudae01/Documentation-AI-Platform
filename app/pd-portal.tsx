@@ -6,7 +6,7 @@ import {
 } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
-  pdApi, type Admission, type AdmissionAttachment, type ClinicalTestBundle, type Invite, type Questionnaire,
+  pdApi, type AuthResponse, type Admission, type AdmissionAttachment, type ClinicalTestBundle, type Invite, type Questionnaire,
 } from './pd-api';
 
 type Tab = 'links' | 'questionnaires' | 'admissions';
@@ -391,7 +391,9 @@ function ClinicianApp() {
     setAuth(response.authenticated); setName(response.nickname || '의료진');
   }).catch(() => setAuth(false)); }, []);
   if (auth === null) return <Centered title="접속 확인 중" text="" />;
-  if (!auth) return <LoginGate />;
+  if (!auth) return <LoginGate onLogin={(response) => {
+    setAuth(response.authenticated); setName(response.nickname || '의료진');
+  }} />;
   const openWorkspace = (nextTab: Tab) => { setTab(nextTab); setView('workspace'); window.scrollTo(0, 0); };
   const logout = () => pdApi.logout().then(() => location.reload());
   if (view === 'home') return <PortalHome name={name} onOpen={openWorkspace} onLogout={logout} />;
@@ -408,15 +410,42 @@ function ClinicianApp() {
   </div>;
 }
 
-export function LoginGate() {
+export function LoginGate({ onLogin }: { onLogin: (response: AuthResponse) => void }) {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
+    setError('');
+    try {
+      const response = await pdApi.login(username, password);
+      if (!response.authenticated) throw new Error('로그인 세션을 확인하지 못했습니다. 다시 로그인해 주세요.');
+      onLogin(response);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '로그인하지 못했습니다. 다시 시도해 주세요.');
+    } finally {
+      setPassword('');
+      setSubmitting(false);
+    }
+  };
+
   return <main className="login-gate pd-scope">
     <header className="portal-header"><div className="portal-brand"><i>M</i><span><b>MEDIFLOW</b><small>Clinical Documentation</small></span></div></header>
     <section className="login-card">
       <p className="eyebrow">CLINICIAN ACCESS</p>
       <h1>의료진 로그인</h1>
-      <p>사전 문진 링크 전송과 제출 문진·입원 결과 확인은<br />허용된 의료진 계정만 이용할 수 있습니다.</p>
-      <a className="kakao-login" href={pdApi.loginUrl}><span>카카오로 로그인</span><b>→</b></a>
-      <small>카카오 회원번호 허용 목록과 보안 세션으로 접근을 제한합니다.</small>
+      <p>등록된 로컬 계정으로 로그인해 주세요.<br />외부 계정 연동 없이 이용할 수 있습니다.</p>
+      <form className="local-login-form" onSubmit={(event) => void submit(event)} aria-busy={submitting}>
+        <label htmlFor="login-username"><span>아이디</span><input id="login-username" name="username" autoComplete="username" autoCapitalize="none" spellCheck={false} value={username} onChange={(event) => setUsername(event.target.value)} disabled={submitting} required /></label>
+        <label htmlFor="login-password"><span>비밀번호</span><input id="login-password" name="password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} disabled={submitting} required /></label>
+        {error && <p className="local-login-error" role="alert">{error}</p>}
+        <button className="local-login-button" type="submit" disabled={submitting}>{submitting ? '로그인 중…' : '로그인'}<span aria-hidden="true">→</span></button>
+      </form>
+      <small>로컬 PC 전용 계정입니다. 외부 공개 환경에서는 사용하지 마세요.</small>
     </section>
   </main>;
 }
@@ -462,7 +491,7 @@ function PortalHome({ name, onOpen, onLogout }: {
 
       <div className="home-bottom-grid">
         <section className="agent-info-card"><i className="agent-info-icon">✓</i><div><strong>개인정보 없는 1회용 링크</strong><p>원본 토큰은 저장하지 않고 만료·철회·제출 후 재사용을 차단합니다.</p></div></section>
-        <section className="agent-info-card"><i className="agent-info-icon doctor-icon">D</i><div><strong>허용된 의료진만 접근</strong><p>카카오 회원번호 허용 목록과 서버 세션으로 관리 화면을 보호합니다.</p></div></section>
+        <section className="agent-info-card"><i className="agent-info-icon doctor-icon">D</i><div><strong>허용된 의료진만 접근</strong><p>등록된 로컬 계정과 서버 세션으로 관리 화면을 보호합니다.</p></div></section>
         <section className="active-encounter-card"><div><p className="eyebrow">ADMISSION REPORT</p><strong>입원 결과를 한곳에서</strong><span>검토된 문진과 입원 EMR을 연결해 결과 보고서를 확인합니다.</span></div><button onClick={() => onOpen('admissions')}>입원 결과 보기 →</button></section>
       </div>
     </section>

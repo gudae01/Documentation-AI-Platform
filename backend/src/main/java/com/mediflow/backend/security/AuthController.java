@@ -1,11 +1,8 @@
 package com.mediflow.backend.security;
 
 import org.springframework.security.core.Authentication;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.web.csrf.CsrfToken;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -13,26 +10,13 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
-    private final LoginRedirectService loginRedirectService;
-
-    public AuthController(LoginRedirectService loginRedirectService) {
-        this.loginRedirectService = loginRedirectService;
-    }
-
-    @GetMapping("/login")
-    public ResponseEntity<Void> login(@RequestParam String returnUrl, HttpServletRequest request) {
-        loginRedirectService.remember(request, returnUrl);
-        return ResponseEntity.status(HttpStatus.FOUND)
-                .header("Location", "/oauth2/authorization/kakao")
-                .build();
-    }
-
     @GetMapping("/me")
     public AuthResponse me(Authentication authentication) {
-        if (authentication == null || !(authentication.getPrincipal() instanceof KakaoPrincipal principal)) {
+        if (authentication == null || !authentication.isAuthenticated()
+                || authentication instanceof AnonymousAuthenticationToken) {
             return new AuthResponse(false, null);
         }
-        return new AuthResponse(true, principal.getNickname());
+        return new AuthResponse(true, authentication.getName());
     }
 
     @GetMapping("/csrf")

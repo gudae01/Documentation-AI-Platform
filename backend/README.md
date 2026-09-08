@@ -6,17 +6,15 @@ Java 17, Spring Boot 4.1, Spring Security, JPA, H2 기반의 파킨슨병 사전
 
 ```powershell
 $env:APP_DATA_ENCRYPTION_KEY="32자 이상 무작위 비밀값"
-$env:KAKAO_REST_API_KEY="카카오 REST API 키"
-$env:KAKAO_CLIENT_SECRET="카카오 Client Secret"
-$env:CLINICIAN_KAKAO_IDS="123456789,987654321"
-$env:FRONTEND_URL="http://localhost:5173"
 $env:CORS_ALLOWED_ORIGINS="http://localhost:5173"
 $env:QUESTIONNAIRE_PUBLIC_URL="http://localhost:5173"
 .\gradlew.bat bootRun
 ```
 
 - 암호화 키가 없거나 32자 미만이면 서버는 시작하지 않습니다.
-- 허용 목록에 없는 카카오 계정은 의료진 권한을 받지 못합니다.
+- 기본 로그인은 아이디 `root`, 비밀번호 `root`이며 카카오 인증은 사용하지 않습니다. 비밀번호는 서버의 BCrypt 해시와 비교하고, 성공한 계정에만 의료진 권한과 세션을 부여합니다.
+- `LOCAL_LOGIN_USERNAME`, `LOCAL_LOGIN_PASSWORD`로 고정 계정을 변경할 수 있습니다. 기본 계정은 로컬 PC 전용이며 외부에 공개하지 마세요.
+- 직접 실행 시 서버는 기본 `127.0.0.1`에 바인딩합니다. `SERVER_ADDRESS`를 바꾸거나 리버스 프록시·터널로 외부에 노출하지 마세요.
 - 이름, 생년월일 앞 6자리, 연락처, 문진/EMR 원문, 보고서는 AES-256-GCM으로 저장합니다.
 - 링크 토큰은 256비트 난수이며 DB에는 SHA-256 해시만 저장합니다.
 - 링크는 만료·철회·제출 후 사용할 수 없습니다.
@@ -48,7 +46,8 @@ $env:QUESTIONNAIRE_DELIVERY_WEBHOOK_TOKEN="웹훅 Bearer 토큰"
 |---|---|---|---|
 | GET | `/api/auth/me` | 공개 | 로그인 상태 |
 | GET | `/api/auth/csrf` | 공개 | CSRF 토큰 |
-| GET | `/api/auth/login` | 공개 | 허용된 프론트 주소를 세션에 보관하고 카카오 로그인 시작 |
+| POST | `/api/auth/login` | 공개·CSRF 필요 | URL 인코딩된 `username`, `password` 검증. 성공 204, 실패 401 |
+| POST | `/api/auth/logout` | CSRF 필요 | 세션 종료, 성공 204 |
 | POST | `/api/pd/questionnaire-invitations` | 의료진 | 링크 생성·전송 |
 | GET | `/api/pd/questionnaire-invitations` | 의료진 | 링크 상태 목록 |
 | DELETE | `/api/pd/questionnaire-invitations/{id}` | 의료진 | 링크 철회 |
@@ -67,6 +66,8 @@ $env:QUESTIONNAIRE_DELIVERY_WEBHOOK_TOKEN="웹훅 Bearer 토큰"
 | GET | `/api/pd/audit-logs` | 의료진 | 감사로그 조회 |
 
 변경 요청은 `/api/auth/csrf`가 반환한 헤더 이름과 토큰을 함께 전송해야 합니다.
+
+브라우저는 로그인 전 CSRF 토큰·쿠키를 받아 로그인 요청에 함께 전송해야 합니다. 로그인 성공 시 세션 ID를 변경하고 기존 CSRF 토큰을 초기화하므로 다음 변경 요청 전에 새 토큰을 받아야 합니다. 로그아웃 뒤에도 이전 CSRF 캐시를 사용하지 않습니다.
 
 ## H2
 
@@ -96,4 +97,4 @@ docker compose --env-file .env.production -f compose.production.yml up -d
 
 STT 컨테이너는 외부 포트를 열지 않으며 백엔드만 내부 Docker 네트워크로 접근합니다. 최초 전사 요청에서는 Whisper 모델을 `mediflow-stt-models` 볼륨에 내려받기 때문에 시간이 더 걸릴 수 있습니다. 화자 분리 모델은 STT 이미지에 포함되며 `DIARIZATION_NUM_SPEAKERS=0`이면 화자 수를 자동 추정합니다. 진료실 환경에 맞춰 `DIARIZATION_THRESHOLD`를 조정할 수 있습니다. 기본 전사 제한시간은 15분(`STT_READ_TIMEOUT_SECONDS=900`)입니다. 녹음 원본은 STT 컨테이너의 임시 파일로만 처리하고 요청 완료 후 삭제합니다.
 
-카카오 REST 키, Client Secret, 데이터 암호화 키, 메시징 웹훅 토큰을 저장소나 Docker 이미지에 넣지 마세요. 카카오 Redirect URI에는 실제 백엔드 HTTPS 주소의 `/login/oauth2/code/kakao`를 등록해야 합니다.
+변경한 로그인 비밀번호, 데이터 암호화 키, 메시징 웹훅 토큰을 저장소나 Docker 이미지에 넣지 마세요. Compose의 컨테이너 내부 바인딩은 `0.0.0.0`이지만 호스트의 `BACKEND_BIND_ADDRESS`는 `127.0.0.1`로 유지해야 합니다. 기본 `root / root` 계정을 기존 공개 API 도메인에 연결하지 마세요. 폐쇄형 사용에는 모델·의존성 사전 준비와 외부 통신 점검이 추가로 필요합니다.

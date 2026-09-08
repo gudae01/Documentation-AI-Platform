@@ -146,7 +146,14 @@
 .login-card h1 { margin: 0; color: #16313a; font-size: 32px; letter-spacing: -.04em; }
 .login-card > p:not(.eyebrow) { margin: 14px 0 24px; color: #6f8084; font-size: 14px; line-height: 1.7; }
 .login-card > small { display: block; margin-top: 16px; color: #8a989b; font-size: 11px; }
-.kakao-login { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 14px 17px; border-radius: 10px; background: #fee500; color: #191919; text-decoration: none; font-weight: 800; }
+.local-login-form { display: grid; gap: 16px; text-align: left; }
+.local-login-form label { display: grid; gap: 7px; color: #38535b; font-size: 13px; font-weight: 700; }
+.local-login-form input { min-height: 46px; }
+.local-login-form input:focus-visible { outline: 2px solid #16887c; outline-offset: 2px; }
+.local-login-button { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 14px 17px; border: 0; border-radius: 10px; background: #16887c; color: white; font-weight: 800; }
+.local-login-button:focus-visible { outline: 2px solid #18333c; outline-offset: 3px; }
+.local-login-button:disabled { cursor: wait; opacity: .65; }
+.local-login-error { margin: 0; padding: 10px 12px; border: 1px solid #e4b5a8; border-radius: 8px; background: #fff4ef; color: #963e31; font-size: 13px; line-height: 1.5; }
 
 @media (max-width: 1000px) {
   .invite-form, .search-form, .split-layout { grid-template-columns: 1fr; }

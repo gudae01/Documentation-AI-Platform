@@ -3,9 +3,6 @@ const browserBackend = typeof window !== 'undefined' && !window.location.hostnam
   ? `${window.location.protocol}//${window.location.hostname}:8080`
   : 'http://localhost:8080';
 const BASE = runtimeEnv.VITE_API_BASE_URL || browserBackend;
-const LOGIN_RETURN_URL = typeof window !== 'undefined'
-  ? `${window.location.origin}${window.location.pathname}`
-  : '';
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -111,9 +108,28 @@ async function download(path: string): Promise<Blob> {
 
 export const pdApi = {
   me: () => call<AuthResponse>('/api/auth/me'),
-  loginUrl: `${BASE}/api/auth/login?returnUrl=${encodeURIComponent(LOGIN_RETURN_URL)}`,
+  login: async (username: string, password: string) => {
+    csrf = null;
+    try {
+      await call<void>('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ username, password }),
+      });
+      return await call<AuthResponse>('/api/auth/me');
+    } finally {
+      // Authentication rotates the session and clears its previous CSRF token.
+      csrf = null;
+    }
+  },
   questionnaireEventsUrl: `${BASE}/api/pd/questionnaire-events`,
-  logout: () => call<void>('/api/auth/logout', { method: 'POST' }),
+  logout: async () => {
+    try {
+      await call<void>('/api/auth/logout', { method: 'POST' });
+    } finally {
+      csrf = null;
+    }
+  },
   invite: (body: object) => call<Invite>('/api/pd/questionnaire-invitations', {
     method: 'POST', body: JSON.stringify(body),
   }),

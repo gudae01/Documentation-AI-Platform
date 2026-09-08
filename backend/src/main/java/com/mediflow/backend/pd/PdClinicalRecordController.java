@@ -1,7 +1,6 @@
 package com.mediflow.backend.pd;
 
 import com.mediflow.backend.audit.AuditService;
-import com.mediflow.backend.security.KakaoPrincipal;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -41,8 +40,7 @@ public class PdClinicalRecordController {
                             @Valid @RequestBody ApproveRequest request,
                             Authentication authentication,
                             HttpServletRequest servletRequest) {
-        String clinician = authentication.getPrincipal() instanceof KakaoPrincipal principal
-                ? principal.getNickname() : "의료진";
+        String clinician = authentication.getName();
         PdClinicalRecord saved = service.approve(questionnaireId, request, clinician);
         audit.record(authentication, servletRequest, "APPROVE", "PD_CLINICAL_RECORD", saved.getId());
         changePublisher.publish(questionnaireId);

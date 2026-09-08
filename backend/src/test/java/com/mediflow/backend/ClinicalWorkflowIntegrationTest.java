@@ -18,7 +18,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oauth2Login;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -50,7 +50,7 @@ class ClinicalWorkflowIntegrationTest {
     }
 
     @Test
-    void protectedApiRequiresKakaoLogin() throws Exception {
+    void protectedApiRequiresLogin() throws Exception {
         mockMvc.perform(get("/api/patients/P-TEST-0001"))
                 .andExpect(status().isUnauthorized());
     }
@@ -145,8 +145,7 @@ class ClinicalWorkflowIntegrationTest {
     }
 
     private org.springframework.test.web.servlet.request.RequestPostProcessor login() {
-        return oauth2Login()
-                .attributes(attributes -> attributes.put("id", 123456789L));
+        return user("root").roles("CLINICIAN");
     }
 
     private String extractId(String json) {

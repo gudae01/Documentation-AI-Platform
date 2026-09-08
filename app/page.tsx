@@ -2261,8 +2261,8 @@ function ClinicalWorkspace({ nickname, onLogout }: { nickname: string; onLogout:
               <div><dt>저장 시간</dt><dd>{formatDraftSavedAt(draftPrompt.savedAt)}</dd></div>
             </dl>
             {(draftPrompt.audioFileName || draftPrompt.autonomicFileName) && <p className="draft-file-notice">첨부 파일은 보안을 위해 브라우저에 저장하지 않습니다. 이어서 작성한 뒤 필요한 파일을 다시 선택해 주세요.</p>}
-            <div className="draft-account-plan"><i>K</i><span><strong>카카오 의료진 로그인</strong><small>허용된 의료진 카카오 계정으로 인증한 사용자만 기록 화면을 이용합니다.</small></span></div>
-            <p className="draft-local-limit">현재 GitHub Pages 시제품은 이 브라우저에만 임시 저장됩니다. 실제 기기 간 공유에는 카카오 로그인과 서버 저장소 연결이 필요합니다.</p>
+            <div className="draft-account-plan"><i>ID</i><span><strong>로컬 의료진 로그인</strong><small>등록된 아이디와 비밀번호로 인증한 사용자만 기록 화면을 이용합니다.</small></span></div>
+            <p className="draft-local-limit">작성 중인 내용은 이 브라우저에만 임시 저장됩니다. 최종 승인한 진료기록은 연결된 서버에 저장됩니다.</p>
             <footer><button onClick={() => { setDeferredDraft(draftPrompt); setDeferredDraftPosition(null); setDraftPrompt(null); }}>나중에</button><button onClick={() => restoreEncounterDraft(draftPrompt)}>확인하고 이어서 작성 <b>→</b></button></footer>
           </section>
         </div>
@@ -2287,7 +2287,7 @@ function AuthenticatedApplication() {
   if (checking) {
     return <main className="login-gate"><section className="login-card"><p className="eyebrow">SECURE SESSION</p><h1>로그인 상태 확인 중</h1></section></main>;
   }
-  if (!auth?.authenticated) return <LoginGate />;
+  if (!auth?.authenticated) return <LoginGate onLogin={setAuth} />;
 
   const logout = async () => {
     await pdApi.logout();

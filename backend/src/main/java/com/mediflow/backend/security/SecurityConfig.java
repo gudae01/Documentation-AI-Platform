@@ -11,9 +11,15 @@ import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
-import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.util.Assert;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -24,13 +30,21 @@ import java.util.Arrays;
 @EnableMethodSecurity
 public class SecurityConfig {
 
-    private final KakaoOAuth2UserService kakaoOAuth2UserService;
-    private final LoginRedirectService loginRedirectService;
+    @Bean
+    PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
 
-    public SecurityConfig(KakaoOAuth2UserService kakaoOAuth2UserService,
-                          LoginRedirectService loginRedirectService) {
-        this.kakaoOAuth2UserService = kakaoOAuth2UserService;
-        this.loginRedirectService = loginRedirectService;
+    @Bean
+    UserDetailsService localUsers(PasswordEncoder passwordEncoder,
+                                 @Value("${app.local-login.username}") String username,
+                                 @Value("${app.local-login.password}") String password) {
+        Assert.hasText(username, "로컬 로그인 아이디가 필요합니다.");
+        Assert.hasText(password, "로컬 로그인 비밀번호가 필요합니다.");
+        return new InMemoryUserDetailsManager(User.withUsername(username)
+                .password(passwordEncoder.encode(password))
+                .roles("CLINICIAN")
+                .build());
     }
 
     @Bean
@@ -51,16 +65,21 @@ public class SecurityConfig {
                         .csrfTokenRepository(csrfRepository)
                         .ignoringRequestMatchers("/h2-console/**"))
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/", "/error", "/api/auth/**", "/api/public/questionnaires/**", "/oauth2/**", "/login/**", "/h2-console/**")
+                        .requestMatchers("/", "/error", "/api/auth/**", "/api/public/questionnaires/**", "/h2-console/**")
                         .permitAll()
                         .anyRequest().authenticated())
-                .exceptionHandling(exceptions -> exceptions
-                        .defaultAuthenticationEntryPointFor(
-                                apiEntryPoint, PathPatternRequestMatcher.pathPattern("/api/**")))
-                .oauth2Login(oauth -> oauth
-                        .userInfoEndpoint(userInfo -> userInfo.userService(kakaoOAuth2UserService))
-                        .successHandler((request, response, authentication) ->
-                                response.sendRedirect(loginRedirectService.consume(request))))
+                .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(apiEntryPoint))
+                .formLogin(form -> form
+                        .loginPage("/api/auth/login")
+                        .loginProcessingUrl("/api/auth/login")
+                        .successHandler((request, response, authentication) -> response.setStatus(204))
+                        .failureHandler((request, response, exception) -> {
+                            response.setStatus(401);
+                            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                            response.setCharacterEncoding("UTF-8");
+                            response.getWriter().write("{\"message\":\"아이디 또는 비밀번호가 올바르지 않습니다.\"}");
+                        }))
+                .requestCache(cache -> cache.disable())
                 .logout(logout -> logout
                         .logoutUrl("/api/auth/logout")
                         .logoutSuccessHandler((request, response, authentication) -> response.setStatus(204))
